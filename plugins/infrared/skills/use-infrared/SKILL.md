@@ -23,6 +23,16 @@ Most users bring their own data (BIM/Rhino/IFC/GeoJSON footprints, custom landsc
 | Weather data / EPW | [04-weather-data.md](references/04-weather-data.md) |
 | Bring your own buildings / trees / ground | [byo-inputs.md](references/byo-inputs.md) |
 
+## Execution styles
+
+Pick the entry point first — it shapes blocking, webhooks, and persistence. Full rule: [async-and-jobs.md](references/async-and-jobs.md).
+
+| When | Entry point |
+|---|---|
+| Sync, blocks until result | `client.run_area_and_wait()` → `AreaResult` |
+| Async, returns `AreaSchedule` (use webhook or `check_area_state`); land via `client.merge_area_jobs(schedule)` once terminal | `client.run_area()` → `AreaSchedule` |
+| Single tile, custom polling | `client.analyses.execute()` + `client.jobs.*` → `Job` |
+
 ## Choosing an analysis
 
 | User wants to know… | Analysis | Payload + response | Result interpretation |
@@ -35,16 +45,6 @@ Most users bring their own data (BIM/Rhino/IFC/GeoJSON footprints, custom landsc
 | Solar energy on a surface? | `solar-radiation` | [analyses/06-solar-radiation.md](references/analyses/06-solar-radiation.md) | [interpretation/solar-results.md](references/interpretation/solar-results.md) |
 | Outdoor thermal comfort? | `thermal-comfort-index` (UTCI) | [analyses/07-thermal-comfort-utci.md](references/analyses/07-thermal-comfort-utci.md) | [interpretation/thermal-results.md](references/interpretation/thermal-results.md) |
 | % of time uncomfortable per year? | `thermal-comfort-statistics` (TCS) | [analyses/08-thermal-comfort-statistics.md](references/analyses/08-thermal-comfort-statistics.md) | [interpretation/thermal-results.md](references/interpretation/thermal-results.md) |
-
-## Execution styles
-
-Pick the entry point first — it shapes blocking, webhooks, and persistence. Full rule: [async-and-jobs.md](references/async-and-jobs.md).
-
-| When | Entry point |
-|---|---|
-| Sync, blocks until result | `client.run_area_and_wait()` → `AreaResult` |
-| Async, returns `AreaSchedule` (use webhook or `check_area_state`); land via `client.merge_area_jobs(schedule)` once terminal | `client.run_area()` → `AreaSchedule` |
-| Single tile, custom polling | `client.analyses.execute()` + `client.jobs.*` → `Job` |
 
 ## Cross-cutting topics
 

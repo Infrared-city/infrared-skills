@@ -2,6 +2,21 @@
 
 Every analysis returns the same `AreaResult` shape. These conventions hold for wind, solar, and thermal alike — once you know them, every grid reads the same way.
 
+## Quick lookup — what does each cell mean?
+
+| Analysis | Cell unit | Typical range | Meaning |
+|---|---|---|---|
+| `wind-speed` | m/s | 0–30 | Steady-state wind magnitude near pedestrian level for one (speed, direction) inflow |
+| `pedestrian-wind-comfort` | comfort class (int 0–5) | 0–5 | Categorical class per chosen criterion (e.g. Lawson LDDC: A/B/C/D/E + S for unsafe) |
+| `daylight-availability` | % of analysed time | 0–100 | sDA-like fraction with sufficient daylight per pixel |
+| `direct-sun-hours` | hours | 0–(period length) | Cumulative un-occluded sun hours over the `TimePeriod` |
+| `sky-view-factors` | fraction | 0–1 | Hemisphere visible from the cell (1 = fully open, 0 = obstructed) |
+| `solar-radiation` | kWh/m² | 0–~hundreds | Cumulative shortwave irradiance per pixel over the `TimePeriod` |
+| `thermal-comfort-index` (UTCI) | °C | -40 to 50 | Felt temperature combining air, MRT, humidity, wind |
+| `thermal-comfort-statistics` (TCS) | % of time | 0–100 | Fraction of the season ∩ hours window in the chosen `TcsSubtype` band |
+
+For per-analysis class breaks (e.g. UTCI stress thresholds, PWC class semantics), see `wind-results.md`, `solar-results.md`, `thermal-results.md`.
+
 ## The grid
 
 `result.merged_grid` is a 2-D `numpy.ndarray`.

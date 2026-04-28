@@ -158,6 +158,8 @@ print(state.status, state.succeeded, state.failed, state.is_complete)
 
 `AreaState` fields: `status`, `job_states` (`dict[str, JobStatus]`), `succeeded`, `failed`, `running`, `pending`, `total`, `is_complete` (`True` only when `total > 0` and no jobs are non-terminal). Loop on `is_complete` with your own sleep.
 
+**Same shape works for sync timeouts.** When `run_area_and_wait()` raises `AreaTimeoutError`, the exception's `.area_state` attribute is the same `AreaState` shape — so the recovery code you write for async polling also handles sync timeouts. Catch the timeout, inspect `e.area_state.succeeded` / `e.area_state.failed` / `e.area_state.is_complete`, and (if jobs are still running) keep checking via `client.check_area_state(schedule)` from the underlying schedule. See `08-error-handling.md`.
+
 ### Materialise results
 
 Once all jobs in a schedule are terminal, `client.merge_area_jobs(schedule)` downloads each succeeded job's payload, merges per-tile grids into one clipped grid, and returns the same `AreaResult` shape that `run_area_and_wait()` would. Failed and skipped jobs are accounted for via `result.failed_jobs` / `result.skipped_jobs`.

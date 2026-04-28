@@ -83,7 +83,22 @@ Cell pitch is 1m. Wind merges from centre crops; solar tiles butt edge-to-edge w
 | `min_legend`     | `float\|None`     | Legend min across tiles (use as zmin)      |
 | `max_legend`     | `float\|None`     | Legend max across tiles (use as zmax)      |
 
-`result.to_dict()` serializes for JSON (numpy -> nested lists, NaN -> `None`).
+`result.to_dict()` serializes for JSON (numpy -> nested lists, NaN -> `None`) — this is also the shape `client.weather.gen_grid_image()` expects.
+
+## Why building coordinates differ per tile
+
+When you pass `buildings` to `run_area_and_wait()` / `run_area()`, the same building can appear in multiple tiles with **different coordinate values** — that is correct. For each tile the SDK:
+
+1. Computes the tile's **inference SW offset** relative to the polygon bbox SW (based on the tile's row/col and the step size).
+2. Expands the tile's bbox by the **context margin** (0 m for wind, 77 m for solar) — this expanded area is only used to *select* which buildings to include.
+3. Tests each building's bbox against the expanded selection area.
+4. Deep-copies the building and **subtracts the inference tile's SW offset** from its coordinates, converting from polygon-bbox-SW frame to tile-SW frame.
+
+Building coordinates are always relative to the **inference square** (512×512m), not the context square. A building caught only by the solar context margin sits outside 0–512 m, so its tile-frame x or y will be **negative** — the API needs the position relative to the inference origin to compute its shadow / wind effect. Don't filter negative coordinates out.
+
+## Concurrency and per-call caps
+
+`max_workers` (default 20) is the cap **per `run_area*` call**, not per tile or per payload. A multi-payload call like `run_area_and_wait([8 payloads], polygon)` over a 24-tile polygon still runs 20 concurrent submissions, not 192 — submissions queue against the same pool. To exceed it, instantiate multiple `InfraredClient` objects in separate threads or processes (each with its own pool). The backend also enforces an account-level concurrency ceiling (~100 simultaneous tile jobs by default); contact support if you regularly need more.
 
 ## Pitfalls
 
