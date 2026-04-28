@@ -230,7 +230,7 @@ def _gm_cache_path(area_name: str, polygon: dict) -> str:
 
 def _load_cached_ground_materials(area_name: str, polygon: dict):
     """Return cached AreaGroundMaterials or None."""
-    from infrared_sdk.layers.ground_materials import AreaGroundMaterials
+    from infrared_sdk.ground_materials.types import AreaGroundMaterials
 
     path = _gm_cache_path(area_name, polygon)
     if not os.path.exists(path):

@@ -40,8 +40,8 @@ from infrared_sdk.tiling.types import AreaResult
 from db import EXPECTED_ANALYSIS_TYPES, FRIENDLY_NAMES
 
 if TYPE_CHECKING:
-    from infrared_sdk.layers.ground_materials import AreaGroundMaterials
-    from infrared_sdk.layers.vegetation import AreaVegetation
+    from infrared_sdk.ground_materials.types import AreaGroundMaterials
+    from infrared_sdk.vegetation.types import AreaVegetation
 
 logger = logging.getLogger(__name__)
 

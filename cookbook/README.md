@@ -5,7 +5,7 @@ Runnable Python recipes for the [Infrared SDK](https://pypi.org/project/infrared
 | # | Recipe | What it shows |
 |---|---|---|
 | 01 | [`01-wind/`](./01-wind/) | Wind-speed analysis over a polygon, plotted |
-| 02 | [`02-utci-vienna/`](./02-utci-vienna/) | End-to-end UTCI thermal-comfort analysis (Munich) |
+| 02 | [`02-utci-munich/`](./02-utci-munich/) | End-to-end UTCI thermal-comfort analysis (Munich) |
 | 03 | [`03-multi-analysis-vienna/`](./03-multi-analysis-vienna/) | All 8 analyses in one run, multi-panel plot |
 | 04 | [`04-vegetation-ground/`](./04-vegetation-ground/) | Fetch-once-reuse pattern for layers across runs |
 | 05 | [`05-area-tiling/`](./05-area-tiling/) | Multi-tile polygon walkthrough with tile boundaries overlaid |
