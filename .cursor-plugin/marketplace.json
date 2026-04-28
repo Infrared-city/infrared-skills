@@ -1,0 +1,17 @@
+{
+  "name": "infrared-skills",
+  "description": "Agent skills for the Infrared SDK — urban microclimate analysis (wind, solar, thermal comfort).",
+  "owner": {
+    "name": "Infrared City",
+    "email": "support@infrared.city",
+    "url": "https://infrared.city"
+  },
+  "plugins": [
+    {
+      "name": "infrared",
+      "source": "./plugins/infrared",
+      "description": "Use the Infrared SDK to run urban microclimate simulations and interpret results.",
+      "category": "productivity"
+    }
+  ]
+}
