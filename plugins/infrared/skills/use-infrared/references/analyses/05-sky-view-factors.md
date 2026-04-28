@@ -22,13 +22,13 @@ result = client.run_area_and_wait(payload, polygon, buildings=area.buildings)
 
 ## Pitfalls
 
-- Geometry-only: do NOT pass `time_period` or weather arrays — they will be silently ignored or rejected.
+- Geometry-only: do NOT pass `time_period` or weather arrays — payloads use `extra="forbid"`, so unknown fields are rejected by the Pydantic validator with a `ValidationError`.
 - `latitude` / `longitude` are OPTIONAL. SVF inference itself ignores them; they exist so the vegetation validator can build a reference point. Set them only if you inject vegetation.
 - SVF is a static building-shadowing metric — it does not change with season or weather. One run covers all conditions.
 - A common downstream input to other thermal/comfort post-processing — but the SDK analysis itself returns only SVF.
 
 ## See also
 
-- For result interpretation -> `interpretation/svf-results.md`
+- For result interpretation -> `interpretation/solar-results.md` (SVF section)
 - For polygon/buildings setup -> `02-geometry.md`
-- For vegetation injection -> `06-vegetation.md`
+- For vegetation injection -> `byo-inputs.md`

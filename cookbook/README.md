@@ -2,6 +2,8 @@
 
 Runnable Python recipes for the [Infrared SDK](https://pypi.org/project/infrared-sdk/). Clone, set `INFRARED_API_KEY`, and run.
 
+> **Note (2026-04-28):** the SDK has a workshop Jupyter notebook + 6 numbered example files coming on `feat/quickstart-v2`, plus a major README rewrite (PR #80 `chores/jobs-and-area-docs`) that introduces the canonical `client.analyses.execute()` / `client.jobs.*` / `AreaSchedule` async pattern. Once those land, several recipes here will be superseded — treat the current set as best-effort against current `staging`, and expect the cookbook to re-shuffle on the next sync.
+
 | # | Recipe | What it shows |
 |---|---|---|
 | 01 | [`01-wind/`](./01-wind/) | Wind-speed analysis over a polygon, plotted |

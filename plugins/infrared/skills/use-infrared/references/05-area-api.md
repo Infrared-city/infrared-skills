@@ -95,6 +95,6 @@ Cell pitch is 1m. Wind merges from centre crops; solar tiles butt edge-to-edge w
 
 ## See also
 
-- `references/workflows/webhooks.md` — receive job events instead of polling
-- `references/workflows/images.md` — render the merged grid to PNG
-- `references/workflows/errors.md` — `AreaTimeoutError`, `JobFailedError`
+- `06-webhooks.md` — receive job events instead of polling
+- `07-images.md` — render the merged grid to PNG
+- `08-error-handling.md` — `AreaTimeoutError`, `JobFailedError`

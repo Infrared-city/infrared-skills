@@ -46,6 +46,7 @@ license: Apache-2.0
 | Webhooks / signature verification / events | [06-webhooks.md](references/06-webhooks.md) |
 | Image generation (PNG output) | [07-images.md](references/07-images.md) |
 | Errors / exception hierarchy | [08-error-handling.md](references/08-error-handling.md) |
+| Result grid layout / scenario diffs / GeoTIFF export | [interpretation/grid-conventions.md](references/interpretation/grid-conventions.md) |
 
 ## Invariants
 

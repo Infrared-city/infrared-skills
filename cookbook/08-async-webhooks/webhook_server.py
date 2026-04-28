@@ -7,7 +7,7 @@ an area complete.
 
 Usage::
 
-    python demos/areas_demo_async/webhook_server.py
+    python webhook_server.py
 """
 
 from __future__ import annotations

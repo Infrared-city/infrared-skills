@@ -5,7 +5,7 @@ inject into a simulation, and for sanity-checking polygon coverage.
 
 Usage::
 
-    uv run python demos/demo_fetch_layers.py
+    python fetch_layers.py
 
 Requires INFRARED_API_KEY in environment or a .env file in the repo root.
 """

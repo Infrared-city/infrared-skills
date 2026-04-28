@@ -36,10 +36,12 @@ wind_fields = extract_weather_fields(weather_data, ["windSpeed", "windDirection"
 | --------------------- | ----------------------------------------------------------------------------------------------- |
 | Pedestrian Wind Comfort | `windSpeed`, `windDirection`                                                                  |
 | Solar Radiation       | `diffuseHorizontalRadiation`, `directNormalRadiation`                                           |
-| UTCI                  | `dryBulbTemperature`, `relativeHumidity`, `windSpeed`, `diffuseHorizontalRadiation`, `directNormalRadiation` |
+| UTCI                  | `horizontalInfraredRadiationIntensity`, `diffuseHorizontalRadiation`, `directNormalRadiation`, `globalHorizontalRadiation`, `dryBulbTemperature`, `windSpeed`, `relativeHumidity` (7 fields) |
 | Thermal Comfort Stats | same as UTCI                                                                                    |
 
 For UTCI / TCS / Solar Radiation, prefer `<Request>.from_weatherfile_payload(...)` — it pulls the right fields automatically from the `weather_data` list.
+
+**Import paths:** `UtciModelRequest` and `SolarRadiationModelRequest` are re-exported at the package root, but the request class with `from_weatherfile_payload` for thermal-comfort statistics is `TcsModelRequest` (deeper import: `from infrared_sdk.analyses.types import TcsModelRequest, TcsModelBaseRequest`).
 
 ## Pitfalls
 
@@ -52,5 +54,5 @@ For UTCI / TCS / Solar Radiation, prefer `<Request>.from_weatherfile_payload(...
 ## See also
 
 - `03-time-period.md` — cascade-filter behaviour
-- `analyses/pwc.md` — PWC uses wind arrays
-- `analyses/utci.md` — UTCI uses the full weather bundle
+- `analyses/02-pedestrian-wind-comfort.md` — PWC uses wind arrays
+- `analyses/07-thermal-comfort-utci.md` — UTCI uses the full weather bundle

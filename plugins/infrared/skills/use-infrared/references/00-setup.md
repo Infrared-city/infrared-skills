@@ -38,7 +38,7 @@ The SDK sends `X-Api-Key: <your-key>` on every request. Get a key at [infrared.c
 - Do not commit `.env` — keep `INFRARED_API_KEY` out of source control.
 - The package name is `infrared-sdk` (PyPI) but the import is `infrared_sdk` (snake_case).
 - `dotenv` is loaded best-effort; if it is not installed, set the env var manually before running.
-- `InfraredClient()` without an env var or explicit `api_key` will raise `RuntimeError: Missing required environment variable: INFRARED_API_KEY`.
+- `InfraredClient()` without an env var or explicit `api_key` raises `ValueError: api_key is required. Pass it directly or set the INFRARED_API_KEY environment variable.`
 
 ## See also
 

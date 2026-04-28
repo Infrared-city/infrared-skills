@@ -12,7 +12,7 @@ how to break the pipeline into discrete steps for custom logic:
 
 Usage::
 
-    uv run python demos/demo_advanced_usage.py
+    python advanced_usage.py
 """
 
 import json

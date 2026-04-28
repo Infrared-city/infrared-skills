@@ -6,8 +6,8 @@ Plotly HTML file per area.
 
 Usage::
 
-    python demos/areas_demo_async/generate_visualizations.py
-    python demos/areas_demo_async/generate_visualizations.py --area barcelona_gracia
+    python generate_visualizations.py
+    python generate_visualizations.py --area barcelona_gracia
 """
 
 from __future__ import annotations

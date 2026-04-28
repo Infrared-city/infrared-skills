@@ -53,4 +53,4 @@ with InfraredClient() as client:
 
 - `02-geometry.md` — polygon format and validation
 - `03-time-period.md` — for analyses that need a TimePeriod
-- `analyses/wind-speed.md` — full wind-speed parameter reference
+- `analyses/01-wind-speed.md` — full wind-speed parameter reference

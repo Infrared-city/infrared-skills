@@ -6,7 +6,7 @@ as a Plotly heatmap.
 
 Usage::
 
-    uv run python demos/demo_utci_analysis.py
+    python utci_analysis.py
 
 Requires INFRARED_API_KEY in environment or a .env file in the repo root.
 """

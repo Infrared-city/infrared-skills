@@ -37,7 +37,7 @@ Failures raise `PolygonValidationError` (a `ValueError` subclass).
 - GeoJSON order is `[lon, lat]` — not `[lat, lon]`. Mixing them up is the most common source of "polygon outside expected area" bugs.
 - Numpy arrays / float32 scalars are coerced to plain Python lists/floats automatically (so shapely / GeoPandas exports work).
 - Zero-area polygons (collinear or duplicate vertices) are rejected.
-- Hard cap of ~100 non-empty tiles per run; pass `max_tiles_override` to lift it. A single tile is 512 x 512 m, so ~5 km on a side is the practical ceiling.
+- Hard cap of 100 non-empty tiles per run; pass `max_tiles_override` to lift it. A single tile is 512 × 512 m, so ~5 km on a side is the practical ceiling.
 - `client.preview_area(polygon)` returns `tile_count`, `estimated_time_s`, and `estimated_cost_tokens` — always preview before running large polygons.
 
 ## See also

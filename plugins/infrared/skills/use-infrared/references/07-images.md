@@ -30,12 +30,12 @@ Pass them through alongside `grid` and `analysis_type` when relevant.
 
 ## Pitfalls
 
-- Pass `result.merged_grid.tolist()`, not the raw numpy array — the request body is JSON and numpy floats / NaN do not serialize directly. `to_list()` on a `TiledResult` (or `to_dict()` on `AreaResult`) does the NaN -> `None` conversion automatically.
+- Pass `result.merged_grid.tolist()`, not the raw numpy array — the request body is JSON and numpy floats / NaN do not serialize directly. `result.to_dict()` does the NaN -> `None` conversion automatically if you need the dict form.
 - Without `analysis_type`, the server falls back to a generic palette — colours will not match heatmaps in other tools (e.g. Plotly using `min_legend`/`max_legend`).
 - Output is a fixed PNG; for vector / interactive plots, render locally from `merged_grid` instead.
 - The endpoint is part of the weather service (`client.weather`), not `client.analyses` — don't mix them up.
 
 ## See also
 
-- `references/workflows/area-api.md` — `min_legend` / `max_legend` for matched local plots
-- `references/analyses/` — analysis-type identifiers accepted by `gen_grid_image`
+- `05-area-api.md` — `min_legend` / `max_legend` for matched local plots
+- `analyses/` — analysis-type identifiers accepted by `gen_grid_image`

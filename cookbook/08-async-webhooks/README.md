@@ -40,7 +40,7 @@ submit_analyses.py          Infrared API          webhook_server.py
 ## Project structure
 
 ```
-demos/areas_demo_async/
+cookbook/08-async-webhooks/
   .env.example        # Template for environment variables
   .env                # Your local config (git-ignored)
   requirements.txt    # Python dependencies
@@ -55,24 +55,24 @@ demos/areas_demo_async/
 
 ### 1. Install dependencies
 
-From the repository root:
+From this recipe directory:
 
 ```bash
-pip install -e .
-pip install -r demos/areas_demo_async/requirements.txt
+pip install infrared-sdk
+pip install -r requirements.txt
 ```
 
 ### 2. Configure environment variables
 
 Copy the example file and fill in your values. The `.env` file **must** live
-inside `demos/areas_demo_async/` -- both scripts load it from their own
+inside `cookbook/08-async-webhooks/` -- both scripts load it from their own
 directory:
 
 ```bash
-cp demos/areas_demo_async/.env.example demos/areas_demo_async/.env
+cp .env.example .env
 ```
 
-Edit `demos/areas_demo_async/.env` with your credentials.
+Edit `.env` with your credentials.
 
 ### Environment variables
 
@@ -105,12 +105,12 @@ WEBHOOK_URL=https://<your-subdomain>.ngrok-free.app/webhook
 
 ## Usage
 
-You need **two terminals**. Both commands should be run from the repository root.
+You need **two terminals**. Both commands should be run from `cookbook/08-async-webhooks/`.
 
 ### Terminal 1 -- Start the webhook server
 
 ```bash
-python demos/areas_demo_async/webhook_server.py
+python webhook_server.py
 ```
 
 The server listens on `0.0.0.0:8000` (or the port set via `PORT`). It will:
@@ -125,7 +125,7 @@ tile results and write Plotly HTML files.
 ### Terminal 2 -- Submit analyses
 
 ```bash
-python demos/areas_demo_async/submit_analyses.py
+python submit_analyses.py
 ```
 
 This script will:
@@ -142,9 +142,9 @@ This script will:
 Once jobs have reached a terminal status, merge tile results and write HTML:
 
 ```bash
-python demos/areas_demo_async/generate_visualizations.py
+python generate_visualizations.py
 # or target one area:
-python demos/areas_demo_async/generate_visualizations.py --area barcelona_gracia
+python generate_visualizations.py --area barcelona_gracia
 ```
 
 ### Expected output
@@ -152,7 +152,7 @@ python demos/areas_demo_async/generate_visualizations.py --area barcelona_gracia
 You will find HTML files in the `outputs/` directory:
 
 ```bash
-ls demos/areas_demo_async/outputs/
+ls outputs/
 # barcelona_gracia_outputs.html
 ```
 
@@ -177,13 +177,13 @@ Each file is a self-contained Plotly page with 4 panels:
 To reset and start fresh, delete the SQLite database:
 
 ```bash
-rm demos/areas_demo_async/demo.db
+rm demo.db
 ```
 
 To remove generated visualizations:
 
 ```bash
-rm demos/areas_demo_async/outputs/*.html
+rm outputs/*.html
 ```
 
 If you registered webhook endpoints through the Infrared API and no longer need

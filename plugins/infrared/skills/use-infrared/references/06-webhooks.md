@@ -20,9 +20,11 @@ with InfraredClient() as client:
     # List all endpoints
     endpoints = client.webhooks.list()
 
-    # Submit a job with webhook notification
-    job = client.run(
+    # Submit an area run with webhook notification
+    result = client.run_area_and_wait(
         payload,
+        polygon,
+        buildings=area.buildings,
         webhook_url="https://your-server.com/webhooks",
         webhook_events=[WEBHOOK_EVENT_SUCCEEDED, WEBHOOK_EVENT_FAILED],
     )
@@ -31,7 +33,7 @@ with InfraredClient() as client:
     client.webhooks.delete(endpoint.id)
 ```
 
-`client.webhooks.register()` returns a `WebhookEndpoint(id, url, type, created_at, updated_at)`. The same `webhook_url` / `webhook_events` kwargs are accepted by `run_area_and_wait()` and `run_area()`.
+`client.webhooks.register()` returns a `WebhookEndpoint(id, url, type, created_at, updated_at)`. The `webhook_url` / `webhook_events` kwargs are accepted by both `run_area_and_wait()` (synchronous, returns `AreaResult`) and `run_area()` (async, returns an `AreaSchedule` you can persist and resume later). The non-area paths (`_run` / `_run_and_wait`) are private — use `run_area*` for public submission.
 
 ## Event types
 
@@ -54,7 +56,7 @@ is_valid = WebhooksServiceClient.verify_signature(
 )
 ```
 
-`verify_signature` is a classmethod — call it without instantiating. `tolerance` is the max age of the timestamp header in seconds; reject anything older to prevent replay.
+`verify_signature` is a `@staticmethod` — call it on the class without instantiating. `tolerance` is the max age of the timestamp header in seconds; reject anything older to prevent replay.
 
 ## Pitfalls
 
@@ -67,6 +69,6 @@ is_valid = WebhooksServiceClient.verify_signature(
 
 ## See also
 
-- `references/workflows/area-api.md` — multi-payload burst sizing
-- `references/workflows/errors.md` — webhook exception hierarchy
-- `references/01-quickstart.md` — submitting jobs the polling way
+- `05-area-api.md` — multi-payload burst sizing
+- `08-error-handling.md` — webhook exception hierarchy
+- `01-quickstart.md` — submitting jobs the polling way

@@ -6,7 +6,7 @@ avoid redundant API calls.
 
 Usage::
 
-    uv run python demos/demo_vegetation_ground.py
+    python vegetation_ground.py
 
 Requires INFRARED_API_KEY in environment or a .env file in the repo root.
 """

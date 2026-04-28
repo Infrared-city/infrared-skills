@@ -1,10 +1,10 @@
 # Thermal comfort results
 
+Grid layout (cell pitch, NaN, row/column orientation, legend bounds, scenario diffs, GeoTIFF export) is shared across analyses — see [grid-conventions.md](grid-conventions.md). This file covers UTCI units, stress classes, and TCS subtype semantics.
+
 ## thermal-comfort-index (UTCI)
 
 Returns UTCI in **°C** per pixel at pedestrian height (~1.5 m). Point-in-time for the chosen `time_period` — not an annual aggregate.
-
-Output grid conventions match wind: 2-D `merged_grid`, NaN outside polygon, 1 m cell pitch, row 0 = south.
 
 | UTCI (°C) | Stress class |
 |---|---|
@@ -23,9 +23,17 @@ UTCI is driven by air temperature, wind, humidity, and mean radiant temperature 
 
 ## thermal-comfort-statistics (TCS)
 
-Returns **% of time** (0–100) per pixel that the location falls into the chosen stress class, over a season × hours-of-day window.
+Returns **% of time** (0–100) per pixel that the location falls into the chosen stress class.
 
-Three subtypes — `thermal-comfort` (% comfortable hours, UTCI 9–26°C), `heat-stress` (% UTCI ≥ 26°C), `cold-stress` (% UTCI ≤ 9°C). **TCS subtype is per-call** — to get all three, run three separate jobs.
+The "season × hours-of-day window" comes entirely from the `TimePeriod` you pass — there is no separate season or hours enum. Cascade filter: months, then days within those months, then hours within those days. Example: `TimePeriod(6, 1, 9, 8, 31, 17)` = Jun-Aug, all days, 09:00–17:00 — the classic "summer daytime" window.
+
+Three subtypes via `TcsSubtype` (per-call — to get all three, run three jobs):
+
+| Member | Enum value | Meaning |
+|---|---|---|
+| `TcsSubtype.thermal_comfort` | `"thermal-comfort"` | % hours comfortable (UTCI 9–26°C) |
+| `TcsSubtype.heat_stress` | `"heat-stress"` | % hours with heat stress (UTCI ≥ 26°C) |
+| `TcsSubtype.cold_stress` | `"cold-stress"` | % hours with cold stress (UTCI ≤ 9°C) |
 
 | Comfort % | Quality |
 |---|---|
@@ -42,3 +50,10 @@ Three subtypes — `thermal-comfort` (% comfortable hours, UTCI 9–26°C), `hea
 | < 20 | Low |
 
 **Pitfalls:** % of the season ∩ hours window, not of the year; subtypes are computed independently per cell — they don't necessarily sum to 100; results are sensitive to which weather file is used — keep it constant when comparing designs.
+
+## See also
+
+- [grid-conventions.md](grid-conventions.md) — shared grid/plot/diff/GeoTIFF conventions
+- `../analyses/07-thermal-comfort-utci.md` — UTCI payload reference
+- `../analyses/08-thermal-comfort-statistics.md` — TCS payload + subtype reference
+- `../03-time-period.md` — cascade-filter semantics for the season × hours window

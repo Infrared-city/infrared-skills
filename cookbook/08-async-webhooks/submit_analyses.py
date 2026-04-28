@@ -6,7 +6,7 @@ resulting AreaSchedules in SQLite, and exits.  The webhook server
 
 Usage::
 
-    python demos/areas_demo_async/submit_analyses.py
+    python submit_analyses.py
 """
 
 from __future__ import annotations

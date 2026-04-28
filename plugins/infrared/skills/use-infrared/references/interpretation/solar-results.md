@@ -1,6 +1,6 @@
 # Solar results
 
-Output grids share the same conventions as wind: 2-D `merged_grid: numpy.ndarray`, NaN outside polygon, row 0 = south, 1 m cell pitch. Use `result.min_legend` / `result.max_legend` for plot bounds.
+Grid layout (cell pitch, NaN, row/column orientation, legend bounds, scenario diffs, GeoTIFF export) is shared across analyses — see [grid-conventions.md](grid-conventions.md). This file covers solar units, classes, and gotchas.
 
 ## solar-radiation
 
@@ -42,3 +42,8 @@ Dimensionless **0–1**, geometric (no time dependence). 0 = obstructed, 1 = ful
 If every pixel reads 1.0 you forgot to load buildings.
 
 **Pitfalls:** low SVF cuts both ways (less daytime gain *and* less nighttime cooling); not the same as shade — a high-SVF point can still be in shade for hours.
+
+## See also
+
+- [grid-conventions.md](grid-conventions.md) — shared grid/plot/diff/GeoTIFF conventions
+- `../analyses/03-daylight-availability.md`, `04-direct-sun-hours.md`, `05-sky-view-factors.md`, `06-solar-radiation.md` — payload references

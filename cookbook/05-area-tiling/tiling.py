@@ -15,7 +15,7 @@ edge-to-edge with a 666 m context window. See README §How tiling works.
 
 Usage::
 
-    uv run python demos/demo_tiling.py
+    python tiling.py
 
 Requires INFRARED_API_KEY in environment or a .env file in the repo root.
 """

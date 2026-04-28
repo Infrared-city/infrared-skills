@@ -8,7 +8,7 @@ Demonstrates the full Infrared SDK pipeline:
 
 Usage::
 
-    uv run python demos/demo_vienna.py
+    python multi_analysis.py
 
 Requires INFRARED_API_KEY in environment or a .env file in the repo root.
 """

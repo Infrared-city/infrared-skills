@@ -43,7 +43,7 @@ All job-level exceptions inherit from `InfraredJobError`:
 from infrared_sdk import InfraredJobError, JobFailedError, JobTimeoutError
 
 try:
-    job = client.run_and_wait(payload)
+    result = client.run_area_and_wait(payload, polygon, buildings=area.buildings)
 except JobFailedError as e:
     log.error("simulation failed", extra={"job_id": e.job_id})
 except JobTimeoutError:
@@ -54,8 +54,8 @@ except InfraredJobError:
 
 ## Area-level errors
 
-- `AreaTimeoutError` — `run_area_and_wait` exceeded `area_timeout` (default 3600s). The exception carries `area_state: AreaState` so you can inspect counts of succeeded / failed / running / pending jobs at the moment of timeout.
-- `TiledRunError` — every tile in a tiled run failed. Carries `failed_tiles: list[TileFailure]` with per-tile `tile_id`, `(row, col)`, `error` string, and original `exception`.
+- `AreaTimeoutError` — `run_area_and_wait` exceeded `area_timeout` (default 3600s). The exception carries `area_state: AreaState` so you can inspect counts of succeeded / failed / running / pending jobs at the moment of timeout. Re-exported at the package root: `from infrared_sdk import AreaTimeoutError`.
+- `TiledRunError` — every tile in a tiled run failed. Carries `failed_tiles: list[TileFailure]` with per-tile `tile_id`, `row`, `col`, `error` string, and original `exception`. Not yet re-exported at the package root — import it from the deeper path: `from infrared_sdk.tiling.types import TiledRunError`.
 
 `AreaResult` reports partial outcomes via `failed_jobs` / `skipped_jobs` rather than raising, as long as at least one tile succeeded.
 
@@ -65,7 +65,7 @@ except InfraredJobError:
 
 ## Pitfalls
 
-- `ValidationError` happens at payload construction, not at submission — wrap the constructor call, not `client.run()`.
+- `ValidationError` happens at payload construction, not at submission — wrap the `WindModelRequest(...)` (or other request) constructor call, not `client.run_area_and_wait(...)`.
 - Do not retry `401` / `403` — those mean the API key is bad. The SDK will not retry them either.
 - `AreaTimeoutError.area_state` is the only way to recover progress after a timeout — log it before re-raising.
 - A `JobFailedError` is a normal API outcome (bad inputs, simulation diverged), not a bug. Log and skip; don't retry blindly.
@@ -73,6 +73,6 @@ except InfraredJobError:
 
 ## See also
 
-- `references/workflows/area-api.md` — `failed_jobs` / `skipped_jobs` semantics
-- `references/workflows/webhooks.md` — webhook exception types
-- `references/01-quickstart.md` — basic single-job error handling
+- `05-area-api.md` — `failed_jobs` / `skipped_jobs` semantics
+- `06-webhooks.md` — webhook exception types
+- `01-quickstart.md` — basic single-job error handling

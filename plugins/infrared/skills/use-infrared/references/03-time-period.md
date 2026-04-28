@@ -26,13 +26,13 @@ All 6 fields are required ints:
 
 ## Cascade behaviour
 
-`TimePeriod` is a recurring window applied to every year in the weather file as a 3-level cascade filter:
+`TimePeriod` is a recurring window — the API filters every year in the weather file as a 3-level cascade (filtering happens server-side; the client just POSTs the period):
 
 1. **Months** — only data from `start_month` through `end_month`.
 2. **Days** — within those months, only days from `start_day` through `end_day`.
 3. **Hours** — within those days, only hours from `start_hour` through `end_hour`.
 
-Example: `TimePeriod(6, 1, 9, 8, 20, 17)` keeps ~3 months x 20 days x 9 hours = **540 hourly points per year**.
+Example: `TimePeriod(6, 1, 9, 8, 20, 17)` keeps ~3 months × 20 days × 9 hours = **540 hourly points per year**.
 
 ## Which analyses need TimePeriod
 
@@ -45,7 +45,7 @@ Example: `TimePeriod(6, 1, 9, 8, 20, 17)` keeps ~3 months x 20 days x 9 hours = 
 | Solar Radiation            | Yes        | Yes          |
 | Thermal Comfort (UTCI)     | Yes        | Yes          |
 | Thermal Comfort Statistics | Yes        | Yes          |
-| Pedestrian Wind Comfort    | Yes        | Yes          |
+| Pedestrian Wind Comfort    | No (payload takes pre-filtered weather arrays — but use `TimePeriod` when calling `filter_weather_data` to derive them) | Yes |
 
 ## Pitfalls
 
@@ -57,5 +57,5 @@ Example: `TimePeriod(6, 1, 9, 8, 20, 17)` keeps ~3 months x 20 days x 9 hours = 
 ## See also
 
 - `04-weather-data.md` — feeding weather into payloads
-- `analyses/utci.md` — UTCI uses TimePeriod + weather
-- `analyses/solar-radiation.md` — Solar Radiation uses TimePeriod + weather
+- `analyses/07-thermal-comfort-utci.md` — UTCI uses TimePeriod + weather
+- `analyses/06-solar-radiation.md` — Solar Radiation uses TimePeriod + weather

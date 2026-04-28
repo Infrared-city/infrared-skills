@@ -8,8 +8,8 @@ Follows the README Quick Start pattern exactly:
 
 Usage::
 
-    uv run python demos/demo_wind_analysis.py
-    uv run python demos/demo_wind_analysis.py --speed 20 --direction 90
+    python wind_analysis.py
+    python wind_analysis.py --speed 20 --direction 90
 """
 
 from __future__ import annotations

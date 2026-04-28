@@ -1,8 +1,10 @@
 # Wind results
 
+Grid layout (cell pitch, NaN, row/column orientation, legend bounds, scenario diffs, GeoTIFF export) is shared across analyses — see [grid-conventions.md](grid-conventions.md). This file covers wind units, classes, and gotchas.
+
 ## wind-speed
 
-Returns a 2-D `merged_grid: numpy.ndarray` of wind magnitude in **m/s** at pedestrian level (~1.5 m), one (speed, direction) inflow. **Cell pitch is 1 m × 1 m.** Cells outside polygon = `NaN`. Row 0 = south, column 0 = west. Use `result.min_legend` / `result.max_legend` for plot bounds.
+Returns a 2-D `merged_grid` of wind magnitude in **m/s** at pedestrian level (~1.5 m) for one (speed, direction) inflow.
 
 | m/s | Feel |
 |---|---|
@@ -26,3 +28,9 @@ Most criteria run A → E (A best, E uncomfortable) and add an S (or S15/S20) cl
 For default reporting, anything class E or worse is flagged as a hotspot.
 
 **Pitfalls:** values are class indices, not speeds — don't average; use mode or area-share. Class meaning depends on the chosen `criteria` — carry it alongside the grid. Frequency-based (over a weather time series), not instantaneous; re-running with summer-only weather will shift classes.
+
+## See also
+
+- [grid-conventions.md](grid-conventions.md) — shared grid/plot/diff/GeoTIFF conventions
+- `../analyses/01-wind-speed.md` — wind-speed payload reference
+- `../analyses/02-pedestrian-wind-comfort.md` — PWC payload + criteria options
