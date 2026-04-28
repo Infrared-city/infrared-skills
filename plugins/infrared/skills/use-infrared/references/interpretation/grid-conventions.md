@@ -7,13 +7,13 @@ Every analysis returns the same `AreaResult` shape. These conventions hold for w
 | Analysis | Cell unit | Typical range | Meaning |
 |---|---|---|---|
 | `wind-speed` | m/s | 0–30 | Steady-state wind magnitude near pedestrian level for one (speed, direction) inflow |
-| `pedestrian-wind-comfort` | comfort class (int 0–5) | 0–5 | Categorical class per chosen criterion (e.g. Lawson LDDC: A/B/C/D/E + S for unsafe) |
-| `daylight-availability` | % of analysed time | 0–100 | sDA-like fraction with sufficient daylight per pixel |
-| `direct-sun-hours` | hours | 0–(period length) | Cumulative un-occluded sun hours over the `TimePeriod` |
+| `pedestrian-wind-comfort` | comfort class (int) | 0–4 wire format (Lawson LDDC: A=0 best … E=4 unsafe); NEN-8100 safety / criteria with an extra unsafe class may extend the range. Visualization layers (e.g. composite image gen) often shift to 1-based. | Categorical class per chosen criterion |
+| `daylight-availability` | hours | 0 – period length | Cumulative hours of usable daylight per cell over the `TimePeriod` |
+| `direct-sun-hours` | hours | 0 – period length | Cumulative un-occluded sun hours over the `TimePeriod` |
 | `sky-view-factors` | fraction | 0–1 | Hemisphere visible from the cell (1 = fully open, 0 = obstructed) |
 | `solar-radiation` | kWh/m² | 0–~hundreds | Cumulative shortwave irradiance per pixel over the `TimePeriod` |
 | `thermal-comfort-index` (UTCI) | °C | -40 to 50 | Felt temperature combining air, MRT, humidity, wind |
-| `thermal-comfort-statistics` (TCS) | % of time | 0–100 | Fraction of the season ∩ hours window in the chosen `TcsSubtype` band |
+| `thermal-comfort-statistics` (TCS) | hours (subtype-dependent) | 0 – period length | Hours per cell in the chosen `TcsSubtype` band |
 
 For per-analysis class breaks (e.g. UTCI stress thresholds, PWC class semantics), see `wind-results.md`, `solar-results.md`, `thermal-results.md`.
 

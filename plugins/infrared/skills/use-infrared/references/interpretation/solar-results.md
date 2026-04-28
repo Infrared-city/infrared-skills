@@ -14,11 +14,9 @@ Requires hourly weather (`SolarRadiationModelRequest.from_weatherfile_payload(..
 
 ## daylight-availability
 
-**Percentage of analysed time** with sufficient natural light per pixel (0–100). Conceptually sDA-like — not lux.
+**Cumulative hours of usable daylight** per pixel over the chosen `TimePeriod` (range: 0 to period length in hours). Conceptually sDA-like — not lux. To get a percentage, divide by total daylight hours in the window.
 
-< 30 = poorly lit, 30–50 = adequate for transit, 50–70 = good for seating, > 70 = excellent.
-
-**Pitfalls:** not lux, don't compare to indoor lighting standards; an annual % hides huge winter/summer variation — pair with `direct-sun-hours` to disambiguate.
+**Pitfalls:** not lux — don't compare to indoor lighting standards; values scale with the time window (a 7-day request returns 7-day totals), so don't compare runs with different `TimePeriod`s; pair with `direct-sun-hours` to disambiguate diffuse-only vs direct-sun coverage.
 
 ## direct-sun-hours
 

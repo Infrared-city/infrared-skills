@@ -23,7 +23,7 @@ result = client.run_area_and_wait(payload, polygon, buildings=area.buildings)
 
 ## Response
 
-`result.merged_grid` is a 2D `float` array of daylight availability (typically a normalised fraction over the requested window). Use `min_legend` / `max_legend` for plotting — most cells cluster near the upper bound, so deriving bounds from the grid alone produces washed-out heatmaps.
+`result.merged_grid` is a 2D `float` array of cumulative **hours of usable daylight** per cell over the requested `TimePeriod` (range: 0 to the period length in hours). Use `min_legend` / `max_legend` for plotting — most cells cluster near the upper bound, so deriving bounds from the grid alone produces washed-out heatmaps.
 
 ## Pitfalls
 
