@@ -4,7 +4,7 @@ Grid layout (cell pitch, NaN, row/column orientation, legend bounds, scenario di
 
 ## thermal-comfort-index (UTCI)
 
-Returns UTCI in **°C** per pixel at pedestrian height (~1.5 m). Point-in-time for the chosen `time_period` — not an annual aggregate.
+Returns UTCI in **°C** per pixel at pedestrian height (~1.5 m). Aggregated over the chosen `time_period` window (not an annual aggregate, and not a single instant — it's the representative value across the filtered hours).
 
 | UTCI (°C) | Stress class |
 |---|---|

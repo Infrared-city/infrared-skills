@@ -31,4 +31,4 @@ result = client.run_area_and_wait(payload, polygon, buildings=area.buildings)
 
 - For result interpretation -> `interpretation/solar-results.md` (SVF section)
 - For polygon/buildings setup -> `02-geometry.md`
-- For vegetation injection -> `byo-inputs.md`
+- For vegetation injection -> `../byo-inputs.md`

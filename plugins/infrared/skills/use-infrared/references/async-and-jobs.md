@@ -60,14 +60,16 @@ with InfraredClient() as client:
     payload_dict = client.jobs.decompress(download.content)
 ```
 
-`DownloadResult` shape:
+`DownloadResult` shape (frozen dataclass):
 
-| Field      | Type           | Description                                                       |
-| ---------- | -------------- | ----------------------------------------------------------------- |
-| `content`  | `bytes`        | Gzipped JSON. Pass to `client.jobs.decompress()` to get the dict. |
-| `url`      | `str \| None`  | Pre-signed URL when the result was streamed; `None` for inline.   |
+| Field           | Type    | Description                                                                |
+| --------------- | ------- | -------------------------------------------------------------------------- |
+| `content`       | `bytes` | Compressed result bytes (ZIP or GZIP). Pass to `client.jobs.decompress()`. |
+| `presigned_url` | `str`   | Pre-signed S3 URL the content was fetched from (always populated).         |
+| `job_id`        | `str`   | The job this result belongs to.                                            |
+| `content_type`  | `str`   | HTTP `Content-Type` of the downloaded blob.                                |
 
-`client.jobs.decompress(content) -> dict` returns the parsed payload (`merged_grid` as nested lists, NaN → `None`).
+`client.jobs.decompress(content: bytes) -> dict` is a `@staticmethod`. It auto-detects ZIP vs GZIP and returns the parsed JSON payload — exact shape depends on the analysis (e.g. an `AreaResult.to_dict()` shape for tiled jobs). Do not assume a specific top-level key.
 
 `JobStatus` is a `StrEnum`; values match the wire format (capitalised strings):
 

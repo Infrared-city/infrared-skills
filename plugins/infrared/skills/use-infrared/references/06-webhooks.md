@@ -118,8 +118,8 @@ def receive():
         abort(401)
 
     event = json.loads(raw)
-    job_id = event["job_id"]
-    new_status = event["type"]                    # "job.running" | "job.succeeded" | "job.failed"
+    job_id = event.get("job_id") or event.get("jobId")   # SDK has not pinned the wire field; check both
+    new_status = event["type"]                            # "job.running" | "job.succeeded" | "job.failed"
 
     with sqlite3.connect(DB) as db:
         cur = db.execute("SELECT status FROM jobs WHERE job_id = ?", (job_id,))

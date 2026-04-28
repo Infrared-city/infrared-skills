@@ -32,7 +32,7 @@ All 6 fields are required ints:
 2. **Days** — within those months, only days from `start_day` through `end_day`.
 3. **Hours** — within those days, only hours from `start_hour` through `end_hour`.
 
-Example: `TimePeriod(6, 1, 9, 8, 20, 17)` keeps ~3 months × 20 days × 9 hours = **540 hourly points per year**.
+Example: `TimePeriod(start_month=6, start_day=1, start_hour=9, end_month=8, end_day=20, end_hour=17)` keeps ~3 months × 20 days × 9 hours = **540 hourly points per year**. (`TimePeriod` is a Pydantic v2 model — pass kwargs only, positional args raise `TypeError`.)
 
 ## Which analyses need TimePeriod
 
