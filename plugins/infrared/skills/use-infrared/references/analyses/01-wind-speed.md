@@ -25,7 +25,7 @@ result = client.run_area_and_wait(payload, polygon, buildings=area.buildings)
 - `wind_speed` is an `int` in 1-100 m/s; floats and zero are rejected by the Pydantic validator.
 - `wind_direction` follows the meteorological convention: 0 = wind FROM north, 90 = FROM east. Easy to invert.
 - This is a single-direction snapshot — for comfort over a year of weather, use Pedestrian Wind Comfort instead.
-- `latitude` / `longitude` are optional and ignored by the model itself; only set them if you inject vegetation (the validator needs a reference point).
+- Leave `latitude` / `longitude` unset — they are optional and ignored by the wind model. (They become required only if you inject vegetation, since the validator needs a reference point. See [byo-inputs.md](../byo-inputs.md).)
 - Always use `min_legend` / `max_legend` as your heatmap bounds, not the grid min/max.
 
 ## See also

@@ -25,7 +25,7 @@ with InfraredClient() as client:
     client.webhooks.delete(endpoint.id)
 ```
 
-`type` selects the **server-side environment** (and signing-secret pair) the endpoint is bound to: `"production"` for production traffic, `"development"` for staging / dev. The signing secret is shown in the dashboard at `https://app.infrared.city` after registration — copy it as-is (it starts with `whsec_`).
+`type` selects the **server-side environment** (and signing-secret pair) the endpoint is bound to: `"production"` for production traffic, `"development"` for staging / dev. Use `"development"` while iterating; switch to `"production"` for deployed services — the two have separate signing secrets, so a development receiver will fail signature checks against production deliveries (and vice-versa). The signing secret is shown in the dashboard at `https://app.infrared.city` after registration — copy it as-is (it starts with `whsec_`).
 
 `register()` returns a `WebhookEndpoint(id, url, type, created_at, updated_at)`. Only `id`/`url`/`type` are populated on registration; `created_at`/`updated_at` come back from `list()` / `get()`.
 
@@ -91,6 +91,49 @@ is_valid = WebhooksServiceClient.verify_signature(
 - **Pass raw request bytes, not parsed JSON.** This is the most common cause of verification failure: re-serialising the JSON (different whitespace, key order, escaping) changes the bytes and breaks the HMAC. In Flask use `request.get_data()`; in FastAPI `await request.body()`. Do **not** use `request.json` then `json.dumps(...)`.
 - **Pass the secret as the dashboard gives it** — the `whsec_` prefix is stripped internally before HMAC computation. No manual decoding needed.
 - **`tolerance`** is the maximum age of the `webhook-timestamp` header in seconds; deliveries older than that are rejected as replays. Default 300 s (5 min). Set `tolerance=0` to disable replay protection (not recommended).
+
+### Minimal Flask receiver
+
+End-to-end pattern: verify, persist idempotently, return `200` fast. Drop in a queue / batch writer for production scale (see Multi-payload burst sizing).
+
+```python
+import json, os, sqlite3
+from flask import Flask, request, abort
+from infrared_sdk import WebhooksServiceClient
+
+app = Flask(__name__)
+DB = "jobs.db"
+SECRET = os.environ["INFRARED_WEBHOOK_SECRET"]   # whsec_... from dashboard
+
+# Forward-only ordering — see Idempotency below
+ORDER = {"job.running": 1, "job.succeeded": 2, "job.failed": 2}
+
+@app.post("/webhooks")
+def receive():
+    raw = request.get_data()                     # raw bytes — DO NOT use request.json
+    headers = dict(request.headers)              # case-insensitive dict
+    if not WebhooksServiceClient.verify_signature(
+        payload_body=raw, headers=headers, secret=SECRET, tolerance=300,
+    ):
+        abort(401)
+
+    event = json.loads(raw)
+    job_id = event["job_id"]
+    new_status = event["type"]                    # "job.running" | "job.succeeded" | "job.failed"
+
+    with sqlite3.connect(DB) as db:
+        cur = db.execute("SELECT status FROM jobs WHERE job_id = ?", (job_id,))
+        row = cur.fetchone()
+        if row is None or ORDER[new_status] > ORDER.get(row[0], 0):
+            db.execute(
+                "INSERT INTO jobs(job_id, status) VALUES (?, ?) "
+                "ON CONFLICT(job_id) DO UPDATE SET status = excluded.status",
+                (job_id, new_status),
+            )
+    return "", 200
+```
+
+For FastAPI: swap `request.get_data()` for `await request.body()` and `dict(request.headers)` works the same. Return `Response(status_code=200)`.
 
 ## Idempotency
 

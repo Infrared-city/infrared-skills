@@ -60,6 +60,15 @@ with InfraredClient() as client:
     payload_dict = client.jobs.decompress(download.content)
 ```
 
+`DownloadResult` shape:
+
+| Field      | Type           | Description                                                       |
+| ---------- | -------------- | ----------------------------------------------------------------- |
+| `content`  | `bytes`        | Gzipped JSON. Pass to `client.jobs.decompress()` to get the dict. |
+| `url`      | `str \| None`  | Pre-signed URL when the result was streamed; `None` for inline.   |
+
+`client.jobs.decompress(content) -> dict` returns the parsed payload (`merged_grid` as nested lists, NaN → `None`).
+
 `JobStatus` is a `StrEnum`; values match the wire format (capitalised strings):
 
 | Value       | Wire string  | Terminal? | Description                                                              |

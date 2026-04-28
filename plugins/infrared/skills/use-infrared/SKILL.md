@@ -42,9 +42,9 @@ Pick the entry point first — it shapes blocking, webhooks, and persistence. Fu
 
 | When | Entry point |
 |---|---|
-| Sync, blocks until result | `client.run_area_and_wait()` |
-| Async, returns `AreaSchedule` (use webhook or `check_area_state`) | `client.run_area()` |
-| Single tile, custom polling | `client.analyses.execute()` + `client.jobs.*` |
+| Sync, blocks until result | `client.run_area_and_wait()` → `AreaResult` |
+| Async, returns `AreaSchedule` (use webhook or `check_area_state`); land via `client.merge_area_jobs(schedule)` once terminal | `client.run_area()` → `AreaSchedule` |
+| Single tile, custom polling | `client.analyses.execute()` + `client.jobs.*` → `Job` |
 
 ## Cross-cutting topics
 
@@ -55,7 +55,7 @@ Pick the entry point first — it shapes blocking, webhooks, and persistence. Fu
 | Webhooks / Standard Webhooks v1 / verification | [06-webhooks.md](references/06-webhooks.md) |
 | Image generation (PNG output) | [07-images.md](references/07-images.md) |
 | Errors / exception hierarchy | [08-error-handling.md](references/08-error-handling.md) |
-| Result grid layout / scenario diffs / GeoTIFF export | [interpretation/grid-conventions.md](references/interpretation/grid-conventions.md) |
+| Plotting / compare scenarios (baseline vs proposed) / GeoTIFF export | [interpretation/grid-conventions.md](references/interpretation/grid-conventions.md) |
 
 ## Invariants
 
