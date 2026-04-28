@@ -7,7 +7,7 @@ Every analysis returns the same `AreaResult` shape. These conventions hold for w
 | Analysis | Cell unit | Typical range | Meaning |
 |---|---|---|---|
 | `wind-speed` | m/s | 0–30 | Steady-state wind magnitude near pedestrian level for one (speed, direction) inflow |
-| `pedestrian-wind-comfort` | comfort class (int) | 0–4 wire format (Lawson LDDC: A=0 best … E=4 unsafe); NEN-8100 safety / criteria with an extra unsafe class may extend the range. Visualization layers (e.g. composite image gen) often shift to 1-based. | Categorical class per chosen criterion |
+| `pedestrian-wind-comfort` | comfort class (int) | 0–4 (A=0 best … E=4 unsafe) | Categorical class per chosen criterion |
 | `daylight-availability` | hours | 0 – period length | Cumulative hours of usable daylight per cell over the `TimePeriod` |
 | `direct-sun-hours` | hours | 0 – period length | Cumulative un-occluded sun hours over the `TimePeriod` |
 | `sky-view-factors` | fraction | 0–1 | Hemisphere visible from the cell (1 = fully open, 0 = obstructed) |

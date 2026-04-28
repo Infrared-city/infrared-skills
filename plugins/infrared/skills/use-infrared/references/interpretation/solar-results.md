@@ -4,27 +4,44 @@ Grid layout (cell pitch, NaN, row/column orientation, legend bounds, scenario di
 
 ## solar-radiation
 
-Cumulative shortwave irradiance per pixel in **kWh/m²** over the requested `time_period` (so the unit is per-window — e.g. per-month if `time_period` covers one month).
+Cumulative shortwave irradiance per pixel in **kWh/m²** over the requested `time_period` (per-window — e.g. per-month if the window covers one month).
 
-Typical horizontal-ground monthly values: < 85 heavily shaded, 85–100 partial, 100–120 mostly sunny, > 120 full sun. Annual horizontal totals: ~1,000–1,200 kWh/m² (Central Europe), ~1,500–1,800 (Mediterranean).
+| kWh/m² (monthly) | Class |
+|---|---|
+| < 85 | Heavily shaded |
+| 85–100 | Partial |
+| 100–120 | Mostly sunny |
+| > 120 | Full sun |
 
-Requires hourly weather (`SolarRadiationModelRequest.from_weatherfile_payload(...)` is the easy path).
+Annual horizontal totals: ~1,000–1,200 kWh/m² (Central Europe), ~1,500–1,800 (Mediterranean). Requires hourly weather (`SolarRadiationModelRequest.from_weatherfile_payload(...)` is the easy path).
 
-**Pitfalls:** energy density (kWh/m²), not power (W/m²); season matters (60 in January is normal, in July signals occlusion); raster represents the simulated ground/canopy surface, not vertical facades.
+**Pitfalls:** energy density (kWh/m²), not power (W/m²); season matters (60 kWh/m² in January is normal, in July signals occlusion); raster represents the simulated ground/canopy surface, not vertical facades.
 
 ## daylight-availability
 
-**Cumulative hours of usable daylight** per pixel over the chosen `TimePeriod` (range: 0 to period length in hours). Conceptually sDA-like — not lux. To get a percentage, divide by total daylight hours in the window.
+**Cumulative hours of usable daylight** per pixel over the chosen `TimePeriod` (range: 0 to period length in hours). Conceptually sDA-like — not lux. Always interpret as a fraction of the window: compute `cell_hours / window_total_hours` first, then classify.
 
-**Pitfalls:** not lux — don't compare to indoor lighting standards; values scale with the time window (a 7-day request returns 7-day totals), so don't compare runs with different `TimePeriod`s; pair with `direct-sun-hours` to disambiguate diffuse-only vs direct-sun coverage.
+| Fraction of window with daylight | Class |
+|---|---|
+| < 0.30 | Poorly lit |
+| 0.30–0.50 | Adequate for transit |
+| 0.50–0.70 | Good for seating / casual use |
+| > 0.70 | Excellent — open or south-facing |
+
+**Pitfalls:** not lux — don't compare to indoor lighting standards; absolute hours scale with the time window (7-day request returns 7-day totals) so don't compare runs with different `TimePeriod`s without normalising; an annual fraction hides huge winter/summer variation — pair with `direct-sun-hours` to disambiguate diffuse-only vs direct-sun coverage.
 
 ## direct-sun-hours
 
-Cumulative hours of direct (un-occluded) sunlight per pixel, scaled by `time_period` (commonly read as **hours/month**). Astronomical maximum ~250–300 hrs/month.
+Cumulative hours of direct (un-occluded) sunlight per pixel, scaled by `time_period` (commonly read as **hours/month**). Astronomical maximum ~250–300 hrs/month at mid-latitudes.
 
-< 85 heavily shaded, 85–170 partial, 170–250 significant, > 250 near-max.
+| hrs/month | Class |
+|---|---|
+| < 85 | Heavily shaded |
+| 85–170 | Partial sun |
+| 170–250 | Significant sun |
+| > 250 | Near-astronomical maximum |
 
-**Pitfalls:** astronomical, **not weather-corrected** — cloud cover not subtracted; values scale with the time window (a 7-day request returns 7-day totals); high summer values can be a heat-stress driver, not an amenity.
+**Pitfalls:** astronomical, **not weather-corrected** — cloud cover not subtracted, so reported hours overstate cloudy regions; absolute values scale with the time window; high summer values can be a heat-stress driver, not an amenity.
 
 ## sky-view-factors
 

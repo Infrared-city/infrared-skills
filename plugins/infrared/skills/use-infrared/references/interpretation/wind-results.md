@@ -19,15 +19,23 @@ Returns a 2-D `merged_grid` of wind magnitude in **m/s** at pedestrian level (~1
 
 ## pedestrian-wind-comfort (PWC)
 
-Returns a 2-D grid where each cell is a **comfort class index** (0 = best, higher = worse), under one of several criteria (Lawson LDDC, Lawson 1970/2001, Davenport, NEN-8100 comfort, NEN-8100 safety, VDI-3787).
+Returns a 2-D grid where each cell is a **comfort class index** (0 = best, higher = worse), under one of several criteria. Each criterion bins the *probability* (over the weather time series) that wind speed at that cell exceeds a fixed threshold; the class is the worst bin a cell falls into.
 
-Most criteria run A → E (A best, E uncomfortable) and add an S (or S15/S20) class for unsafe. Two exceptions:
-- **NEN-8100 comfort** stops at E (no S class).
-- **NEN-8100 safety** has only A/B/C (C = dangerous).
+### Classes — Lawson LDDC
 
-For default reporting, anything class E or worse is flagged as a hotspot.
+This is the criterion we use by default and the one to communicate to users.
 
-**Pitfalls:** values are class indices, not speeds — don't average; use mode or area-share. Class meaning depends on the chosen `criteria` — carry it alongside the grid. Frequency-based (over a weather time series), not instantaneous; re-running with summer-only weather will shift classes.
+| Class | Index | Activity / feel |
+|---|---|---|
+| A | 0 | Sitting long (cafés, parks, plazas) — calm, suitable for prolonged stationary use |
+| B | 1 | Sitting short (waiting, brief stops) — light breeze |
+| C | 2 | Standing / strolling (entrances, transitions) — moderate flow |
+| D | 3 | Walking (sidewalks, busy routes) — windy, marginal for lingering |
+| E | 4 | Business walking — uncomfortable for stationary use; flags safety-level exposure |
+
+The SDK output range is `int 0–4` for PWC. **For default reporting, anything class E is flagged as a hotspot.**
+
+**Pitfalls:** values are class indices, not speeds — don't average; use mode or area-share. Frequency-based over the weather time series — re-running with summer-only vs annual weather shifts classes.
 
 ## See also
 
