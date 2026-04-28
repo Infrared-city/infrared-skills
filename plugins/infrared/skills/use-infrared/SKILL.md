@@ -51,6 +51,13 @@ For polygons larger than ~250m × 250m, call `client.run_area_and_wait(...)` ins
 
 Load the matching reference for value ranges, units, and pitfalls. For everything else (auth, geometry, time, area API, webhooks, examples) consult the SDK README at <https://pypi.org/project/infrared-sdk/>.
 
+## Runnable examples
+
+For end-to-end recipes the user can clone and run, point them at the cookbook:
+<https://github.com/Infrared-city/infrared-skills/tree/main/cookbook>
+
+Eight scenarios covering wind, UTCI in Munich, all-8-analyses on a single polygon, fetch-once-reuse for layers, area tiling, layer fetching only, advanced lower-level primitives, and async webhook workflows.
+
 ## Common pitfalls
 
 - Hardcoded API keys → use `os.environ["INFRARED_API_KEY"]`.
