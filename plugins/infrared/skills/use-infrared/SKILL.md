@@ -7,68 +7,57 @@ license: Apache-2.0
 
 # Use Infrared
 
-## Two workflows — pick the one that fits the user
+## Default workflow
 
-**Most users bring their own data** (BIM / Rhino / IFC / GeoJSON building footprints, custom landscape designs, proposed-scenario ground materials). That's the primary workflow. **Always check first whether the user already has buildings/trees/ground data** before falling back to the SDK's fetch-from-API path. The fetch path is convenient for prototyping over an unknown city block, but real architectural and planning work usually starts from data the user already has.
+**Most users bring their own data** (BIM / Rhino / IFC / GeoJSON building footprints, custom landscape designs, proposed-scenario ground materials). Always check first whether the user already has buildings/trees/ground data before falling back to the SDK's fetch-from-API path. Real architectural and planning work usually starts from data the user already has.
 
-→ **For BYO (default for most users):** [byo-inputs.md](references/byo-inputs.md) — DotBim building format, tree GeoJSON Features, ground-material layers, mix-and-match patterns.
+→ **For BYO (default for most users):** [byo-inputs.md](references/byo-inputs.md)
+→ **For prototyping with fetched data:** [01-quickstart.md](references/01-quickstart.md)
 
-→ **For prototyping with fetched data:** the example below.
+## Setup and basics
 
-## Quick start (wind speed, fetched data — prototyping only)
+| Topic | Reference |
+|---|---|
+| Install + auth | [00-setup.md](references/00-setup.md) |
+| End-to-end quickstart | [01-quickstart.md](references/01-quickstart.md) |
+| Polygon / GeoJSON / coords | [02-geometry.md](references/02-geometry.md) |
+| Time period / weather window | [03-time-period.md](references/03-time-period.md) |
+| Weather data / EPW | [04-weather-data.md](references/04-weather-data.md) |
+| Bring your own buildings / trees / ground | [byo-inputs.md](references/byo-inputs.md) |
 
-```python
-import os
-from infrared_sdk import InfraredClient
-from infrared_sdk.analyses.types import AnalysesName, WindModelRequest
+## Choosing an analysis
 
-POLYGON = {
-    "type": "Polygon",
-    "coordinates": [[[16.371, 48.207], [16.376, 48.207],
-                     [16.376, 48.210], [16.371, 48.210], [16.371, 48.207]]],
-}
+| User wants to know… | Analysis | Payload + response | Result interpretation |
+|---|---|---|---|
+| Is it windy at street level? | `wind-speed` | [analyses/01-wind-speed.md](references/analyses/01-wind-speed.md) | [interpretation/wind-results.md](references/interpretation/wind-results.md) |
+| Is wind comfortable for pedestrians? | `pedestrian-wind-comfort` | [analyses/02-pedestrian-wind-comfort.md](references/analyses/02-pedestrian-wind-comfort.md) | [interpretation/wind-results.md](references/interpretation/wind-results.md) |
+| Enough daylight at street level? | `daylight-availability` | [analyses/03-daylight-availability.md](references/analyses/03-daylight-availability.md) | [interpretation/solar-results.md](references/interpretation/solar-results.md) |
+| Sun-hour exposure? | `direct-sun-hours` | [analyses/04-direct-sun-hours.md](references/analyses/04-direct-sun-hours.md) | [interpretation/solar-results.md](references/interpretation/solar-results.md) |
+| How open is the sky? | `sky-view-factors` | [analyses/05-sky-view-factors.md](references/analyses/05-sky-view-factors.md) | [interpretation/solar-results.md](references/interpretation/solar-results.md) |
+| Solar energy on a surface? | `solar-radiation` | [analyses/06-solar-radiation.md](references/analyses/06-solar-radiation.md) | [interpretation/solar-results.md](references/interpretation/solar-results.md) |
+| Outdoor thermal comfort? | `thermal-comfort-index` (UTCI) | [analyses/07-thermal-comfort-utci.md](references/analyses/07-thermal-comfort-utci.md) | [interpretation/thermal-results.md](references/interpretation/thermal-results.md) |
+| % of time uncomfortable per year? | `thermal-comfort-statistics` (TCS) | [analyses/08-thermal-comfort-statistics.md](references/analyses/08-thermal-comfort-statistics.md) | [interpretation/thermal-results.md](references/interpretation/thermal-results.md) |
 
-client = InfraredClient(api_key=os.environ["INFRARED_API_KEY"])
-area = client.buildings.get_area(POLYGON)        # fetch — replace with BYO when available
-result = client.run_area_and_wait(
-    WindModelRequest(
-        analysis_type=AnalysesName.wind_speed,
-        wind_speed=15,           # int 1..100, m/s
-        wind_direction=270,      # int 0..360, meteorological (270 = from west)
-    ),
-    POLYGON,
-    buildings=area.buildings,    # for BYO: pass dict[str, DotBimMesh] you already have
-)
-print(result.grid_shape, result.min_legend, result.max_legend)
-```
+## Cross-cutting topics
 
-For thermal/solar analyses (UTCI, TCS, solar-radiation), use the `*ModelRequest.from_weatherfile_payload(...)` classmethods — they need hourly weather. See per-analysis section in the [SDK README](https://pypi.org/project/infrared-sdk/) until per-analysis references are written here.
+| Topic | Reference |
+|---|---|
+| Area API / tiling / AreaResult / cost preview | [05-area-api.md](references/05-area-api.md) |
+| Webhooks / signature verification / events | [06-webhooks.md](references/06-webhooks.md) |
+| Image generation (PNG output) | [07-images.md](references/07-images.md) |
+| Errors / exception hierarchy | [08-error-handling.md](references/08-error-handling.md) |
 
 ## Invariants
 
 - Auth: `X-Api-Key` header from `INFRARED_API_KEY` env. Never `Authorization: Bearer`.
 - GeoJSON coords: `[longitude, latitude]` (RFC 7946).
-- Imports: `from infrared_sdk import InfraredClient`; `from infrared_sdk.analyses.types import AnalysesName, WindModelRequest, ...`; `from infrared_sdk.models import TimePeriod, Location` (only for analyses that take them — wind does not).
+- Imports: `from infrared_sdk import InfraredClient`; `from infrared_sdk.analyses.types import AnalysesName, ...`; `from infrared_sdk.models import TimePeriod, Location` (only for analyses that take them — wind does not).
 - Enum **values** are kebab-case (`"wind-speed"`); enum **member names** are snake_case (`AnalysesName.wind_speed`, `PwcCriteria.lawson_lddc`, `TcsSubtype.heat_stress`).
-- `wind_direction=270` means wind **from** the west.
+- `wind_direction=270` means wind **from** the west (meteorological convention).
 - Always use `client.run_area_and_wait(request, polygon, buildings=...)` — single-tile polygons skip tiling automatically.
 - Single tile is **512 m × 512 m**. Cell pitch is **1 m × 1 m**. Polygon larger than that auto-tiles.
 - `wind_speed` is `int` 1–100. Don't pass floats from weather data.
 - Use `result.min_legend` / `result.max_legend` for plotting bounds — distributions are heavy-tailed.
-
-## Choosing an analysis
-
-| User wants to know… | Analysis name (kebab-case) | Reference |
-|---|---|---|
-| Is it windy at street level? | `wind-speed` | [interpretation/wind-results.md](references/interpretation/wind-results.md) |
-| Is wind comfortable for pedestrians? | `pedestrian-wind-comfort` | [interpretation/wind-results.md](references/interpretation/wind-results.md) |
-| Solar energy on a surface? | `solar-radiation` | [interpretation/solar-results.md](references/interpretation/solar-results.md) |
-| Enough daylight at street level? | `daylight-availability` | [interpretation/solar-results.md](references/interpretation/solar-results.md) |
-| Sun-hour exposure? | `direct-sun-hours` | [interpretation/solar-results.md](references/interpretation/solar-results.md) |
-| How open is the sky? | `sky-view-factors` | [interpretation/solar-results.md](references/interpretation/solar-results.md) |
-| Outdoor thermal comfort? | `thermal-comfort-index` (UTCI) | [interpretation/thermal-results.md](references/interpretation/thermal-results.md) |
-| % of time uncomfortable per year? | `thermal-comfort-statistics` (TCS) | [interpretation/thermal-results.md](references/interpretation/thermal-results.md) |
-| **User has own BIM / Rhino / GeoJSON data** (default for most users) | (any analysis) | [byo-inputs.md](references/byo-inputs.md) |
 
 ## Pitfalls
 
@@ -78,7 +67,7 @@ For thermal/solar analyses (UTCI, TCS, solar-radiation), use the `*ModelRequest.
 - Calling `WindModelRequest(location=..., time_period=...)` — wind takes `wind_speed` and `wind_direction`, no location/time_period.
 - Averaging PWC class grids — they're categorical class indices, use mode or area-share.
 - TCS subtype is per-call — to get `thermal-comfort` + `heat-stress` + `cold-stress`, run three jobs.
-- Skipping vegetation/ground for thermal or solar runs — they materially affect MRT and surface heat. Fetch via `client.vegetation.get_area(polygon)` and `client.ground_materials.get_area(polygon)`, or supply your own. See [byo-inputs.md](references/byo-inputs.md).
+- Skipping vegetation/ground for thermal or solar runs — they materially affect MRT and surface heat. See [byo-inputs.md](references/byo-inputs.md).
 - Comparing UTCI runs with different weather files (keep the EPW constant).
 
 ## Runnable examples
