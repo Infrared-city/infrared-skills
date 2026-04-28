@@ -1,6 +1,8 @@
 # Bring-your-own buildings, vegetation, ground materials
 
-The SDK lets you supply your own buildings, trees, and ground-material maps to a simulation instead of (or in addition to) the data fetched from the API. This is the primary workflow for architects/planners who already have BIM/Rhino models, custom landscape designs, or proposed scenarios.
+**This is the default workflow.** Most SDK users — architects, urban planners, sustainability consultants — start from data they already have (BIM/Rhino/IFC models, GeoJSON footprints from a planning department, proposed-scenario landscape designs) and want to run microclimate analyses against *that*. The fetch-from-API path (`client.buildings.get_area(...)`) is for quick prototyping over an unknown city block, not for real project work.
+
+When advising a user, always ask first whether they have their own buildings / trees / ground-material data. Default to BYO; fall back to fetched data only when nothing is provided.
 
 ## How to pass them
 

@@ -7,7 +7,15 @@ license: Apache-2.0
 
 # Use Infrared
 
-## Quick start (wind speed)
+## Two workflows — pick the one that fits the user
+
+**Most users bring their own data** (BIM / Rhino / IFC / GeoJSON building footprints, custom landscape designs, proposed-scenario ground materials). That's the primary workflow. **Always check first whether the user already has buildings/trees/ground data** before falling back to the SDK's fetch-from-API path. The fetch path is convenient for prototyping over an unknown city block, but real architectural and planning work usually starts from data the user already has.
+
+→ **For BYO (default for most users):** [byo-inputs.md](references/byo-inputs.md) — DotBim building format, tree GeoJSON Features, ground-material layers, mix-and-match patterns.
+
+→ **For prototyping with fetched data:** the example below.
+
+## Quick start (wind speed, fetched data — prototyping only)
 
 ```python
 import os
@@ -21,7 +29,7 @@ POLYGON = {
 }
 
 client = InfraredClient(api_key=os.environ["INFRARED_API_KEY"])
-area = client.buildings.get_area(POLYGON)
+area = client.buildings.get_area(POLYGON)        # fetch — replace with BYO when available
 result = client.run_area_and_wait(
     WindModelRequest(
         analysis_type=AnalysesName.wind_speed,
@@ -29,7 +37,7 @@ result = client.run_area_and_wait(
         wind_direction=270,      # int 0..360, meteorological (270 = from west)
     ),
     POLYGON,
-    buildings=area.buildings,
+    buildings=area.buildings,    # for BYO: pass dict[str, DotBimMesh] you already have
 )
 print(result.grid_shape, result.min_legend, result.max_legend)
 ```
@@ -60,7 +68,7 @@ For thermal/solar analyses (UTCI, TCS, solar-radiation), use the `*ModelRequest.
 | How open is the sky? | `sky-view-factors` | [interpretation/solar-results.md](references/interpretation/solar-results.md) |
 | Outdoor thermal comfort? | `thermal-comfort-index` (UTCI) | [interpretation/thermal-results.md](references/interpretation/thermal-results.md) |
 | % of time uncomfortable per year? | `thermal-comfort-statistics` (TCS) | [interpretation/thermal-results.md](references/interpretation/thermal-results.md) |
-| Bring own buildings / trees / ground materials | (any analysis) | [byo-inputs.md](references/byo-inputs.md) |
+| **User has own BIM / Rhino / GeoJSON data** (default for most users) | (any analysis) | [byo-inputs.md](references/byo-inputs.md) |
 
 ## Pitfalls
 
