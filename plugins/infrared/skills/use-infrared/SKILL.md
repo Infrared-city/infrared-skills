@@ -60,6 +60,7 @@ For thermal/solar analyses (UTCI, TCS, solar-radiation), use the `*ModelRequest.
 | How open is the sky? | `sky-view-factors` | [interpretation/solar-results.md](references/interpretation/solar-results.md) |
 | Outdoor thermal comfort? | `thermal-comfort-index` (UTCI) | [interpretation/thermal-results.md](references/interpretation/thermal-results.md) |
 | % of time uncomfortable per year? | `thermal-comfort-statistics` (TCS) | [interpretation/thermal-results.md](references/interpretation/thermal-results.md) |
+| Bring own buildings / trees / ground materials | (any analysis) | [byo-inputs.md](references/byo-inputs.md) |
 
 ## Pitfalls
 
@@ -69,6 +70,7 @@ For thermal/solar analyses (UTCI, TCS, solar-radiation), use the `*ModelRequest.
 - Calling `WindModelRequest(location=..., time_period=...)` — wind takes `wind_speed` and `wind_direction`, no location/time_period.
 - Averaging PWC class grids — they're categorical class indices, use mode or area-share.
 - TCS subtype is per-call — to get `thermal-comfort` + `heat-stress` + `cold-stress`, run three jobs.
+- Skipping vegetation/ground for thermal or solar runs — they materially affect MRT and surface heat. Fetch via `client.vegetation.get_area(polygon)` and `client.ground_materials.get_area(polygon)`, or supply your own. See [byo-inputs.md](references/byo-inputs.md).
 - Comparing UTCI runs with different weather files (keep the EPW constant).
 
 ## Runnable examples
