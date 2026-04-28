@@ -54,7 +54,7 @@ except InfraredJobError:
 
 ## Area-level errors
 
-- `AreaTimeoutError` — `run_area_and_wait` exceeded `area_timeout` (default 3600s). The exception carries `area_state: AreaState` so you can inspect counts of succeeded / failed / running / pending jobs at the moment of timeout. Re-exported at the package root: `from infrared_sdk import AreaTimeoutError`.
+- `AreaTimeoutError` — `run_area_and_wait` exceeded `area_timeout` (default 3600s). The exception carries `area_state: AreaState` so you can inspect counts of succeeded / failed / running / pending jobs at the moment of timeout. The shape mirrors `client.check_area_state(schedule)` (see [async-and-jobs.md](async-and-jobs.md)), so the same recovery code works for both sync timeouts and async polling. Re-exported at the package root: `from infrared_sdk import AreaTimeoutError`.
 - `TiledRunError` — every tile in a tiled run failed. Carries `failed_tiles: list[TileFailure]` with per-tile `tile_id`, `row`, `col`, `error` string, and original `exception`. Not yet re-exported at the package root — import it from the deeper path: `from infrared_sdk.tiling.types import TiledRunError`.
 
 `AreaResult` reports partial outcomes via `failed_jobs` / `skipped_jobs` rather than raising, as long as at least one tile succeeded.
