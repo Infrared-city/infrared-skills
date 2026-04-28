@@ -33,19 +33,9 @@ export INFRARED_API_KEY=...   # https://infrared.city
 
 These read `AGENTS.md` from the project root. Either clone this repo into your workspace, or copy the `plugins/infrared/skills/use-infrared/` folder into your project's `.agents/skills/` directory.
 
-## Run an example
-
-```bash
-git clone git@github.com:Infrared-city/infrared-skills.git
-cd infrared-skills
-pip install -r examples/requirements.txt
-python examples/01-quickstart-wind.py
-```
-
 ## Layout
 
 - `plugins/infrared/skills/use-infrared/` — the skill (SKILL.md router + references)
-- `examples/` — runnable Python recipes
 - `AGENTS.md` — for Codex / Copilot / Windsurf
 
 ## License
