@@ -1,8 +1,11 @@
+# The Infrared SDK itself.
 infrared-sdk
+
 python-dotenv
 matplotlib
 plotly
 numpy
+Pillow
 
 # For the optional webhook_receiver.py only:
 flask
