@@ -13,21 +13,20 @@ pip install infrared-sdk
 
 ```dotenv
 INFRARED_API_KEY=your-key-here
-# Production base URL. Set this explicitly — older SDK builds default to an
-# unversioned URL that no longer routes correctly.
-INFRARED_BASE_URL=https://api.infrared.city/v2
 ```
 
 ```python
 from infrared_sdk import InfraredClient
 
-# Reads INFRARED_API_KEY (and optionally INFRARED_BASE_URL) from env
+# Reads INFRARED_API_KEY from env. The SDK ships with the correct production base URL.
 with InfraredClient() as client:
     ...
 
 # Or explicit
-client = InfraredClient(api_key="your-key", base_url="https://api.infrared.city/v2")
+client = InfraredClient(api_key="your-key")
 ```
+
+Full SDK reference: <https://infrared.city/docs/sdk>.
 
 ## Auth header
 

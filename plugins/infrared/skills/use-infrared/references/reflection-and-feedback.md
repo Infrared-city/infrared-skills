@@ -17,7 +17,7 @@ If none — done. Move on without telling the user about this file.
 ```bash
 gh issue create --repo Infrared-city/infrared-skills --label skill-feedback \
   --title "<one-line description>" \
-  --body "Where (file + section). What the skill said vs. what was true (with SDK source). Severity. Suggested fix if any."
+  --body "Where (file + section). What the skill said vs. what was true. Severity. Suggested fix if any."
 ```
 
-Skip: praise, "had to think for a moment", or SDK bugs unrelated to skill claims (those go to `Infrared-city/infrared-api-sdk`).
+Skip: praise, "had to think for a moment", or SDK bugs unrelated to skill claims (report those at <https://infrared.city/docs/sdk>).

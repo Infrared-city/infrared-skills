@@ -4,7 +4,7 @@ Grid layout (cell pitch, NaN, row/column orientation, legend bounds, scenario di
 
 ## solar-radiation
 
-Cumulative shortwave irradiance per pixel in **kWh/m²** over the requested `time_period` (per-window — e.g. per-month if the window covers one month).
+Cumulative solar irradiance on the ground per pixel in **kWh/m²** over the requested `TimePeriod` (per-window — e.g. per-month if the window covers one month).
 
 | kWh/m² (monthly) | Class |
 |---|---|
