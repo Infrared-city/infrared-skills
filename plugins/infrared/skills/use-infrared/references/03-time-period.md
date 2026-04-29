@@ -40,8 +40,8 @@ Example: `TimePeriod(start_month=6, start_day=1, start_hour=9, end_month=8, end_
 | -------------------------- | ---------- | ------------ |
 | Wind Speed                 | No         | No           |
 | Sky View Factors           | No         | No           |
-| Daylight Availability      | Yes        | No           |
-| Direct Sun Hours           | Yes        | No           |
+| Daylight Availability      | Yes (single month only — `start_month == end_month`) | No           |
+| Direct Sun Hours           | Yes (single month only — `start_month == end_month`) | No           |
 | Solar Radiation            | Yes        | Yes          |
 | Thermal Comfort (UTCI)     | Yes        | Yes          |
 | Thermal Comfort Statistics | Yes        | Yes          |
@@ -53,6 +53,7 @@ Example: `TimePeriod(start_month=6, start_day=1, start_hour=9, end_month=8, end_
 - `end_*` fields are inclusive on each cascade level.
 - `TimePeriod` is frozen (Pydantic `frozen=True`); construct a new one to change values.
 - Impossible calendar dates (April 31, June 31, September 31, November 31, February 30), zero-length windows, and `end < start` raise `ValidationError` at construction. February 29 is accepted (no year context). Year-wrap windows (e.g. Nov→Feb) are not supported — split into two periods.
+- `daylight-availability` and `direct-sun-hours` only support **single-month** windows (`start_month == end_month`). Multi-month windows are rejected server-side. To cover a season, submit one job per month and aggregate client-side.
 
 ## See also
 
