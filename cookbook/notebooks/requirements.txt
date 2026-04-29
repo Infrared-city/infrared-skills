@@ -1,0 +1,8 @@
+infrared-sdk
+python-dotenv
+matplotlib
+plotly
+numpy
+
+# For the optional webhook_receiver.py only:
+flask
