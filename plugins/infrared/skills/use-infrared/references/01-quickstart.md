@@ -17,7 +17,7 @@ polygon = {
     ]],
 }
 
-# api_key and base_url fall back to INFRARED_API_KEY / INFRARED_BASE_URL env vars
+# api_key falls back to INFRARED_API_KEY env var; base URL ships with the SDK
 with InfraredClient() as client:
     # 1. Fetch buildings for the area
     area = client.buildings.get_area(polygon)

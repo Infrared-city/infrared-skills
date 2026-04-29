@@ -18,7 +18,7 @@
 
 ---
 
-> **What this is.** Two ways to use the [Infrared SDK](https://github.com/Infrared-city/infrared-api-sdk) without leaving the tools you already have:
+> **What this is.** Two ways to use the [Infrared SDK](https://infrared.city/docs/sdk) without leaving the tools you already have:
 >
 > 1. An **agent skill** that teaches Claude Code, Cursor, Codex CLI, GitHub Copilot, and Windsurf how to drive the SDK and read its results.
 > 2. A **Jupyter cookbook** that walks through every analysis end-to-end with embedded outputs.
@@ -97,19 +97,21 @@ jupyter lab            # for the notebooks
 
 ## SDK access
 
-Request an API key at <https://infrared.city>, then install the SDK:
+Request an API key at <https://infrared.city>, then install the SDK from PyPI:
 
 ```bash
 pip install infrared-sdk
 export INFRARED_API_KEY=...
 ```
 
+Full SDK reference: <https://infrared.city/docs/sdk>.
+
 ## Learn more
 
 - **About the platform** — <https://infrared.city/>
 - **What the simulations do** — <https://infrared.city/simulations/>
 - **Validation, methods, model docs** — <https://infrared.city/knowledge-base/>
-- **SDK source** — [`Infrared-city/infrared-api-sdk`](https://github.com/Infrared-city/infrared-api-sdk)
+- **SDK docs** — <https://infrared.city/docs/sdk>
 
 ## Layout
 

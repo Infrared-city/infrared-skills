@@ -45,14 +45,14 @@ Example: `TimePeriod(start_month=6, start_day=1, start_hour=9, end_month=8, end_
 | Solar Radiation            | Yes        | Yes          |
 | Thermal Comfort (UTCI)     | Yes        | Yes          |
 | Thermal Comfort Statistics | Yes        | Yes          |
-| Pedestrian Wind Comfort    | No (payload takes pre-filtered weather arrays — but use `TimePeriod` when calling `filter_weather_data` to derive them) | Yes |
+| Pedestrian Wind Comfort    | Yes (for weather filtering) | Yes (wind speed/direction arrays) |
 
 ## Pitfalls
 
 - Pass the **same** `TimePeriod` to `filter_weather_data()` and the analysis payload — mismatched windows desync weather arrays from the simulation.
 - `end_*` fields are inclusive on each cascade level.
 - `TimePeriod` is frozen (Pydantic `frozen=True`); construct a new one to change values.
-- Day 31 in a 30-day month silently has no effect for that month — the filter just yields fewer rows.
+- Impossible calendar dates (April 31, June 31, September 31, November 31, February 30), zero-length windows, and `end < start` raise `ValidationError` at construction. February 29 is accepted (no year context). Year-wrap windows (e.g. Nov→Feb) are not supported — split into two periods.
 
 ## See also
 

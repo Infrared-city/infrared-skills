@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Repo: agent skills + Python recipes for the [Infrared SDK](https://github.com/Infrared-city/infrared-api-sdk).
+Repo: agent skills + Python recipes for the [Infrared SDK](https://infrared.city/docs/sdk) (`pip install infrared-sdk`).
 
 ## For agents working with the Infrared SDK in any project
 
@@ -22,5 +22,5 @@ That file is the canonical SDK-usage guide. Codex CLI / Copilot / Windsurf agent
 
 ## Do not port from
 
-- `infrared-api-sdk/skills/infrared-sdk-contributors/` — internal.
-- `infrared-api-sdk/skills/async-jobs.md` — internal infrastructure.
+- Internal SDK contributor skills.
+- Internal async-jobs infrastructure docs.
