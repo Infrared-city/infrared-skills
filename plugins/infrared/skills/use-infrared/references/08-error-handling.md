@@ -40,10 +40,14 @@ All job-level exceptions inherit from `InfraredJobError`:
 | `JobNotCompletedError` | Result accessed before completion |
 
 ```python
-from infrared_sdk import InfraredJobError, JobFailedError, JobTimeoutError
+from infrared_sdk import InfraredJobError, JobFailedError, JobTimeoutError, AreaRunError, AreaTimeoutError
 
 try:
     result = client.run_area_and_wait(payload, polygon, buildings=area.buildings)
+except AreaRunError as e:
+    log.error("all jobs failed", extra={"failed": e.failed_jobs, "total": e.total_jobs})
+except AreaTimeoutError as e:
+    log.warning("area timed out", extra={"state": e.area_state})
 except JobFailedError as e:
     log.error("simulation failed", extra={"job_id": e.job_id})
 except JobTimeoutError:
@@ -54,8 +58,15 @@ except InfraredJobError:
 
 ## Area-level errors
 
-- `AreaTimeoutError` — `run_area_and_wait` exceeded `area_timeout` (default 3600s). The exception carries `area_state: AreaState` so you can inspect counts of succeeded / failed / running / pending jobs at the moment of timeout. The shape mirrors `client.check_area_state(schedule)` (see [async-and-jobs.md](async-and-jobs.md)), so the same recovery code works for both sync timeouts and async polling. Re-exported at the package root: `from infrared_sdk import AreaTimeoutError`.
-- `TiledRunError` — every tile in a tiled run failed. Carries `failed_tiles: list[TileFailure]` with per-tile `tile_id`, `row`, `col`, `error` string, and original `exception`. Not yet re-exported at the package root — import it from the deeper path: `from infrared_sdk.tiling.types import TiledRunError`.
+All three area-level exceptions are importable from the package root:
+
+```python
+from infrared_sdk import AreaRunError, AreaTimeoutError, TiledRunError
+```
+
+- `AreaRunError` *(added 0.4.0)* — `run_area_and_wait` (and `merge_area_jobs`) raises this when **every** job terminates without producing a usable tile. Carries `failed_jobs`, `skipped_jobs`, `total_jobs`. Callers that previously got `AreaResult` with `succeeded_jobs=0` will now see this exception — wrap in `try/except AreaRunError`. Partial failures (≥1 success + N failures) still return an `AreaResult`.
+- `AreaTimeoutError` — `run_area_and_wait` exceeded `area_timeout` (default 3600s). Carries `area_state: AreaState` so you can inspect job counts at the moment of timeout. The shape mirrors `client.check_area_state(schedule)` (see [async-and-jobs.md](async-and-jobs.md)), so the same recovery code works for both sync timeouts and async polling.
+- `TiledRunError` — every tile in a tiled run failed. Carries `failed_tiles: list[TileFailure]` with per-tile `tile_id`, `row`, `col`, `error` string, and original `exception`.
 
 `AreaResult` reports partial outcomes via `failed_jobs` / `skipped_jobs` rather than raising, as long as at least one tile succeeded.
 

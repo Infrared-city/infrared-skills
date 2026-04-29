@@ -18,12 +18,13 @@ INFRARED_API_KEY=your-key-here
 ```python
 from infrared_sdk import InfraredClient
 
-# Reads INFRARED_API_KEY from env. The SDK ships with the correct production base URL.
+# Reads INFRARED_API_KEY from env. Default base URL is https://api.infrared.city/v2.
 with InfraredClient() as client:
     ...
 
 # Or explicit
 client = InfraredClient(api_key="your-key")
+# Override base URL via INFRARED_BASE_URL env var — must include /v2 if set manually.
 ```
 
 Full SDK reference: <https://infrared.city/docs/sdk>.

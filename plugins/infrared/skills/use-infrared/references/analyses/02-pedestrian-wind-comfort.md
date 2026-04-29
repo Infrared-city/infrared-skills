@@ -13,9 +13,11 @@ weather_data = client.weather.filter_weather_data(
     identifier="your-weather-file-id",
     time_period=TimePeriod(
         start_month=6, start_day=1, start_hour=9,
-        end_month=8, end_day=31, end_hour=17,
+        end_month=6, end_day=30, end_hour=17,
     ),
 )
+# Single-month window required. Multi-month runs currently fail server-side — split into
+# separate TimePeriods and run each sequentially if you need a longer period.
 wind_fields = extract_weather_fields(weather_data, ["windSpeed", "windDirection"])
 
 payload = PwcModelRequest(

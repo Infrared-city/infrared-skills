@@ -30,6 +30,7 @@ polygon = {
 
 with InfraredClient() as client:
     area = client.buildings.get_area(polygon)          # fetch buildings once
+    # area.failed_tiles lists any tiles where building fetch failed (empty on full success)
     wind_result = client.run_area_and_wait(
         WindModelRequest(
             analysis_type=AnalysesName.wind_speed,
@@ -102,7 +103,7 @@ Building coordinates are always relative to the **inference square** (512×512m)
 
 ## Pitfalls
 
-- Never derive heatmap colour range from the grid — use `min_legend` / `max_legend` as `zmin` / `zmax`. Direct Sun Hours / Daylight cluster near the max and look washed out otherwise.
+- Never derive heatmap colour range from the grid — use `min_legend` / `max_legend` as `zmin` / `zmax`. Direct Sun Hours / Daylight cluster near the max and look washed out otherwise. The API currently returns `None` for these fields on all analyses; always apply a fallback: `zmin = result.min_legend if result.min_legend is not None else float(np.nanmin(result.merged_grid))`.
 - Buildings passed to `run_area_and_wait()` must be in **polygon-bbox-SW frame** (meters from SW corner of bbox). `client.buildings.get_area()` returns them in this frame.
 - Solar context margin produces buildings with **negative coordinates** in per-tile frame — that is correct; do not filter them out.
 - The 77 m solar context margin is also the **shadow-casting horizon** — buildings further than 77 m from a tile's edge can't occlude into that tile. At low sun angles (early/late hours, winter) shadows on multi-tile polygons may clip at tile seams. Avoid those hours, or fall back to a single-tile polygon.

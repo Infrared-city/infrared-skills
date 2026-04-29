@@ -11,11 +11,11 @@ from infrared_sdk.models import TimePeriod, extract_weather_fields
 locations = client.weather.get_weather_file_from_location(
     lat=48.1983, lon=11.575, radius=50
 )
-# [{"identifier": "DEU_BY_Munich.AP.108660_TMYx.2007-2021", "name": "Munich AP", ...}, ...]
+# [{"uuid": "eb91892c-fbe3-4743-ade5-c22cfb5913e1", "fileName": "DEU_BY_Munich-Theresienwiese.108650_TMYx", "location_data": {...}}, ...]
 
 # 2. Filter hourly data by TimePeriod
 weather_data = client.weather.filter_weather_data(
-    identifier=locations[0]["identifier"],
+    identifier=locations[0]["uuid"],
     time_period=TimePeriod(
         start_month=6, start_day=1, start_hour=9,
         end_month=8, end_day=31, end_hour=17,
@@ -49,7 +49,7 @@ For UTCI / TCS / Solar Radiation, prefer `<Request>.from_weatherfile_payload(...
 - Field names go in as **camelCase** (`windSpeed`); they come out **snake_case** (`wind_speed`).
 - `WeatherDataPoint` has `extra="ignore"` and coerces numeric strings → floats; empty / `na` / `null` cells become `None` and `extract_weather_fields` silently skips them, so output arrays for sparse fields can be shorter than the input list.
 - BYO weather: array lengths must match what `filter_weather_data` would have returned for the same `TimePeriod`.
-- Identifiers like `"DEU_BY_Munich.AP.108660_TMYx.2007-2021"` are opaque — always fetch them via `get_weather_file_from_location`.
+- Station entries have shape `{"uuid": ..., "fileName": ..., "location_data": {...}}`. Pass `locations[0]["uuid"]` as the `identifier` argument — not `"identifier"` (that field no longer exists).
 
 ## See also
 

@@ -67,7 +67,7 @@ Pick the entry point first — it shapes blocking, webhooks, and persistence. Fu
 - For most uses: `client.run_area_and_wait(request, polygon, buildings=...)` (sync). Single-tile polygons skip tiling automatically. For async / long-running, see [async-and-jobs.md](references/async-and-jobs.md).
 - Single tile is **512 m × 512 m**. Cell pitch is **1 m × 1 m**. Polygon larger than that auto-tiles.
 - `wind_speed` is `int` 1–100. Don't pass floats from weather data.
-- Use `result.min_legend` / `result.max_legend` for plotting bounds — distributions are heavy-tailed.
+- Use `result.min_legend` / `result.max_legend` for plotting bounds — distributions are heavy-tailed. The API currently returns `None` for these; always guard: `zmin = result.min_legend if result.min_legend is not None else float(np.nanmin(result.merged_grid))`.
 
 ## Pitfalls
 
