@@ -468,11 +468,9 @@ def main() -> None:
                 else:
                     try:
                         t_gm = time.monotonic()
-                        area_ground_materials = (
-                            client.ground_materials.get_area(
-                                polygon,
-                                max_tiles_override=120,
-                            )
+                        area_ground_materials = client.ground_materials.get_area(
+                            polygon,
+                            max_tiles_override=120,
                         )
                         logger.info(
                             "Area: %s — ground materials fetched (%d features, "

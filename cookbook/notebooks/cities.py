@@ -38,17 +38,21 @@ def _square_polygon(lat: float, lon: float, half_lat: float, half_lon: float) ->
     """Closed CCW square polygon centred at (lat, lon)."""
     return {
         "type": "Polygon",
-        "coordinates": [[
-            [lon - half_lon, lat - half_lat],
-            [lon + half_lon, lat - half_lat],
-            [lon + half_lon, lat + half_lat],
-            [lon - half_lon, lat + half_lat],
-            [lon - half_lon, lat - half_lat],
-        ]],
+        "coordinates": [
+            [
+                [lon - half_lon, lat - half_lat],
+                [lon + half_lon, lat - half_lat],
+                [lon + half_lon, lat + half_lat],
+                [lon - half_lon, lat + half_lat],
+                [lon - half_lon, lat - half_lat],
+            ]
+        ],
     }
 
 
-def _irregular_polygon(lat: float, lon: float, half_lat: float, half_lon: float) -> dict:
+def _irregular_polygon(
+    lat: float, lon: float, half_lat: float, half_lon: float
+) -> dict:
     """Irregular pentagon centred at (lat, lon).
 
     Spans roughly 2 x ``half_lon`` east-west and 2 x ``half_lat`` north-south,
@@ -57,20 +61,23 @@ def _irregular_polygon(lat: float, lon: float, half_lat: float, half_lon: float)
     """
     return {
         "type": "Polygon",
-        "coordinates": [[
-            [lon - half_lon,         lat - half_lat * 0.6],
-            [lon - half_lon * 0.3,   lat - half_lat],
-            [lon + half_lon,         lat - half_lat * 0.4],
-            [lon + half_lon * 0.7,   lat + half_lat],
-            [lon - half_lon * 0.6,   lat + half_lat * 0.7],
-            [lon - half_lon,         lat - half_lat * 0.6],
-        ]],
+        "coordinates": [
+            [
+                [lon - half_lon, lat - half_lat * 0.6],
+                [lon - half_lon * 0.3, lat - half_lat],
+                [lon + half_lon, lat - half_lat * 0.4],
+                [lon + half_lon * 0.7, lat + half_lat],
+                [lon - half_lon * 0.6, lat + half_lat * 0.7],
+                [lon - half_lon, lat - half_lat * 0.6],
+            ]
+        ],
     }
 
 
 def _make_city(name: str, country: str, continent: str, lat: float, lon: float) -> City:
     # Small: ~150 m on a side. half_lat 0.0007 deg = ~78 m.  half_lon scales by cos(lat).
     import math
+
     cos_lat = math.cos(math.radians(lat))
     small_half_lat = 0.0007
     small_half_lon = 0.0007 / max(cos_lat, 0.1)
@@ -111,9 +118,7 @@ CITIES: dict[str, City] = {
 def get(slug: str = "munich") -> City:
     """Look up a city by slug. Defaults to ``munich``."""
     if slug not in CITIES:
-        raise KeyError(
-            f"Unknown city {slug!r}. Available: {sorted(CITIES)}"
-        )
+        raise KeyError(f"Unknown city {slug!r}. Available: {sorted(CITIES)}")
     return CITIES[slug]
 
 
@@ -125,4 +130,6 @@ def list_cities() -> list[tuple[str, str, str]]:
 if __name__ == "__main__":
     for slug, name, continent in list_cities():
         c = get(slug)
-        print(f"{slug:10s}  {name:12s}  {continent:14s}  ({c.latitude:.4f}, {c.longitude:.4f})")
+        print(
+            f"{slug:10s}  {name:12s}  {continent:14s}  ({c.latitude:.4f}, {c.longitude:.4f})"
+        )
