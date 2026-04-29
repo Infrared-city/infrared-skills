@@ -13,6 +13,8 @@ tp = TimePeriod(
 )
 ```
 
+> **Server-side limitation (as of 2026-04):** the inference layer's `sun_vectors` generator currently only honours **one month** of the requested window. Solar / UTCI / TCS / PWC requests with a multi-month window return `Unexpected Inference error: DNI length N != sun_vectors M`. Until that is fixed, use single-month windows (`end_month == start_month`) for those analyses. Geometry-only analyses (Wind, SVF) are unaffected.
+
 All 6 fields are required ints:
 
 | Field         | Range |

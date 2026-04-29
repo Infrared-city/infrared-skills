@@ -17,8 +17,11 @@ locations = client.weather.get_weather_file_from_location(
 weather_data = client.weather.filter_weather_data(
     identifier=locations[0]["uuid"],
     time_period=TimePeriod(
+        # NOTE (2026-04): Solar / UTCI / TCS / PWC require single-month windows
+        # right now — server's sun_vectors generator does not yet honour multi-
+        # month periods. See references/03-time-period.md for details.
         start_month=6, start_day=1, start_hour=9,
-        end_month=8, end_day=31, end_hour=17,
+        end_month=6, end_day=30, end_hour=17,
     ),
 )
 # list[WeatherDataPoint]

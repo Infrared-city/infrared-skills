@@ -36,9 +36,9 @@ The Infrared SDK runs eight microclimate analyses on any polygon you give it:
 | Solar radiation | kWh/m² grid |
 | Daylight availability | hours grid |
 | Direct sun hours | hours grid |
-| Sky view factor | 0–1 grid |
+| Sky view factor | 0–100 fraction grid |
 | Thermal comfort (UTCI) | °C grid |
-| Thermal comfort statistics | hours per UTCI band |
+| Thermal comfort statistics | % of time per UTCI band |
 
 Polygons can span one tile or many — the SDK fans out, runs jobs concurrently, and merges results.
 

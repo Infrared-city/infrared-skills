@@ -25,7 +25,9 @@ UTCI is driven by air temperature, wind, humidity, and mean radiant temperature 
 
 Returns the **time spent** in the chosen UTCI band per pixel — count of filtered hours that fell in that band (range `0` to the total length of the requested window in hours). Divide by the window length to get a fraction / `% time`. The same window length applies to every cell in a run, so absolute hours and the derived fraction are interchangeable for ranking.
 
-The "season × hours-of-day window" comes entirely from the `TimePeriod` you pass — there is no separate season or hours enum. Cascade filter: months, then days within those months, then hours within those days. Example: `TimePeriod(start_month=6, start_day=1, start_hour=9, end_month=8, end_day=31, end_hour=17)` = Jun-Aug, all days, 09:00–17:00 — the classic "summer daytime" window. (`TimePeriod` is Pydantic v2 — kwargs only.)
+The "season × hours-of-day window" comes entirely from the `TimePeriod` you pass — there is no separate season or hours enum. Cascade filter: months, then days within those months, then hours within those days. Example: `TimePeriod(start_month=6, start_day=1, start_hour=9, end_month=6, end_day=30, end_hour=17)` = June, all days, 09:00–17:00. (`TimePeriod` is Pydantic v2 — kwargs only.)
+
+> **Server-side limitation (as of 2026-04):** TCS / UTCI / Solar runs currently fail with `DNI length N != sun_vectors M` for multi-month windows — `sun_vectors` is not yet computed across full multi-month periods. Until fixed, run sequential single-month TCS jobs and aggregate client-side if you need a multi-month summary. See `references/03-time-period.md`.
 
 Three subtypes via `TcsSubtype` (per-call — to get all three, run three jobs):
 
