@@ -95,6 +95,8 @@ def _make_city(name: str, country: str, continent: str, lat: float, lon: float) 
 CITIES: dict[str, City] = {
     # Europe -- Munich, near Marienplatz.
     "munich": _make_city("Munich", "Germany", "Europe", 48.1374, 11.5755),
+    # Europe -- Vienna, Rathauspark (mixed buildings + park + water).
+    "vienna": _make_city("Vienna", "Austria", "Europe", 48.2107, 16.3585),
     # North America -- New York, Lower Manhattan / Tribeca.
     "new_york": _make_city("New York", "USA", "North America", 40.7180, -74.0060),
     # South America -- Sao Paulo, Avenida Paulista.

@@ -19,6 +19,9 @@ import the SDK, hit the API.
 git clone <this-folder>             # or download/extract the public-demos/ folder
 cd public-demos
 python -m venv .venv && source .venv/bin/activate   # or: .venv\Scripts\activate on Windows
+
+# Install the SDK and demo deps:
+pip install infrared-sdk
 pip install -r requirements.txt
 ```
 
@@ -33,11 +36,12 @@ The notebooks call `python-dotenv` to load `.env` automatically.
 
 ## Pick a city
 
-`cities.py` ships with five preset cities, one per continent:
+`cities.py` ships with six preset cities, covering every continent:
 
 | Slug         | City        | Country   | Continent     |
 | ------------ | ----------- | --------- | ------------- |
 | `munich`     | Munich      | Germany   | Europe        |
+| `vienna`     | Vienna      | Austria   | Europe        |
 | `new_york`   | New York    | USA       | North America |
 | `sao_paulo`  | Sao Paulo   | Brazil    | South America |
 | `tokyo`      | Tokyo       | Japan     | Asia          |
@@ -86,4 +90,4 @@ See the docstring at the top of the file for setup instructions
 ## License
 
 The notebooks are distributed under the same Apache-2.0 license as the
-SDK (see `LICENSE` in the SDK repository).
+SDK (the full license ships with the `infrared-sdk` package).
