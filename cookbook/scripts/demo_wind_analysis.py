@@ -26,12 +26,16 @@ from infrared_sdk.analyses.types import AnalysesName, WindModelRequest
 
 load_dotenv()
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)-7s  %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s  %(levelname)-7s  %(message)s"
+)
 logger = logging.getLogger("demo_wind")
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--speed", type=int, default=15, help="Wind speed in m/s (1-100)")
-parser.add_argument("--direction", type=int, default=180, help="Wind direction in degrees (0-360)")
+parser.add_argument(
+    "--direction", type=int, default=180, help="Wind direction in degrees (0-360)"
+)
 args = parser.parse_args()
 
 # ---------------------------------------------------------------------------
@@ -40,11 +44,15 @@ args = parser.parse_args()
 
 POLYGON = {
     "type": "Polygon",
-    "coordinates": [[
-        [11.570, 48.195], [11.580, 48.195],
-        [11.580, 48.201], [11.570, 48.201],
-        [11.570, 48.195],
-    ]],
+    "coordinates": [
+        [
+            [11.570, 48.195],
+            [11.580, 48.195],
+            [11.580, 48.201],
+            [11.570, 48.201],
+            [11.570, 48.195],
+        ]
+    ],
 }
 
 # ---------------------------------------------------------------------------
@@ -67,7 +75,12 @@ with InfraredClient(logger=logger) as client:
         buildings=area.buildings,
     )
 
-    logger.info("Grid shape: %s, %d/%d jobs succeeded", result.grid_shape, result.succeeded_jobs, result.total_jobs)
+    logger.info(
+        "Grid shape: %s, %d/%d jobs succeeded",
+        result.grid_shape,
+        result.succeeded_jobs,
+        result.total_jobs,
+    )
 
 # ---------------------------------------------------------------------------
 # Plot
@@ -84,7 +97,9 @@ fig = go.Figure(
 )
 fig.update_layout(
     title=f"Wind Speed | {args.speed} m/s @ {args.direction}deg | {result.grid_shape[0]}x{result.grid_shape[1]}",
-    width=800, height=800, template="plotly_white",
+    width=800,
+    height=800,
+    template="plotly_white",
     yaxis=dict(scaleanchor="x", scaleratio=1),
 )
 

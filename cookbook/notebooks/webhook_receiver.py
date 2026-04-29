@@ -62,7 +62,9 @@ WEBHOOK_SECRET: str | None = os.environ.get("INFRARED_WEBHOOK_SECRET")
 INSECURE: bool = os.environ.get("INFRARED_WEBHOOK_INSECURE") == "1"
 SIGNATURE_TOLERANCE_S: int = int(os.environ.get("INFRARED_WEBHOOK_TOLERANCE_S", "300"))
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)-7s  %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s  %(levelname)-7s  %(message)s"
+)
 logger = logging.getLogger("webhook_receiver")
 
 if not WEBHOOK_SECRET and not INSECURE:
@@ -120,8 +122,14 @@ def infrared_webhook():
     fname = os.path.join(LOG_DIR, f"hook_{timestamp}_{os.urandom(3).hex()}.json")
     with open(fname, "w", encoding="utf-8") as f:
         json.dump(
-            {"received_at_utc": timestamp, "headers": dict(request.headers), "body": body},
-            f, indent=2, default=str,
+            {
+                "received_at_utc": timestamp,
+                "headers": dict(request.headers),
+                "body": body,
+            },
+            f,
+            indent=2,
+            default=str,
         )
     logger.info(
         "Verified webhook: event=%s job_id=%s status=%s -> %s",
@@ -140,6 +148,8 @@ def health():
 
 if __name__ == "__main__":
     mode = "INSECURE (no signature check)" if INSECURE else "verifying HMAC signatures"
-    logger.info("Listening on 0.0.0.0:%d  (POST /infrared, GET /health) -- %s", PORT, mode)
+    logger.info(
+        "Listening on 0.0.0.0:%d  (POST /infrared, GET /health) -- %s", PORT, mode
+    )
     logger.info("Logs being written to %s", LOG_DIR)
     app.run(host="0.0.0.0", port=PORT)
