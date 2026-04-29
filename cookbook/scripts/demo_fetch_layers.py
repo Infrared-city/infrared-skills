@@ -22,16 +22,22 @@ from infrared_sdk import InfraredClient
 
 load_dotenv()
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)-7s  %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s  %(levelname)-7s  %(message)s"
+)
 logger = logging.getLogger("demo_fetch_layers")
 
 POLYGON = {
     "type": "Polygon",
-    "coordinates": [[
-        [11.570, 48.195], [11.580, 48.195],
-        [11.580, 48.201], [11.570, 48.201],
-        [11.570, 48.195],
-    ]],
+    "coordinates": [
+        [
+            [11.570, 48.195],
+            [11.580, 48.195],
+            [11.580, 48.201],
+            [11.570, 48.201],
+            [11.570, 48.195],
+        ]
+    ],
 }
 
 OUTPUT_PATH = os.path.join(os.path.dirname(__file__), "outputs", "layers_overview.html")
@@ -54,18 +60,24 @@ def main() -> None:
         area_gm = client.ground_materials.get_area(POLYGON)
         logger.info(
             "Buildings=%d, trees=%d, ground material features=%d",
-            area.total_buildings, area_veg.total_trees, area_gm.total_features,
+            area.total_buildings,
+            area_veg.total_trees,
+            area_gm.total_features,
         )
 
     fig = go.Figure()
 
     # Polygon outline
     ring = POLYGON["coordinates"][0]
-    fig.add_trace(go.Scatter(
-        x=[p[0] for p in ring], y=[p[1] for p in ring],
-        mode="lines", line=dict(color="black", width=2, dash="dash"),
-        name="Polygon",
-    ))
+    fig.add_trace(
+        go.Scatter(
+            x=[p[0] for p in ring],
+            y=[p[1] for p in ring],
+            mode="lines",
+            line=dict(color="black", width=2, dash="dash"),
+            name="Polygon",
+        )
+    )
 
     # Ground materials (filled polygons in lon/lat)
     for name, fc in (area_gm.layers or {}).items():
@@ -81,20 +93,36 @@ def main() -> None:
             for poly_ring in rings:
                 if not poly_ring:
                     continue
-                fig.add_trace(go.Scatter(
-                    x=[pt[0] for pt in poly_ring], y=[pt[1] for pt in poly_ring],
-                    mode="lines", fill="toself",
-                    fillcolor=GM_COLORS.get(name, "rgba(200,200,200,0.3)"),
-                    line=dict(width=0.5, color=GM_COLORS.get(name, "rgba(120,120,120,0.6)")),
-                    name=name, legendgroup=name,
-                    showlegend=False,
-                ))
+                fig.add_trace(
+                    go.Scatter(
+                        x=[pt[0] for pt in poly_ring],
+                        y=[pt[1] for pt in poly_ring],
+                        mode="lines",
+                        fill="toself",
+                        fillcolor=GM_COLORS.get(name, "rgba(200,200,200,0.3)"),
+                        line=dict(
+                            width=0.5,
+                            color=GM_COLORS.get(name, "rgba(120,120,120,0.6)"),
+                        ),
+                        name=name,
+                        legendgroup=name,
+                        showlegend=False,
+                    )
+                )
         # one legend marker per material
-        fig.add_trace(go.Scatter(
-            x=[None], y=[None], mode="markers",
-            marker=dict(size=10, color=GM_COLORS.get(name, "rgba(200,200,200,0.6)")),
-            name=name, legendgroup=name, showlegend=True,
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=[None],
+                y=[None],
+                mode="markers",
+                marker=dict(
+                    size=10, color=GM_COLORS.get(name, "rgba(200,200,200,0.6)")
+                ),
+                name=name,
+                legendgroup=name,
+                showlegend=True,
+            )
+        )
 
     # Trees (points in lon/lat)
     if area_veg.features:
@@ -104,19 +132,28 @@ def main() -> None:
             if len(coords) >= 2:
                 lons.append(coords[0])
                 lats.append(coords[1])
-        fig.add_trace(go.Scatter(
-            x=lons, y=lats, mode="markers",
-            marker=dict(size=6, color="rgb(56,142,60)", opacity=0.85, symbol="circle"),
-            name=f"Trees ({len(lons)})",
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=lons,
+                y=lats,
+                mode="markers",
+                marker=dict(
+                    size=6, color="rgb(56,142,60)", opacity=0.85, symbol="circle"
+                ),
+                name=f"Trees ({len(lons)})",
+            )
+        )
 
     fig.update_layout(
         title=(
             f"Layer coverage | buildings={area.total_buildings}, "
             f"trees={area_veg.total_trees}, ground features={area_gm.total_features}"
         ),
-        width=1100, height=900, template="plotly_white",
-        xaxis_title="Longitude", yaxis_title="Latitude",
+        width=1100,
+        height=900,
+        template="plotly_white",
+        xaxis_title="Longitude",
+        yaxis_title="Latitude",
         yaxis=dict(scaleanchor="x", scaleratio=1.4),  # rough Munich-latitude correction
     )
 

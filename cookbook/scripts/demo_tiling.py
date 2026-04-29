@@ -33,23 +33,31 @@ from infrared_sdk.analyses.types import AnalysesName, WindModelRequest
 
 load_dotenv()
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)-7s  %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s  %(levelname)-7s  %(message)s"
+)
 logger = logging.getLogger("demo_tiling")
 
 # Polygon spanning ~2x2 tiles (~1 km on each side at this latitude)
 POLYGON = {
     "type": "Polygon",
-    "coordinates": [[
-        [11.560, 48.190], [11.580, 48.190],
-        [11.580, 48.205], [11.560, 48.205],
-        [11.560, 48.190],
-    ]],
+    "coordinates": [
+        [
+            [11.560, 48.190],
+            [11.580, 48.190],
+            [11.580, 48.205],
+            [11.560, 48.205],
+            [11.560, 48.190],
+        ]
+    ],
 }
 
 # Wind tile geometry (see README §How tiling works)
 WIND_STEP_CELLS = 256
 
-OUTPUT_PATH = os.path.join(os.path.dirname(__file__), "outputs", "tiling_walkthrough.html")
+OUTPUT_PATH = os.path.join(
+    os.path.dirname(__file__), "outputs", "tiling_walkthrough.html"
+)
 
 
 def main() -> None:
@@ -58,7 +66,9 @@ def main() -> None:
         preview = client.preview_area(POLYGON)
         logger.info(
             "Preview: %d tiles, ~%.0fs estimated, ~%d tokens",
-            preview.tile_count, preview.estimated_time_s, preview.estimated_cost_tokens,
+            preview.tile_count,
+            preview.estimated_time_s,
+            preview.estimated_cost_tokens,
         )
 
         # 2. Fetch buildings and run a wind analysis --------------------------
@@ -70,24 +80,30 @@ def main() -> None:
         result = client.run_area_and_wait(
             WindModelRequest(
                 analysis_type=AnalysesName.wind_speed,
-                wind_speed=8, wind_direction=180,
+                wind_speed=8,
+                wind_direction=180,
             ),
             POLYGON,
             buildings=area.buildings,
         )
         logger.info(
             "Merged grid=%s, %d/%d jobs OK",
-            result.grid_shape, result.succeeded_jobs, result.total_jobs,
+            result.grid_shape,
+            result.succeeded_jobs,
+            result.total_jobs,
         )
 
     # 3. Plot the merged grid and overlay tile boundaries ---------------------
     rows, cols = result.grid_shape
-    fig = go.Figure(go.Heatmap(
-        z=result.merged_grid,
-        colorscale="Turbo",
-        zmin=result.min_legend, zmax=result.max_legend,
-        colorbar=dict(title="m/s"),
-    ))
+    fig = go.Figure(
+        go.Heatmap(
+            z=result.merged_grid,
+            colorscale="Turbo",
+            zmin=result.min_legend,
+            zmax=result.max_legend,
+            colorbar=dict(title="m/s"),
+        )
+    )
 
     # Wind: each tile contributes its centre 256x256 cells to the merged grid,
     # so tile boundaries fall on multiples of WIND_STEP_CELLS.
@@ -103,7 +119,9 @@ def main() -> None:
             f"Wind speed | {preview.tile_count} tiles | merged grid {rows}x{cols} "
             f"(dotted lines = tile boundaries)"
         ),
-        width=1000, height=900, template="plotly_white",
+        width=1000,
+        height=900,
+        template="plotly_white",
         yaxis=dict(scaleanchor="x", scaleratio=1),
     )
 
