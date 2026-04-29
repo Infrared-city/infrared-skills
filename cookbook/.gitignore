@@ -1,0 +1,14 @@
+# Generated artefacts
+**/outputs/*.html
+**/outputs/*.png
+**/outputs/*.json
+!**/outputs/.gitkeep
+
+# Per-recipe local state
+**/cache/
+**/*.db
+**/.env
+
+# Python noise
+**/__pycache__/
+*.pyc

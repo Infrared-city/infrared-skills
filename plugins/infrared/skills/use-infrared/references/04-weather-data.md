@@ -1,0 +1,61 @@
+# Weather Data
+
+Find a nearby EPW weather station, filter its hourly data by `TimePeriod`, then extract the fields each analysis payload needs.
+
+## Lookup + filter
+
+```python
+from infrared_sdk.models import TimePeriod, extract_weather_fields
+
+# 1. Find stations near a location (radius in km)
+locations = client.weather.get_weather_file_from_location(
+    lat=48.1983, lon=11.575, radius=50
+)
+# [{"uuid": "eb91892c-fbe3-4743-ade5-c22cfb5913e1", "fileName": "DEU_BY_Munich-Theresienwiese.108650_TMYx", "location_data": {...}}, ...]
+
+# 2. Filter hourly data by TimePeriod
+weather_data = client.weather.filter_weather_data(
+    identifier=locations[0]["uuid"],
+    time_period=TimePeriod(
+        # NOTE (2026-04): Solar / UTCI / TCS / PWC require single-month windows
+        # right now — server's sun_vectors generator does not yet honour multi-
+        # month periods. See references/03-time-period.md for details.
+        start_month=6, start_day=1, start_hour=9,
+        end_month=6, end_day=30, end_hour=17,
+    ),
+)
+# list[WeatherDataPoint]
+
+# 3. Extract the fields a payload needs (camelCase in -> snake_case out)
+wind_fields = extract_weather_fields(weather_data, ["windSpeed", "windDirection"])
+# {"wind_speed": [3.2, 4.1, ...], "wind_direction": [180, 195, ...]}
+```
+
+## Field-to-analysis map
+
+`WeatherDataPoint` (see `infrared_sdk/models.py`) carries all EPW columns. Pass the camelCase attribute names to `extract_weather_fields`; the returned dict uses snake_case keys that match payload fields.
+
+| Analysis              | Required fields                                                                                 |
+| --------------------- | ----------------------------------------------------------------------------------------------- |
+| Pedestrian Wind Comfort | `windSpeed`, `windDirection`                                                                  |
+| Solar Radiation       | `diffuseHorizontalRadiation`, `directNormalRadiation`                                           |
+| UTCI                  | `horizontalInfraredRadiationIntensity`, `diffuseHorizontalRadiation`, `directNormalRadiation`, `globalHorizontalRadiation`, `dryBulbTemperature`, `windSpeed`, `relativeHumidity` (7 fields) |
+| Thermal Comfort Stats | same as UTCI                                                                                    |
+
+For UTCI / TCS / Solar Radiation, prefer `<Request>.from_weatherfile_payload(...)` — it pulls the right fields automatically from the `weather_data` list.
+
+**Import paths:** `UtciModelRequest` and `SolarRadiationModelRequest` are re-exported at the package root, but the request class with `from_weatherfile_payload` for thermal-comfort statistics is `TcsModelRequest` (deeper import: `from infrared_sdk.analyses.types import TcsModelRequest, TcsModelBaseRequest`).
+
+## Pitfalls
+
+- Pass the **same `TimePeriod`** to `filter_weather_data()` and the analysis payload, otherwise the weather arrays won't align with the simulation window and the model rejects the request.
+- Field names go in as **camelCase** (`windSpeed`); they come out **snake_case** (`wind_speed`).
+- `WeatherDataPoint` has `extra="ignore"` and coerces numeric strings → floats; empty / `na` / `null` cells become `None` and `extract_weather_fields` silently skips them, so output arrays for sparse fields can be shorter than the input list.
+- BYO weather: array lengths must match what `filter_weather_data` would have returned for the same `TimePeriod`.
+- Station entries have shape `{"uuid": ..., "fileName": ..., "location_data": {...}}`. Pass `locations[0]["uuid"]` as the `identifier` argument — not `"identifier"` (that field no longer exists).
+
+## See also
+
+- `03-time-period.md` — cascade-filter behaviour
+- `analyses/02-pedestrian-wind-comfort.md` — PWC uses wind arrays
+- `analyses/07-thermal-comfort-utci.md` — UTCI uses the full weather bundle
