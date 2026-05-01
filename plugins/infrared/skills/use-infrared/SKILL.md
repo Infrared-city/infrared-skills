@@ -56,6 +56,21 @@ Pick the entry point first — it shapes blocking, webhooks, and persistence. Fu
 | Image generation (PNG output) | [07-images.md](references/07-images.md) |
 | Errors / exception hierarchy | [08-error-handling.md](references/08-error-handling.md) |
 | Plotting / compare scenarios (baseline vs proposed) / GeoTIFF export | [interpretation/grid-conventions.md](references/interpretation/grid-conventions.md) |
+| Gradio area explorer app recipe | [recipes/gradio-area-explorer.md](references/recipes/gradio-area-explorer.md) |
+
+## Recipes
+
+Use the `references/recipes/` folder for UI/app implementation recipes that combine SDK usage with product-level UX guidance.
+
+- Start with [recipes/gradio-area-explorer.md](references/recipes/gradio-area-explorer.md) to build a compact Gradio app using the Infrared SDK.
+
+Secret handling for recipes:
+- Local development: load `INFRARED_API_KEY` from `.env` (never hard-code keys in source).
+- Hugging Face Spaces: store `INFRARED_API_KEY` as a Space Secret (Settings -> Secrets), then read it as an environment variable at runtime.
+- Deployment docs:
+  - [Hugging Face Spaces Overview](https://huggingface.co/docs/hub/spaces-overview)
+  - [Managing Secrets in Spaces](https://huggingface.co/docs/hub/spaces-overview#managing-secrets)
+  - [Gradio Sharing and Hosting](https://www.gradio.app/guides/sharing-your-app)
 
 ## Invariants
 
