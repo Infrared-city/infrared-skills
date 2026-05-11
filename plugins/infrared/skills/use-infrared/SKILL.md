@@ -63,6 +63,7 @@ Pick the entry point first — it shapes blocking, webhooks, and persistence. Fu
 Use the `references/recipes/` folder for UI/app implementation recipes that combine SDK usage with product-level UX guidance.
 
 - Start with [recipes/gradio-area-explorer.md](references/recipes/gradio-area-explorer.md) to build a compact Gradio app using the Infrared SDK.
+- For a richer 3D playground (Vite + React + DeckGL frontend, FastAPI backend, Zustand state, location picker that dynamically fetches buildings / vegetation / ground materials from the SDK), see [recipes/sdk-playground-fastapi.md](references/recipes/sdk-playground-fastapi.md).
 
 Secret handling for recipes:
 - Local development: load `INFRARED_API_KEY` from `.env` (never hard-code keys in source).
