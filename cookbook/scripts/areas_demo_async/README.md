@@ -55,9 +55,11 @@ demos/areas_demo_async/
 
 ### 1. Install dependencies
 
+From the repository root:
+
 ```bash
-pip install infrared-sdk
-pip install -r requirements.txt
+pip install -e .
+pip install -r demos/areas_demo_async/requirements.txt
 ```
 
 ### 2. Configure environment variables

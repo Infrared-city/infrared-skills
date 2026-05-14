@@ -79,6 +79,7 @@ The notebooks are numbered to suggest a path, but each is standalone:
 | 5 | `05_analysis_types_tour.ipynb`     | All 8 analysis types with payload patterns and outputs |
 | 6 | `06_image_rendering.ipynb`         | `gen_grid_image`, orientation, colormap caveats |
 | 7 | `07_async_and_webhooks.ipynb`      | `run_area`, `check_area_state`, `merge_area_jobs`, webhooks |
+| 8 | `08_wind_merge_strategies.ipynb`   | `strategy="directional"` / `"directional_blend"` — seam elimination for multi-tile wind runs |
 
 ## Optional: webhook receiver
 
