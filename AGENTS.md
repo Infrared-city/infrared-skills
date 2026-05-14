@@ -16,7 +16,7 @@ That file is the canonical SDK-usage guide. Codex CLI / Copilot / Windsurf agent
 
 - One file per recipe in `examples/`, prefixed `NN-name.py`. Reads `INFRARED_API_KEY` from env, never hardcoded.
 - Each reference under `plugins/infrared/skills/use-infrared/references/` is self-contained — keep them short.
-- `SKILL.md` is the router; keep it under ~80 lines.
+- `SKILL.md` is the router; keep it lean (target ≲100 lines). Push depth into `references/`.
 - Python 3.11+, ruff format, type hints. Public SDK only — no internal Infrared modules. No internal URLs (no `api-test.*`, no Lambda function names, etc).
 - No API keys in any file, ever.
 

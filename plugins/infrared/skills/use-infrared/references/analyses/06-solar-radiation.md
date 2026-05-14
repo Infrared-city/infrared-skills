@@ -43,7 +43,7 @@ result = client.run_area_and_wait(payload, polygon, buildings=area.buildings)
 - If you bring your own weather arrays, their length MUST equal what `filter_weather_data` returns for the same window.
 - `Location` is required — drives sun position.
 - This is RADIATION (W/m^2), not direct-sun DURATION. For hours sunlit use Direct Sun Hours.
-- **Low sun angles on multi-tile polygons can show seam artefacts** — buildings outside a tile's 77 m context margin don't occlude across tile boundaries, so long shadows clip at tile edges. Avoid framing analyses around early-morning / late-afternoon hours and winter months when the polygon spans multiple tiles.
+- **Low sun angles on multi-tile polygons can show seam artefacts** — buildings outside a tile's 128 m context margin don't occlude across tile boundaries, so long shadows clip at tile edges. Use `estimate_sun_context_loss(polygon, latitude, longitude, time_period)` from `infrared_sdk.preflight` to score the risk before submitting; avoid framing analyses around early-morning / late-afternoon hours and winter months when the polygon spans multiple tiles.
 
 ## See also
 

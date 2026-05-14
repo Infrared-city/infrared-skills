@@ -102,7 +102,7 @@ One-shot a fullstack climate-analysis playground:
 
 **Backend (Python 3.11+)**
 
-- `infrared-sdk >= 0.4.2` — the public SDK. Use `client.run_area_and_wait` for synchronous runs; switch to `client.run_area` + webhooks only if you start running 1.5 km+ polygons. (0.4.3 was not yet on PyPI at the time of this writing — pin loosely until it ships.)
+- `infrared-sdk >= 0.4.7` — the public SDK. Use `client.run_area_and_wait` for synchronous runs; switch to `client.run_area` + `merge_area_jobs` (or webhooks) only if you start running 1.5 km+ polygons or want `directional_blend` for multi-tile wind.
 - `scipy >= 1.10` — for `ConvexHull` over building footprints. See "DotBim → footprint" below for why this is mandatory, not optional.
 - `fastapi >= 0.110`, `uvicorn[standard]`, `python-dotenv`, `pydantic >= 2`, `numpy`.
 
@@ -1024,9 +1024,9 @@ The component computes `pct = ((value - min) / (max - min)) * 100` and clamps to
 
 ## Things to watch out for
 
-0. **SDK version pin** — `infrared-sdk >= 0.4.3` was the original intent but as of writing only `0.4.2` is on PyPI. Use `>=0.4.2` until 0.4.3 ships.
-0a. **SVF returns 0–100, not 0–1** in SDK 0.4.2 (despite what `interpretation/solar-results.md` says). If your colour-scale range is `[0, 1]` the heatmap will paint solid red. Use `[0, 100]` and treat the unit as `%`.
-0b. **`preview_area(analysis_type=…)` doesn't accept that kwarg** in SDK 0.4.2 — wrap with `try/except TypeError` and fall back to positional. The kwarg returns wind-tile counts on every call without it.
+0. **SDK version pin** — `infrared-sdk >= 0.4.7`. Older pins miss the big-payload envelope, ground-materials name validation, `AreaResult.bounds`, and `directional_blend` merge.
+0a. **SVF returns 0–100** — colour-scale range must be `[0, 100]`; `[0, 1]` paints solid red. Treat the unit as `%`.
+0b. **Always pass `preview_area(polygon, analysis_type=...)`** — omitting `analysis_type` defaults to the wind grid (256 m step) and under-counts solar/UTCI/TCS tiles by ~4×. Required since 0.4.3.
 0c. **`area.buildings` items are Pydantic models** (`DotBimMesh`). Naive `json.dumps` on the disk cache raises `TypeError: Object of type DotBimMesh is not JSON serializable`. Call `.model_dump()` before writing.
 0d. **`uvicorn` only loads `.env` when launched from `backend/`** — `dotenv.load_dotenv()` resolves the file relative to cwd. Either run from `backend/` or pass `--env-file backend/.env`.
 

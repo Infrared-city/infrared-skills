@@ -51,7 +51,7 @@ Note (changed 2026-04): vegetation features used to be converted to DotBim meshe
 
 Format: `dict[str, GeoJSON FeatureCollection]` — keyed by **material name**, each value a FeatureCollection of polygons in lon/lat.
 
-Material keys are validated server-side (the SDK does not enforce a whitelist). The set returned by `client.ground_materials.get_area(polygon).layers` is the safest reference — common keys are `asphalt`, `vegetation`, and `water`. Unknown keys may be ignored or rejected depending on the API endpoint; pin to the keys you've seen the fetch path return for your area.
+SDK ≥ 0.4.7 validates keys at call time: UUID-shaped keys raise `ValueError`; unrecognised names emit `UserWarning`. Valid names: `asphalt`, `concrete`, `soil`, `vegetation`, `water`. The safest source is always `area_gm.layers` directly — its keys are already correct material names.
 
 ```python
 area_gm = client.ground_materials.get_area(polygon)
@@ -102,7 +102,7 @@ result = client.run_area_and_wait(
 - **`{}` = skip, not "use empty"** — passing an empty dict is the same as `None`.
 - **Coordinate frames differ across the three layer types** — buildings are local meters (polygon-bbox-SW); vegetation and ground materials are lon/lat. Do not pass lon/lat-style vertices to `buildings`.
 - **Polygon order: `[lon, lat]`** for all GeoJSON (RFC 7946). Lat-first is the most common bug.
-- **Large ground-material sets hit request-size limits** — if `total_features` > ~5000, pre-filter or pass `ground_materials={}`.
-- **Material keys are server-validated** — if a key is rejected you'll see it in the API response. Pin to keys returned by the fetch path for your area rather than guessing.
+- **Large ground-material sets** are auto-handled — SDK 0.4.3+ switches POSTs >5 MiB to a presigned `$ref` envelope (`INFRARED_BIG_PAYLOADS_ENABLED=true` by default). The historical `if total_features > 5000: pass ground_materials={}` workaround is **no longer required** and actively harmful for UTCI/solar (silently strips material stamps → emissivity 0.97 instead of correct values). Pass the real layers.
+- **Material keys must be material names, not UUIDs** — keys like `"d7a9f2d3-..."` are silently accepted but produce wrong UTCI results (all materials treated as emissivity 0.97 instead of their correct values). Always use `area_gm.layers` directly — its keys are already material names (`"asphalt"`, `"vegetation"`, `"water"`, etc.). SDK ≥ 0.4.7 raises `ValueError` on UUID keys at call time.
 - **Only one polygon** — `polygon` must be a single GeoJSON `Polygon` (not `MultiPolygon`), CCW outer ring, no self-intersection, no holes.
 - **Building coordinates are flat lists**, not nested per-vertex — `[x0, y0, z0, x1, y1, z1, ...]`, not `[[x, y, z], ...]`.

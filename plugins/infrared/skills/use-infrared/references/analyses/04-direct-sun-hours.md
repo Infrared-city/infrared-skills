@@ -43,7 +43,7 @@ For cross-run comparison always normalise first — never compare absolute hour 
 - `latitude` / `longitude` are REQUIRED — they drive sun position.
 - For radiation in W/m^2 (intensity, not duration) use Solar Radiation instead.
 - Always plot with `min_legend` / `max_legend`, not raw `grid.min()` / `grid.max()`.
-- **Low sun angles (early-morning / late-afternoon hours, winter months) on multi-tile polygons can show seam artefacts** — buildings outside a tile's 77 m context margin don't occlude across the tile boundary, so long shadows clip at tile edges. Avoid framing analyses around hours when the sun is near the horizon, or stick to single-tile polygons.
+- **Low sun angles (early-morning / late-afternoon hours, winter months) on multi-tile polygons can show seam artefacts** — buildings outside a tile's 128 m context margin don't occlude across the tile boundary, so long shadows clip at tile edges. Use `estimate_sun_context_loss(polygon, latitude, longitude, time_period)` from `infrared_sdk.preflight` to score the risk before submitting; avoid framing analyses around horizon hours, or stick to single-tile polygons.
 
 ## See also
 

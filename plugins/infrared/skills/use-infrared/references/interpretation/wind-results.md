@@ -15,7 +15,7 @@ Returns a 2-D `merged_grid` of wind magnitude in **m/s** at pedestrian level (~1
 
 `wind_speed` payload field is `int` 1–100. Don't pass floats from weather data.
 
-**Pitfalls:** single-direction snapshot (run several to estimate annual exposure); `wind_direction=270` means wind **from** the west; NaN ≠ zero.
+**Pitfalls:** single-direction snapshot (run several to estimate annual exposure); `wind_direction=270` means wind **from** the west; NaN ≠ zero; **if you see grid-aligned discontinuities on multi-tile runs**, switch from the default centre-crop merge to `merge_area_jobs(strategy="directional_blend", wind_direction_deg=...)` — see [`../05-area-api.md#merging-strategies`](../05-area-api.md#merging-strategies).
 
 ## pedestrian-wind-comfort (PWC)
 

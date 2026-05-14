@@ -18,7 +18,7 @@ result = client.run_area_and_wait(payload, polygon, buildings=area.buildings)
 
 ## Response
 
-`result.merged_grid` is a 2D `float` array of SVF in [0, 1] — 1.0 = fully open sky, 0.0 = fully obstructed. `min_legend` / `max_legend` are the canonical color-scale bounds.
+`result.merged_grid` is a 2D `float` array of SVF in **[0, 100]** — 100 = fully open sky, 0 = fully obstructed. `min_legend` / `max_legend` are the canonical color-scale bounds.
 
 ## Pitfalls
 

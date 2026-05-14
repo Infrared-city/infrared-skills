@@ -4,6 +4,8 @@ Steady-state CFD-style wind magnitude near pedestrian height for a single inflow
 
 ## Request
 
+### Single-tile or quick sanity check — one-shot
+
 ```python
 from infrared_sdk import InfraredClient
 from infrared_sdk.analyses.types import WindModelRequest, AnalysesName
@@ -15,6 +17,31 @@ payload = WindModelRequest(
 )
 result = client.run_area_and_wait(payload, polygon, buildings=area.buildings)
 ```
+
+`run_area_and_wait` always merges with the default centre-crop strategy. For single-tile polygons that's optimal; for multi-tile runs it produces visible seam artefacts at tile boundaries.
+
+### Recommended for multi-tile runs — two-step with `directional_blend`
+
+```python
+import time
+
+schedule = client.run_area(payload, polygon, buildings=area.buildings)
+
+time.sleep(4)  # let API register jobs before first poll
+while True:
+    state = client.check_area_state(schedule)
+    if state.running == 0 and (state.succeeded + state.failed) >= len(schedule.jobs):
+        break
+    time.sleep(8)
+
+result = client.merge_area_jobs(
+    schedule,
+    strategy="directional_blend",
+    wind_direction_deg=180.0,    # match payload.wind_direction
+)
+```
+
+`wind_direction_deg` is required for `directional_blend` (and `directional`) — meteorological convention (0=N, 90=E, 180=S, 270=W). Match the value in the payload, or the blend weights point upwind in the wrong direction. See `../05-area-api.md#merging-strategies` for the full strategy table and `cookbook/notebooks/08_wind_merge_strategies.ipynb` for a side-by-side comparison.
 
 ## Response
 

@@ -47,20 +47,20 @@ Cumulative hours of direct (un-occluded) sunlight per pixel, **summed across the
 
 `max_legend` is derived from the observed grid distribution for the run, not the window length — a fully shaded scene plots with a low `max_legend`. For cross-run comparison, normalise first (hrs/day, fraction of run max, or fraction of theoretical daylight at `lat/lon`).
 
-**Pitfalls:** astronomical, **not weather-corrected** — cloud cover not subtracted, so reported hours overstate cloudy regions; absolute values scale with the filtered hour count — never compare raw hour grids across different `TimePeriod`s; high summer values can be a heat-stress driver, not an amenity; **low sun angles on multi-tile polygons can show seam artefacts** because buildings outside a tile's 77 m context margin don't cast shadows across tile boundaries — avoid early-morning / late-afternoon hours and winter months when the polygon spans multiple tiles, or fall back to a single-tile polygon.
+**Pitfalls:** astronomical, **not weather-corrected** — cloud cover not subtracted, so reported hours overstate cloudy regions; absolute values scale with the filtered hour count — never compare raw hour grids across different `TimePeriod`s; high summer values can be a heat-stress driver, not an amenity; **low sun angles on multi-tile polygons can show seam artefacts** because buildings outside a tile's 128 m context margin don't cast shadows across tile boundaries — avoid early-morning / late-afternoon hours and winter months when the polygon spans multiple tiles, or fall back to a single-tile polygon. Use `estimate_sun_context_loss(polygon, latitude, longitude, time_period)` from `infrared_sdk.preflight` to gauge the loss before submission.
 
 ## sky-view-factors
 
-Dimensionless **0–1**, geometric (no time dependence). 0 = obstructed, 1 = full sky visible.
+Percent **0–100**, geometric (no time dependence). 0 = obstructed, 100 = full sky visible.
 
 | SVF | Class |
 |---|---|
-| < 0.3 | Enclosed (deep canyon, dense canopy) |
-| 0.3–0.6 | Partial |
-| 0.6–0.8 | Open |
-| > 0.8 | Exposed (rooftops, open plazas) |
+| < 30 | Enclosed (deep canyon, dense canopy) |
+| 30–60 | Partial |
+| 60–80 | Open |
+| > 80 | Exposed (rooftops, open plazas) |
 
-If every pixel reads 1.0 you forgot to load buildings.
+If every pixel reads 100 you forgot to load buildings.
 
 **Pitfalls:** low SVF cuts both ways (less daytime gain *and* less nighttime cooling); not the same as shade — a high-SVF point can still be in shade for hours.
 
