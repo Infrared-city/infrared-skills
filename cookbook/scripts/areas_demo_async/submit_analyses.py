@@ -45,7 +45,10 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s  %(levelname)-7s  %(message)s",
 )
-# Suppress raw URL / HTTP logs from the SDK
+# Suppress raw URL / HTTP logs from the SDK. The big-payload envelope-path
+# INFO line is emitted via the user-supplied logger (this script's own
+# "submit" logger, see ``post_zip_with_big_payload``'s logger= kwarg) so it
+# flows through regardless of the per-package level set here.
 logging.getLogger("infrared_sdk").setLevel(logging.WARNING)
 
 logger = logging.getLogger("submit")
@@ -230,7 +233,7 @@ def _gm_cache_path(area_name: str, polygon: dict) -> str:
 
 def _load_cached_ground_materials(area_name: str, polygon: dict):
     """Return cached AreaGroundMaterials or None."""
-    from infrared_sdk.layers.ground_materials import AreaGroundMaterials
+    from infrared_sdk.ground_materials.types import AreaGroundMaterials
 
     path = _gm_cache_path(area_name, polygon)
     if not os.path.exists(path):
@@ -262,6 +265,55 @@ def _save_cached_ground_materials(area_name: str, polygon: dict, area_gm) -> Non
     with open(path, "w") as f:
         json.dump(data, f)
     logger.info("Area: %s — ground materials cached", area_name)
+
+
+# ---------------------------------------------------------------------------
+# Vegetation cache
+# ---------------------------------------------------------------------------
+
+
+def _veg_cache_path(area_name: str, polygon: dict) -> str:
+    return os.path.join(
+        CACHE_DIR, f"{area_name}_{_polygon_cache_key(polygon)}_veg.json"
+    )
+
+
+def _load_cached_vegetation(area_name: str, polygon: dict):
+    """Return cached AreaVegetation or None."""
+    from infrared_sdk.vegetation.types import AreaVegetation
+
+    path = _veg_cache_path(area_name, polygon)
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path, "r") as f:
+            data = json.load(f)
+        return AreaVegetation(
+            features=data["features"],
+            polygon=data["polygon"],
+            total_trees=data["total_trees"],
+            execution_time=data.get("execution_time", 0.0),
+        )
+    except Exception as exc:
+        logger.warning(
+            "Vegetation cache load failed for %s, will re-fetch: %s", area_name, exc
+        )
+        return None
+
+
+def _save_cached_vegetation(area_name: str, polygon: dict, area_veg) -> None:
+    """Persist AreaVegetation to a JSON cache file."""
+    os.makedirs(CACHE_DIR, exist_ok=True)
+    path = _veg_cache_path(area_name, polygon)
+    data = {
+        "features": area_veg.features,
+        "polygon": area_veg.polygon,
+        "total_trees": area_veg.total_trees,
+        "execution_time": area_veg.execution_time,
+    }
+    with open(path, "w") as f:
+        json.dump(data, f)
+    logger.info("Area: %s — vegetation cached", area_name)
 
 
 # ---------------------------------------------------------------------------
@@ -445,14 +497,38 @@ def main() -> None:
                     len(weather_data_morning),
                 )
 
-                # 4. Fetch ground materials (reuse across both run_area calls).
-                #
-                # NOTE: vegetation is intentionally disabled for this run.
-                # The utilities-service FGB column-name fix ships tomorrow;
-                # until then, vegetation has known data-quality issues (see
-                # sdk-gm-vegetation-extension). We pass vegetation={} to
-                # run_area so nothing is auto-fetched or bundled per tile.
-                area_vegetation = None
+                # 4. Fetch vegetation + ground materials (reuse across both
+                # run_area calls). With big-payloads support enabled the
+                # combined per-tile envelope auto-switches to a $ref upload
+                # when it exceeds 5 MiB, so we no longer 413 on dense areas.
+                area_vegetation = _load_cached_vegetation(area_name, polygon)
+                if area_vegetation is not None:
+                    logger.info(
+                        "Area: %s — vegetation loaded from cache (%d trees)",
+                        area_name,
+                        area_vegetation.total_trees,
+                    )
+                else:
+                    try:
+                        t_veg = time.monotonic()
+                        area_vegetation = client.vegetation.get_area(
+                            polygon,
+                            max_tiles_override=120,
+                        )
+                        logger.info(
+                            "Area: %s — vegetation fetched (%d trees, %.1fs)",
+                            area_name,
+                            area_vegetation.total_trees,
+                            time.monotonic() - t_veg,
+                        )
+                        _save_cached_vegetation(area_name, polygon, area_vegetation)
+                    except Exception as exc:
+                        logger.warning(
+                            "Area: %s — vegetation fetch failed, sending empty: %s",
+                            area_name,
+                            exc,
+                        )
+                        area_vegetation = None
 
                 area_ground_materials = _load_cached_ground_materials(
                     area_name, polygon
