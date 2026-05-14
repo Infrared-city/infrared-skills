@@ -77,13 +77,13 @@ The agent skill lives at `plugins/infrared/skills/use-infrared/`. It's a [Claude
 
 These read `AGENTS.md` from the project root. Either clone this repo into your workspace, or copy `plugins/infrared/skills/use-infrared/` into your project's `.agents/skills/` directory.
 
-The skill loads progressively — `SKILL.md` is an 80-line router that the agent reads first, then it pulls per-topic references from `references/` only when needed (analysis specs, async/webhook patterns, error handling, geometry, weather, etc.).
+The skill loads progressively — `SKILL.md` is a short router that the agent reads first, then it pulls per-topic references from `references/` only when needed (analysis specs, async/webhook patterns, merge strategies, error handling, geometry, weather, etc.).
 
 ## Run the cookbook
 
 Two flavours under [`cookbook/`](cookbook/), both auto-synced from the SDK:
 
-- [`cookbook/notebooks/`](cookbook/notebooks/) — eight pre-executed Jupyter notebooks against five preset cities (Munich, New York, São Paulo, Tokyo, Sydney). Standalone, runnable in any order. Cells ship with embedded outputs from a real run — flip through without executing to see exactly what the SDK produces.
+- [`cookbook/notebooks/`](cookbook/notebooks/) — ten pre-executed Jupyter notebooks against six preset cities (Munich, Vienna, New York, São Paulo, Tokyo, Sydney). Standalone, runnable in any order. Cells ship with embedded outputs from a real run — flip through without executing to see exactly what the SDK produces.
 - [`cookbook/scripts/`](cookbook/scripts/) — runnable `.py` examples covering wind, UTCI, multi-analysis, vegetation/ground, tiling, fetch-layers, and the async + webhook lifecycle.
 
 ```bash
@@ -118,9 +118,9 @@ Full SDK reference: <https://infrared.city/docs/sdk>.
 ```
 infrared-skills/
 ├── plugins/infrared/skills/use-infrared/   # the agent skill
-│   ├── SKILL.md                            # 80-line router
+│   ├── SKILL.md                            # short router
 │   └── references/                         # per-topic deep-dives
-├── cookbook/                               # 8 Jupyter notebooks (auto-mirrored from SDK)
+├── cookbook/                               # 10 Jupyter notebooks (auto-mirrored from SDK)
 ├── AGENTS.md                               # for Codex / Copilot / Windsurf
 └── docs/assets/                            # README artwork
 ```

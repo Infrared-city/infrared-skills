@@ -70,6 +70,29 @@ from infrared_sdk import AreaRunError, AreaTimeoutError, TiledRunError
 
 `AreaResult` reports partial outcomes via `failed_jobs` / `skipped_jobs` rather than raising, as long as at least one tile succeeded.
 
+## Big-payload errors (`$ref` envelope path)
+
+SDK 0.4.3+ auto-switches POSTs larger than 5 MiB to a presigned `$ref` envelope (controlled by `INFRARED_BIG_PAYLOADS_ENABLED`, default `true`, threshold `INFRARED_BIG_PAYLOADS_THRESHOLD_BYTES`). The envelope path raises its own exception family — all importable from the package root and inheriting from `BigPayloadError`:
+
+```python
+from infrared_sdk import (
+    BigPayloadError,
+    BigPayloadPresignError,
+    BigPayloadUploadError,
+    BigPayloadFetchError,
+    RefExpiredRetryExhausted,
+)
+```
+
+| Exception | Raised when |
+|---|---|
+| `BigPayloadPresignError` | Backend rejected the presigned-URL request (auth, quota, malformed payload) |
+| `BigPayloadUploadError` | Client could not PUT the body to the presigned URL (network, S3 5xx) |
+| `BigPayloadFetchError` | Backend failed to read the body from S3 — dispatch on `.code`: `REF_TOO_LARGE`, `REF_EXPIRED`, `REF_NOT_FOUND`, `REF_FETCH_FAILED` |
+| `RefExpiredRetryExhausted` | Auto-retry on `REF_EXPIRED` ran out — re-submit with a fresh body |
+
+Catch `BigPayloadError` as the base if you don't care about the sub-type; dispatch on `.code` (or `isinstance`) when retry behaviour matters. Catching only `InfraredJobError` will **miss the entire big-payload family** — they sit outside the job hierarchy. Notebook `cookbook/notebooks/09_error_handling_and_tuning.ipynb` demonstrates the dispatch-and-retry pattern.
+
 ## Webhook errors
 
 `WebhookError` is the base; `WebhookRegistrationError` and `WebhookNotFoundError` subclass it. Catch `WebhookError` for any webhook lifecycle issue.

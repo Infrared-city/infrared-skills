@@ -10,7 +10,7 @@ Every analysis returns the same `AreaResult` shape. These conventions hold for w
 | `pedestrian-wind-comfort` | comfort class (int) | 0–4 (A=0 best … E=4 unsafe) | Categorical class per chosen criterion |
 | `daylight-availability` | hours | 0 – period length | Cumulative hours of usable daylight per cell over the `TimePeriod` |
 | `direct-sun-hours` | hours | 0 – period length | Cumulative un-occluded sun hours over the `TimePeriod` |
-| `sky-view-factors` | fraction | 0–1 | Hemisphere visible from the cell (1 = fully open, 0 = obstructed) |
+| `sky-view-factors` | percent | 0–100 | Hemisphere visible from the cell (100 = fully open, 0 = obstructed) |
 | `solar-radiation` | kWh/m² | 0–~hundreds | Cumulative shortwave irradiance per pixel over the `TimePeriod` |
 | `thermal-comfort-index` (UTCI) | °C | -40 to 50 | Felt temperature combining air, MRT, humidity, wind |
 | `thermal-comfort-statistics` (TCS) | hours (subtype-dependent) | 0 – period length | Hours per cell in the chosen `TcsSubtype` band |

@@ -144,7 +144,7 @@ pending → running → succeeded
                  \→ failed
 ```
 
-A `job.running` arriving after `job.succeeded` is a duplicate / out-of-order delivery — ignore it. The async demo's SQLite handler in `demos/areas_demo_async/` is the canonical pattern: store a status column, only update if the new status is forward in the ordering above.
+A `job.running` arriving after `job.succeeded` is a duplicate / out-of-order delivery — ignore it. The async demo's SQLite handler in `cookbook/scripts/areas_demo_async/` is the canonical pattern: store a status column, only update if the new status is forward in the ordering above.
 
 ## Multi-payload burst sizing
 

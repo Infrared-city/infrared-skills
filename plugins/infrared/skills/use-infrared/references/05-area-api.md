@@ -5,13 +5,15 @@ Multi-tile analyses over polygons larger than one 512x512m tile. The SDK auto-ti
 ## Cost preview
 
 ```python
-preview = client.preview_area(polygon)
+preview = client.preview_area(polygon, analysis_type=AnalysesName.solar_radiation)
 print(f"Tiles: {preview.tile_count}")
 print(f"Estimated time: {preview.estimated_time_s}s")
 print(f"Estimated cost: {preview.estimated_cost_tokens} tokens")
 ```
 
 Returns `AreaPreview(tile_count, estimated_time_s, estimated_cost_tokens)`. Heuristics: 10 tokens/tile, 10 s/tile. `max_tiles_override=N` lifts the default ~100 non-empty cap.
+
+> **Always pass `analysis_type`.** Omitting it defaults to the wind grid (256 m step). For solar / UTCI / TCS / daylight / direct-sun-hours that under-counts tiles by ~4× and under-estimates cost. Added in SDK 0.4.3.
 
 ## Basic usage (fetch-once-reuse)
 
@@ -67,9 +69,55 @@ GeoJSON Polygon `{"type": "Polygon", "coordinates": [[[lon, lat], ...]]}`. Singl
 | Config                   | Inference | Context | Step | Overlap        | Crop                 |
 | ------------------------ | --------- | ------- | ---- | -------------- | -------------------- |
 | Wind (`wind-speed`, PWC) | 512m      | 512m    | 256m | 50% (256m)     | Centre 256x256 cells |
-| Solar (all others)       | 512m      | 666m    | 512m | None edge-edge | Full 512x512 cells   |
+| Solar (all others)       | 512m      | 768m    | 512m | None edge-edge | Full 512x512 cells   |
 
-Cell pitch is 1m. Wind merges from centre crops; solar tiles butt edge-to-edge with 77m context margin for distant-shadow buildings. Cells outside the polygon become NaN.
+Cell pitch is 1m. Wind merges from centre crops (default) — for multi-tile wind use `directional_blend` instead, see [Merging strategies](#merging-strategies). Solar tiles butt edge-to-edge with a 128m context margin (per side) for distant-shadow buildings. Cells outside the polygon become NaN.
+
+## Merging strategies
+
+`merge_area_jobs(schedule, *, strategy=..., wind_direction_deg=...)` controls how tile results are stitched. The convenience method `run_area_and_wait` always uses `strategy="default"` (plain centre-crop). To access the other strategies, split into the two-step path (`run_area` → poll → `merge_area_jobs`).
+
+| Strategy | When to use | Required kwarg |
+|---|---|---|
+| `"default"` | Single-tile polygons; multi-tile solar / UTCI / TCS / PWC / daylight / direct-sun-hours; quick wind sanity checks | — |
+| `"directional_blend"` | **Recommended default for multi-tile `wind-speed`.** Argmax + upstream-biased Gaussian — seam artefacts shrink to near-zero. | `wind_direction_deg` (raises `ValueError` if missing) |
+| `"directional"` | Multi-tile `wind-speed` when you want a hard winner map (no smoothing) for inspection | `wind_direction_deg` |
+
+`"directional*"` are **wind-speed only** — do not pass for `pedestrian-wind-comfort` or any multi-direction analysis (the algorithms assume a single wind vector).
+
+### Two-step pattern (recommended for multi-tile wind-speed)
+
+```python
+import time
+from infrared_sdk.analyses.types import WindModelRequest, AnalysesName
+
+schedule = client.run_area(
+    WindModelRequest(
+        analysis_type=AnalysesName.wind_speed,
+        wind_speed=10,
+        wind_direction=270,
+    ),
+    polygon,
+    buildings=area.buildings,
+)
+
+time.sleep(4)  # let API register jobs before first poll
+while True:
+    state = client.check_area_state(schedule)
+    if state.running == 0 and (state.succeeded + state.failed) >= len(schedule.jobs):
+        break
+    time.sleep(8)
+
+result = client.merge_area_jobs(
+    schedule,
+    strategy="directional_blend",
+    wind_direction_deg=270.0,   # match the simulation's wind_direction
+)
+```
+
+`wind_direction_deg` follows the meteorological convention (0 = N, 90 = E, 180 = S, 270 = W). Match the value used in the payload, or the blend mask points the wrong way.
+
+See `cookbook/notebooks/08_wind_merge_strategies.ipynb` for a side-by-side comparison of `default`, `directional`, and `directional_blend` on the same schedule.
 
 ## AreaResult fields
 
@@ -79,6 +127,7 @@ Cell pitch is 1m. Wind merges from centre crops; solar tiles butt edge-to-edge w
 | `polygon`        | `dict`            | Source GeoJSON polygon                     |
 | `analysis_type`  | `str`             | Analysis type that was run                 |
 | `grid_shape`     | `tuple[int, int]` | (rows, cols) of merged grid                |
+| `bounds`         | `tuple[float, float, float, float] \| None` | True geographic extent of `merged_grid` as `(min_lng, min_lat, max_lng, max_lat)` — added in 0.4.4. **Use this (not `polygon.bounds`) to place the bitmap in a map viewer** — NE-padding past the polygon's bbox otherwise produces an SW-anchored squash. |
 | `succeeded_jobs` / `total_jobs` | `int`  | Job counts                          |
 | `failed_jobs` / `skipped_jobs`  | `list[str]` | Failed / non-terminal job IDs  |
 | `min_legend`     | `float\|None`     | Legend min across tiles (use as zmin)      |
@@ -91,7 +140,7 @@ Cell pitch is 1m. Wind merges from centre crops; solar tiles butt edge-to-edge w
 When you pass `buildings` to `run_area_and_wait()` / `run_area()`, the same building can appear in multiple tiles with **different coordinate values** — that is correct. For each tile the SDK:
 
 1. Computes the tile's **inference SW offset** relative to the polygon bbox SW (based on the tile's row/col and the step size).
-2. Expands the tile's bbox by the **context margin** (0 m for wind, 77 m for solar) — this expanded area is only used to *select* which buildings to include.
+2. Expands the tile's bbox by the **context margin** (0 m for wind, 128 m for solar) — this expanded area is only used to *select* which buildings to include.
 3. Tests each building's bbox against the expanded selection area.
 4. Deep-copies the building and **subtracts the inference tile's SW offset** from its coordinates, converting from polygon-bbox-SW frame to tile-SW frame.
 
@@ -103,10 +152,10 @@ Building coordinates are always relative to the **inference square** (512×512m)
 
 ## Pitfalls
 
-- Never derive heatmap colour range from the grid — use `min_legend` / `max_legend` as `zmin` / `zmax`. Direct Sun Hours / Daylight cluster near the max and look washed out otherwise. The API currently returns `None` for these fields on all analyses; always apply a fallback: `zmin = result.min_legend if result.min_legend is not None else float(np.nanmin(result.merged_grid))`.
+- Never derive heatmap colour range from the grid — use `min_legend` / `max_legend` as `zmin` / `zmax`. Direct Sun Hours / Daylight cluster near the max and look washed out otherwise. The API may omit these fields; always apply a fallback: `zmin = result.min_legend if result.min_legend is not None else float(np.nanmin(result.merged_grid))`.
 - Buildings passed to `run_area_and_wait()` must be in **polygon-bbox-SW frame** (meters from SW corner of bbox). `client.buildings.get_area()` returns them in this frame.
 - Solar context margin produces buildings with **negative coordinates** in per-tile frame — that is correct; do not filter them out.
-- The 77 m solar context margin is also the **shadow-casting horizon** — buildings further than 77 m from a tile's edge can't occlude into that tile. At low sun angles (early/late hours, winter) shadows on multi-tile polygons may clip at tile seams. Avoid those hours, or fall back to a single-tile polygon.
+- The 128 m solar context margin is also the **shadow-casting horizon** — buildings further than 128 m from a tile's edge can't occlude into that tile. At low sun angles (early/late hours, winter) shadows on multi-tile polygons may clip at tile seams. Use `estimate_sun_context_loss(...)` from `infrared_sdk.preflight` to gauge the loss before submitting, or fall back to a single-tile polygon.
 - Cold start: first request in a session is 2-5x slower (Lambda warm-up).
 - `MultiPolygon` is not supported. Split into separate Polygon calls.
 

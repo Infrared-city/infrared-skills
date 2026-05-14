@@ -13,6 +13,11 @@ pip install infrared-sdk
 
 ```dotenv
 INFRARED_API_KEY=your-key-here
+# Optional tuning
+# INFRARED_BASE_URL=https://api.infrared.city/v2   # override base URL (must include /v2)
+# INFRARED_BIG_PAYLOADS_ENABLED=true                # default true — auto-switch >5 MiB POSTs to $ref envelope
+# INFRARED_BIG_PAYLOADS_THRESHOLD_BYTES=5242880     # override the auto-switch threshold
+# INFRARED_QUIET=1                                  # silence the startup banner + agent-discoverability log line
 ```
 
 ```python
