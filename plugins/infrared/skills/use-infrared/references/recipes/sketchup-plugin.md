@@ -22,7 +22,7 @@ When you need deeper Infrared API detail, route to:
 1. **City planner reviewing a massing model**: I open my SketchUp urban model, click a courtyard, pick "Pedestrian Wind Comfort (Summer)", and within 4 minutes a teal-to-red heatmap appears on the ground plane showing me which seating areas are too windy.
 2. **Architect checking daylight**: I run "Daylight Availability (June)" without leaving SketchUp. The heatmap renders on the ground and I can immediately compare it against my floor plan geometry — no file export required.
 3. **Developer extending the plugin**: I want to add a "Vegetation" toggle. The simulation_tool.rb and api_client.rb are under 400 lines combined, clearly separated, and I can add a new SIM_TYPE entry and a UI checkbox without touching the renderer.
-4. **First-time user**: I install the `.rbz`, paste my API key in the Settings panel, and the plugin validates it live. The toolbar shows me exactly two buttons: Settings and Run Simulation. Nothing else.
+4. **First-time user**: I install the `.rbz`, paste my API key in the Settings panel, and save it. The toolbar shows me exactly two buttons: Settings and Run Simulation. My key is validated implicitly on the first simulation run.
 
 ## Target Stack
 
@@ -482,7 +482,7 @@ cells = grid.flatten.compact.select { |v| v.is_a?(Numeric) && v.finite? }
 
 **Continuous path** (`wind_speed`, `sky_view_factor`, `daylight`, `direct_sun`, `solar_radiation`, `thermal_comfort`):
 - Sort cells once; derive mean, P90, min, max from the sorted array.
-- Threshold: count cells above (or below, for `below: true` types) a fixed value; express as %.
+- Threshold: count cells above (or below, for `below: true` types) a fixed value; express as %. Every analysis type should define a threshold — omitting it leaves a visual gap in the panel layout.
 - 12-bin histogram: equal-width bins between min and max; bin index clamped to `[0, bins-1]`.
 
 **Categorical path** (`wind_comfort` only):
@@ -620,6 +620,9 @@ The Infrared API's job status endpoint sometimes returns `"Succeded"` (one 'c').
 8. **No gems in `.rbz`**: SketchUp's sandbox does not have `rubygems` reliably available. Use only stdlib. This means implementing ZIP from scratch using `Zlib::Deflate` — do not try to bundle `rubyzip`.
 9. **`file_loaded?` guard**: Wrap extension registration in `unless file_loaded?(__FILE__)` / `file_loaded(__FILE__)`. Without this, SketchUp re-registers the extension on every `Sketchup.require` call, creating duplicate toolbar buttons.
 10. **Dialog timing**: Activating a SketchUp tool immediately inside a dialog callback can crash SketchUp on some versions. Use `UI.start_timer(0.1, false) { Sketchup.active_model.select_tool(...) }` to defer one tick.
+11. **`window.sketchup` bridge race**: `window.onload` fires before the SketchUp JS bridge is injected. A bare `if (window.sketchup)` guard silently drops the call and renders a blank panel. Use a polling retry: `function waitForBridge(fn, n) { window.sketchup ? fn() : n < 20 && setTimeout(() => waitForBridge(fn, n+1), 50); }`.
+12. **`STYLE_UTILITY` hides on macOS**: On macOS, `STYLE_UTILITY` panels fall behind the SketchUp viewport the moment the user clicks the model — exactly when they need to read the results. Use `STYLE_DIALOG` for any panel that needs to stay visible while the user interacts with the model.
+13. **Closure vs instance variable in dialog callbacks**: `add_action_callback` blocks close over local variables. If the dialog can be reopened (e.g. "Show Last Result"), use the module-level `@last_stats` inside the callback rather than the local `stats` parameter, so reopened dialogs always reflect the stored value rather than a potentially stale closure.
 
 ## Related References
 
