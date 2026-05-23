@@ -43,5 +43,6 @@ Failures raise `PolygonValidationError` (a `ValueError` subclass).
 ## See also
 
 - `01-quickstart.md` — minimum-viable polygon + run
+- `geospatial-crs.md` — converting from shapefile / GPKG / KML / UTM / Rhino / IFC, CRS sanity checks, UTM auto-pick, metric GeoTIFF output
 - `04-weather-data.md` — station lookup by lat/lon
 - `analyses/` — per-analysis polygon expectations
