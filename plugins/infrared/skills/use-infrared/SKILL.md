@@ -19,6 +19,7 @@ Most users bring their own data (BIM/Rhino/IFC/GeoJSON footprints, custom landsc
 | Install + auth | [00-setup.md](references/00-setup.md) |
 | End-to-end quickstart | [01-quickstart.md](references/01-quickstart.md) |
 | Polygon / GeoJSON / coords | [02-geometry.md](references/02-geometry.md) |
+| GIS data → SDK (CRS, reprojection, shapefile/GPKG/GeoTIFF, QGIS, BIM anchoring) | [geospatial-crs.md](references/geospatial-crs.md) |
 | Time period / weather window | [03-time-period.md](references/03-time-period.md) |
 | Weather data / EPW | [04-weather-data.md](references/04-weather-data.md) |
 | Bring your own buildings / trees / ground | [byo-inputs.md](references/byo-inputs.md) |
@@ -77,7 +78,7 @@ Secret handling for recipes:
 ## Invariants
 
 - Auth: `X-Api-Key` header from `INFRARED_API_KEY` env. Never `Authorization: Bearer`.
-- GeoJSON coords: `[longitude, latitude]` (RFC 7946).
+- GeoJSON coords: `[longitude, latitude]` (RFC 7946), **WGS84 / EPSG:4326** assumed (never validated — reproject before calling; see [geospatial-crs.md](references/geospatial-crs.md)).
 - Imports: `from infrared_sdk import InfraredClient`; `from infrared_sdk.analyses.types import AnalysesName, ...`; `from infrared_sdk.models import TimePeriod, Location` (only for analyses that take them — wind does not).
 - Enum **values** are kebab-case (`"wind-speed"`); enum **member names** are snake_case (`AnalysesName.wind_speed`, `PwcCriteria.lawson_lddc`, `TcsSubtype.heat_stress`).
 - `wind_direction=270` means wind **from** the west (meteorological convention).
