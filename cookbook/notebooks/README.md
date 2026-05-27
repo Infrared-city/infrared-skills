@@ -57,7 +57,7 @@ You can switch city in any notebook by changing one line:
 
 ```python
 from cities import get
-city = get("tokyo")  # try "munich", "new_york", "sao_paulo", "tokyo", "sydney"
+city = get("tokyo")  # try "munich", "vienna", "new_york", "sao_paulo", "tokyo", "sydney"
 ```
 
 > **Coverage caveat.** Infrared's gridded layers are populated from
@@ -80,6 +80,7 @@ The notebooks are numbered to suggest a path, but each is standalone:
 | 6 | `06_image_rendering.ipynb`         | `gen_grid_image`, orientation, colormap caveats |
 | 7 | `07_async_and_webhooks.ipynb`      | `run_area`, `check_area_state`, `merge_area_jobs`, webhooks |
 | 8 | `08_wind_merge_strategies.ipynb`   | `strategy="directional"` / `"directional_blend"` — seam elimination for multi-tile wind runs |
+| 9 | `09_error_handling_and_tuning.ipynb` | `BigPayloadError` family, retry-on-`REF_EXPIRED`, pre-flight diagnostics |
 
 ## Optional: webhook receiver
 
