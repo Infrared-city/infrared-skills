@@ -130,6 +130,7 @@ See `cookbook/notebooks/08_wind_merge_strategies.ipynb` for a side-by-side compa
 | `bounds`         | `tuple[float, float, float, float] \| None` | True geographic extent of `merged_grid` as `(min_lng, min_lat, max_lng, max_lat)` — added in 0.4.4. **Use this (not `polygon.bounds`) to place the bitmap in a map viewer** — NE-padding past the polygon's bbox otherwise produces an SW-anchored squash. |
 | `succeeded_jobs` / `total_jobs` | `int`  | Job counts                          |
 | `failed_jobs` / `skipped_jobs`  | `list[str]` | Failed / non-terminal job IDs  |
+| `failed_tiles`   | `list[TileFailure]` | Per-tile failure records: `tile_id`, `row`, `col`, `error`, `phase` — added in 0.4.9. `phase` is a `TileFailurePhase` StrEnum: `submit` / `compute` / `download` / `skipped` (priority `submit > compute > download > skipped`; same `tile_id` never appears twice). Use this — not `failed_jobs → tile_id` reverse-mapping — to identify which tiles produced no usable output. Empty on full success. |
 | `min_legend`     | `float\|None`     | Legend min across tiles (use as zmin)      |
 | `max_legend`     | `float\|None`     | Legend max across tiles (use as zmax)      |
 

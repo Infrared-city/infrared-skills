@@ -97,6 +97,26 @@ Catch `BigPayloadError` as the base if you don't care about the sub-type; dispat
 
 `WebhookError` is the base; `WebhookRegistrationError` and `WebhookNotFoundError` subclass it. Catch `WebhookError` for any webhook lifecycle issue.
 
+## Weather / utilities-service errors
+
+`WeatherServiceError` — raised by `WeatherServiceClient` when a weather or utilities endpoint returns a non-retryable HTTP error, OR after the SDK's internal retries are exhausted. Available with auto-retry behavior since 0.4.9:
+
+- **Transparent retry**: All four methods (`get_weather_file_from_location`, `get_weather_file_from_identifier`, `filter_weather_data`, `gen_grid_image`) auto-retry up to **3 times** on `429` / `500` / `502` / `503` / `504`.
+- **`Retry-After` honored**: When the server provides a `Retry-After` header (delta-seconds), the SDK sleeps for exactly that long. Otherwise it uses jittered exponential backoff capped at **10 s**. Sub-30 s worst-case wait total — synchronous, user-blocking by design.
+- **`requests.Timeout` / `ConnectionError` propagate unchanged**: network-level failures are not retried (`stuck` should mean stuck, not `stuck × 4`).
+- **`.retry_after: Optional[float]`** on the exception carries the final response's `Retry-After` so callers can implement *outer* backoff once the SDK budget is exhausted. Matches `JobSubmitError`, `JobPollError`, `ResultsDownloadError`.
+
+```python
+from infrared_sdk import WeatherServiceError
+
+try:
+    weather = client.weather.filter_weather_data(identifier=id, time_period=tp)
+except WeatherServiceError as e:
+    if e.retry_after is not None:
+        time.sleep(max(e.retry_after, 1.0))   # outer backoff after internal retries
+    raise
+```
+
 ## Pitfalls
 
 - `ValidationError` happens at payload construction, not at submission — wrap the `WindModelRequest(...)` (or other request) constructor call, not `client.run_area_and_wait(...)`.
@@ -107,6 +127,6 @@ Catch `BigPayloadError` as the base if you don't care about the sub-type; dispat
 
 ## See also
 
-- `05-area-api.md` — `failed_jobs` / `skipped_jobs` semantics
+- `05-area-api.md` — `failed_jobs` / `skipped_jobs` / `failed_tiles` semantics
 - `06-webhooks.md` — webhook exception types
 - `01-quickstart.md` — basic single-job error handling
