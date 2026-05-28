@@ -36,7 +36,7 @@ Full SDK reference: <https://infrared.city/docs/sdk>.
 
 ## Auth header
 
-The SDK sends `X-Api-Key: <your-key>` on every request. Get a key at [infrared.city](https://infrared.city). Requires Python 3.11+.
+The SDK sends `X-Api-Key: <your-key>` on every request. Get a key at [infrared.city](https://infrared.city). Requires Python 3.9+.
 
 ## Pitfalls
 

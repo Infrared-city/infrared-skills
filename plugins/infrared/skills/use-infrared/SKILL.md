@@ -13,7 +13,7 @@ license: Apache-2.0
 
 **Before writing the first SDK code block in this conversation, in order:**
 
-1. Read **[00-setup.md](references/00-setup.md)** — install, auth, client init, Python 3.11+ requirement
+1. Read **[00-setup.md](references/00-setup.md)** — install, auth, client init, Python 3.9+ requirement
 2. Identify the analysis type → read its reference file from the table in *Choosing an analysis* below
 3. If the user brings their own geometry/buildings → also read **[byo-inputs.md](references/byo-inputs.md)**
 4. If async, webhooks, or multi-tile → also read **[async-and-jobs.md](references/async-and-jobs.md)**
@@ -86,7 +86,7 @@ Use the `references/recipes/` folder for UI/app implementation recipes that comb
 
 ## Invariants
 
-- **Python 3.11+** required.
+- **Python 3.9+** required.
 - Auth: `X-Api-Key` header from `INFRARED_API_KEY` env. Never `Authorization: Bearer`.
 - GeoJSON coords: `[longitude, latitude]` (RFC 7946), **WGS84 / EPSG:4326** assumed (never validated — reproject before calling; see [geospatial-crs.md](references/geospatial-crs.md)).
 - Imports: `from infrared_sdk import InfraredClient`; `from infrared_sdk.analyses.types import AnalysesName, ...`; `from infrared_sdk.models import TimePeriod, Location` (only for analyses that take them — wind does not).
