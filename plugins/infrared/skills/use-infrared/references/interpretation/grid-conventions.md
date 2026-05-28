@@ -13,7 +13,7 @@ Every analysis returns the same `AreaResult` shape. These conventions hold for w
 | `sky-view-factors` | percent | 0–100 | Hemisphere visible from the cell (100 = fully open, 0 = obstructed) |
 | `solar-radiation` | kWh/m² | 0–~hundreds | Cumulative shortwave irradiance per pixel over the `TimePeriod` |
 | `thermal-comfort-index` (UTCI) | °C | -40 to 50 | Felt temperature combining air, MRT, humidity, wind |
-| `thermal-comfort-statistics` (TCS) | hours (subtype-dependent) | 0 – period length | Hours per cell in the chosen `TcsSubtype` band |
+| `thermal-comfort-statistics` (TCS) | % time | 0–100 | Fraction of time in the chosen `TcsSubtype` band (100 = always in band) |
 
 For per-analysis class breaks (e.g. UTCI stress thresholds, PWC class semantics), see `wind-results.md`, `solar-results.md`, `thermal-results.md`.
 
