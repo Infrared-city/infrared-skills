@@ -10,7 +10,7 @@ import the SDK, hit the API.
 
 ## Prerequisites
 
-- Python 3.9+
+- Python 3.11+
 - An Infrared API key. Request access at <https://infrared.city>.
 
 ## Installation
