@@ -1,6 +1,6 @@
 ---
 name: use-infrared
-description: Use the Infrared SDK (`pip install infrared-sdk`) to run urban microclimate simulations — wind, pedestrian wind comfort (PWC), solar radiation, daylight, sun hours, sky view factor (SVF), thermal comfort (UTCI), thermal comfort statistics (TCS) — and interpret results. Activate when the user mentions Infrared, infrared.city, infrared-sdk, urban microclimate, wind / PWC / Lawson, solar / daylight / sun hours / SVF, UTCI / thermal comfort, or asks to run an outdoor environmental simulation on a polygon. BEFORE writing any SDK code: read 00-setup.md and the analysis reference file for the chosen simulation type. Never guess API signatures, payload fields, or enum values — the SDK evolves and training-data knowledge is stale.
+description: Use the Infrared SDK (`pip install infrared-sdk`) to run urban microclimate simulations — wind, pedestrian wind comfort (PWC), solar radiation, daylight, sun hours, sky view factor (SVF), thermal comfort (UTCI), thermal comfort statistics (TCS) — and interpret results. Activate when the user mentions Infrared, infrared.city, infrared-sdk, urban microclimate, wind / PWC / Lawson, solar / daylight / sun hours / SVF, UTCI / thermal comfort, or asks to run an outdoor environmental simulation on a polygon.
 allowed-tools: Bash(pip:*), Bash(uv:*), Bash(python:*), Bash(python3:*), Bash(curl:*)
 license: Apache-2.0
 ---
@@ -11,13 +11,12 @@ license: Apache-2.0
 
 > **Do NOT write SDK calls from memory or training data.** Payload shapes, enum values, and method signatures change between SDK versions. Guessing produces silent wrong results or cryptic 422 errors.
 
-**Every session, in order:**
+**Before writing the first SDK code block in this conversation, in order:**
 
-1. Read **[00-setup.md](references/00-setup.md)** — install, auth, client init
+1. Read **[00-setup.md](references/00-setup.md)** — install, auth, client init, Python 3.11+ requirement
 2. Identify the analysis type → read its reference file from the table in *Choosing an analysis* below
 3. If the user brings their own geometry/buildings → also read **[byo-inputs.md](references/byo-inputs.md)**
 4. If async, webhooks, or multi-tile → also read **[async-and-jobs.md](references/async-and-jobs.md)**
-5. After completing the task → read **[reflection-and-feedback.md](references/reflection-and-feedback.md)**
 
 Do not skip step 2. The analysis file is the authoritative payload shape — not your training data.
 
@@ -83,53 +82,11 @@ Use the `references/recipes/` folder for UI/app implementation recipes that comb
 - For a richer 3D playground (Vite + React + DeckGL frontend, FastAPI backend, Zustand state, location picker that dynamically fetches buildings / vegetation / ground materials from the SDK), see [recipes/sdk-playground-fastapi.md](references/recipes/sdk-playground-fastapi.md).
 - To build a **SketchUp Ruby extension** that submits simulations directly from a 3D model and renders heatmap results as coloured faces in the viewport — including a post-run KPI panel with stats and charts — see [recipes/sketchup-plugin.md](references/recipes/sketchup-plugin.md). Note: this recipe uses Ruby (not Python); the Infrared API contract (auth headers, payload shapes, async job lifecycle) is identical.
 - To call the SDK from **Rhino 8 Grasshopper** Python 3 Script components, see [recipes/grasshopper.md](references/recipes/grasshopper.md) — a flat list of small patterns: SDK install via `# r:`, auto-registering outputs (`ScriptVariableParam` + `BeforeRunScript`), sticky state, off-UI-thread work with `threading` + `ExpireSolution(True)`, browser-based AOI picker, DotBim ↔ Rhino Mesh, locating the .gh file, saving PNG / GeoTIFF, heatmap mesh from a numpy grid, and visible logging.
-
-### Hackathon track — TypeScript, Python backend, deploy
-
-**Quick-start recipes** for hackathons, demos, internal tools, and small apps — pick the shape and harden later. They optimise for "shipped this weekend," not for production scale: no observability, lightweight auth, single-region, hand-rolled rate limits. Mix and match.
-
-**What's what** — these are independent third-party tools. Infrared has **no affiliation** with any of them; pick what fits, swap freely.
-
-- **[Railway](https://railway.com)** — cloud platform for deploying a small backend with one command. S3-compat Buckets + Postgres built in. Docs: [docs.railway.com](https://docs.railway.com). Agent-friendly: [llms.txt](https://docs.railway.com/llms.txt) (short index) / [llms-full.txt](https://docs.railway.com/llms-full.txt) (paste the whole corpus into your AI).
-- **[Render](https://render.com)** — Railway alternative with a free no-credit-card tier (services sleep after 15 min idle). Docs: [render.com/docs](https://render.com/docs).
-- **[Supabase](https://supabase.com)** — Postgres + S3-compat storage + magic-link auth on one platform; free tier pauses after 1 week idle. Docs: [supabase.com/docs](https://supabase.com/docs).
-- **[FastAPI](https://fastapi.tiangolo.com)** — Python web framework; where the Infrared SDK runs because the SDK is Python-only. Docs: [fastapi.tiangolo.com](https://fastapi.tiangolo.com).
-- **[Lovable.dev](https://lovable.dev)** — AI app generator; describe a UI in chat, get a deployable Vite + React + Tailwind + shadcn SPA. Docs: [docs.lovable.dev](https://docs.lovable.dev). Agent-friendly: [llms.txt](https://docs.lovable.dev/llms.txt).
-- **[Stripe](https://stripe.com)** — payments. [Stripe Meters](https://docs.stripe.com/billing/subscriptions/usage-based) = usage-based billing without rolling your own credit ledger.
-- **[Polar.sh](https://polar.sh)** — Merchant-of-Record on top of Stripe; handles EU VAT + US sales tax globally; webhooks follow [Standard Webhooks v1](https://www.standardwebhooks.com/). Docs: [polar.sh/docs](https://polar.sh/docs).
-
-**Pick your stack** — most hackathon builds compose 2–3 of the recipes below. Common combos:
-
-| You want | Read |
-|---|---|
-| A Node / Bun / Worker route, no Python backend | [typescript-direct-api](references/recipes/typescript-direct-api.md) |
-| A Python backend you can call from any frontend | [python-fastapi-railway](references/recipes/python-fastapi-railway.md) |
-| AI-generated React UI on top of your FastAPI | [lovable-frontend](references/recipes/lovable-frontend.md) + [python-fastapi-railway](references/recipes/python-fastapi-railway.md) |
-| Hand-built React UI on top of your FastAPI | [typescript-frontend-patterns](references/recipes/typescript-frontend-patterns.md) + [python-fastapi-railway](references/recipes/python-fastapi-railway.md) |
-| Persist projects + add users + charge credits | [persistence-and-users](references/recipes/persistence-and-users.md) + [python-fastapi-railway](references/recipes/python-fastapi-railway.md) |
-| Charge users + handle EU VAT for me | [persistence-and-users](references/recipes/persistence-and-users.md) **Billing shortcuts → Polar** |
-| Everything on one platform (Railway) | python-fastapi-railway + persistence-and-users **Path B** |
-| Everything on one platform (Supabase, with magic-link auth) | python-fastapi-railway + persistence-and-users **Path C** |
-| Zero ops, just SQLite + local files | python-fastapi-railway + persistence-and-users **Path A** |
-
-What each recipe covers:
-
-- **TypeScript without the SDK** — raw `fetch` to `/v2/async/{type}` from Node / Bun / Workers. Polling, ZIP decode, kebab-case fields, upgrade path when `@infrared-city/infrared-sdk-ts` lands on npm. See [recipes/typescript-direct-api.md](references/recipes/typescript-direct-api.md).
-- **Python FastAPI that wraps the SDK and deploys to Railway** (or Render) — project layout, `pydantic-settings`, CORS, secret management, deploy literals, picking between the two platforms. See [recipes/python-fastapi-railway.md](references/recipes/python-fastapi-railway.md).
-- **Frontend display patterns (React + Zustand + MapLibre)** — simulation registry, canvas heatmap overlay, KPI cards, scenario switcher. See [recipes/typescript-frontend-patterns.md](references/recipes/typescript-frontend-patterns.md).
-- **Persistence, users, billing** — two-table schema (`projects` + `artifacts`, with optional scenarios nested in project state) and pluggable DB + blob bindings. Three swap paths: SQLite + local-fs (today), Railway Postgres + Buckets, Supabase (Postgres + Storage + Auth). Adds `users` + `credit_ledger` + Stripe webhook stub. See [recipes/persistence-and-users.md](references/recipes/persistence-and-users.md).
-- **Lovable.dev frontend → your FastAPI backend** — paste your `/openapi.json` URL, Lovable scaffolds a typed React + Tailwind + shadcn UI in chat. CORS, secrets, deploy via GitHub → Cloudflare Pages. See [recipes/lovable-frontend.md](references/recipes/lovable-frontend.md).
-
-Secret handling for recipes:
-- Local development: load `INFRARED_API_KEY` from `.env` (never hard-code keys in source).
-- Hugging Face Spaces: store `INFRARED_API_KEY` as a Space Secret (Settings -> Secrets), then read it as an environment variable at runtime.
-- Deployment docs:
-  - [Hugging Face Spaces Overview](https://huggingface.co/docs/hub/spaces-overview)
-  - [Managing Secrets in Spaces](https://huggingface.co/docs/hub/spaces-overview#managing-secrets)
-  - [Gradio Sharing and Hosting](https://www.gradio.app/guides/sharing-your-app)
+- For **hackathon/demo stacks** (TypeScript direct API, FastAPI + Railway, React frontends, persistence, billing): see [recipes/hackathon-tools.md](references/recipes/hackathon-tools.md).
 
 ## Invariants
 
+- **Python 3.11+** required.
 - Auth: `X-Api-Key` header from `INFRARED_API_KEY` env. Never `Authorization: Bearer`.
 - GeoJSON coords: `[longitude, latitude]` (RFC 7946), **WGS84 / EPSG:4326** assumed (never validated — reproject before calling; see [geospatial-crs.md](references/geospatial-crs.md)).
 - Imports: `from infrared_sdk import InfraredClient`; `from infrared_sdk.analyses.types import AnalysesName, ...`; `from infrared_sdk.models import TimePeriod, Location` (only for analyses that take them — wind does not).
