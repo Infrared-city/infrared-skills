@@ -1,11 +1,25 @@
 ---
 name: use-infrared
-description: Use the Infrared SDK (`pip install infrared-sdk`) to run urban microclimate simulations — wind, pedestrian wind comfort (PWC), solar radiation, daylight, sun hours, sky view factor (SVF), thermal comfort (UTCI), thermal comfort statistics (TCS) — and interpret results. Activate when the user mentions Infrared, infrared.city, infrared-sdk, urban microclimate, wind / PWC / Lawson, solar / daylight / sun hours / SVF, UTCI / thermal comfort, or asks to run an outdoor environmental simulation on a polygon.
+description: Use the Infrared SDK (`pip install infrared-sdk`) to run urban microclimate simulations — wind, pedestrian wind comfort (PWC), solar radiation, daylight, sun hours, sky view factor (SVF), thermal comfort (UTCI), thermal comfort statistics (TCS) — and interpret results. Activate when the user mentions Infrared, infrared.city, infrared-sdk, urban microclimate, wind / PWC / Lawson, solar / daylight / sun hours / SVF, UTCI / thermal comfort, or asks to run an outdoor environmental simulation on a polygon. BEFORE writing any SDK code: read 00-setup.md and the analysis reference file for the chosen simulation type. Never guess API signatures, payload fields, or enum values — the SDK evolves and training-data knowledge is stale.
 allowed-tools: Bash(pip:*), Bash(uv:*), Bash(python:*), Bash(python3:*), Bash(curl:*)
 license: Apache-2.0
 ---
 
 # Use Infrared
+
+## MANDATORY: Read before writing any code
+
+> **Do NOT write SDK calls from memory or training data.** Payload shapes, enum values, and method signatures change between SDK versions. Guessing produces silent wrong results or cryptic 422 errors.
+
+**Every session, in order:**
+
+1. Read **[00-setup.md](references/00-setup.md)** — install, auth, client init
+2. Identify the analysis type → read its reference file from the table in *Choosing an analysis* below
+3. If the user brings their own geometry/buildings → also read **[byo-inputs.md](references/byo-inputs.md)**
+4. If async, webhooks, or multi-tile → also read **[async-and-jobs.md](references/async-and-jobs.md)**
+5. After completing the task → read **[reflection-and-feedback.md](references/reflection-and-feedback.md)**
+
+Do not skip step 2. The analysis file is the authoritative payload shape — not your training data.
 
 ## Default workflow
 
@@ -36,7 +50,9 @@ Pick the entry point first — it shapes blocking, webhooks, and persistence. Fu
 
 ## Choosing an analysis
 
-| User wants to know… | Analysis | Payload + response | Result interpretation |
+**READ the linked reference file before writing any code for that analysis.** The payload shape, required fields, and enum values are defined there — not in this table.
+
+| User wants to know… | Analysis | READ this reference | Result interpretation |
 |---|---|---|---|
 | Is it windy at street level? | `wind-speed` | [analyses/01-wind-speed.md](references/analyses/01-wind-speed.md) | [interpretation/wind-results.md](references/interpretation/wind-results.md) |
 | Is wind comfortable for pedestrians? | `pedestrian-wind-comfort` | [analyses/02-pedestrian-wind-comfort.md](references/analyses/02-pedestrian-wind-comfort.md) | [interpretation/wind-results.md](references/interpretation/wind-results.md) |
@@ -127,6 +143,8 @@ Secret handling for recipes:
 
 ## Pitfalls
 
+- **Writing SDK code from training-data memory without reading the analysis reference** — payload shapes and enum values change between versions. Always read the reference first.
+- **Skipping 00-setup.md** and guessing the import path or client constructor signature.
 - `[lat, lon]` instead of `[lon, lat]` in GeoJSON (most common bug).
 - `AnalysesName.WIND_SPEED` → `AnalysesName.wind_speed` (StrEnum members are snake_case).
 - Skipping vegetation/ground for thermal or solar runs — they materially affect MRT and surface heat. See [byo-inputs.md](references/byo-inputs.md).
