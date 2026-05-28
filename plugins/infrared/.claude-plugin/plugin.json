@@ -2,7 +2,11 @@
   "name": "infrared",
   "version": "0.1.0",
   "description": "Use the Infrared SDK to run urban microclimate simulations and interpret results.",
-  "author": "Infrared City",
+  "author": {
+    "name": "Infrared City",
+    "email": "info@infrared.city",
+    "url": "https://infrared.city"
+  },
   "homepage": "https://infrared.city",
   "repository": "https://github.com/Infrared-city/infrared-skills",
   "license": "Apache-2.0"
