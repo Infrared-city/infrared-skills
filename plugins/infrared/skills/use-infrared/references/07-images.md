@@ -5,8 +5,10 @@ Render an analysis result grid to a PNG via the weather-service `gen_grid_image`
 ## Generating an image
 
 ```python
+from infrared_sdk.tiling.merger import grid_to_list
+
 result = client.run_area_and_wait(payload, polygon, buildings=area.buildings)
-grid = result.merged_grid.tolist()
+grid = grid_to_list(result.merged_grid)  # numpy -> nested lists, NaN -> None
 
 img_bytes = client.weather.gen_grid_image(
     grid=grid,
@@ -30,7 +32,7 @@ Pass them through alongside `grid` and `analysis_type` when relevant.
 
 ## Pitfalls
 
-- Pass `result.merged_grid.tolist()`, not the raw numpy array — the request body is JSON and numpy floats / NaN do not serialize directly. `result.to_dict()` does the NaN -> `None` conversion automatically if you need the dict form.
+- Convert the grid with `grid_to_list(result.merged_grid)` (from `infrared_sdk.tiling.merger`) — **not** `result.merged_grid.tolist()`. The request body is JSON, and `.tolist()` leaves `NaN` for no-data cells (outside the polygon / inside building footprints), which `requests` rejects at send time with `Out of range float values are not JSON compliant: nan`. `grid_to_list` converts `NaN -> None` (so does `result.to_dict()["merged_grid"]` if you prefer the dict form).
 - Without `analysis_type`, the server falls back to a generic palette — colours will not match heatmaps in other tools (e.g. Plotly using `min_legend`/`max_legend`).
 - Output is a fixed PNG; for vector / interactive plots, render locally from `merged_grid` instead.
 - The endpoint is part of the weather service (`client.weather`), not `client.analyses` — don't mix them up.
