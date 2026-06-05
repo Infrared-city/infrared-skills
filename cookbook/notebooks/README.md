@@ -81,6 +81,7 @@ The notebooks are numbered to suggest a path, but each is standalone:
 | 7 | `07_async_and_webhooks.ipynb`      | `run_area`, `check_area_state`, `merge_area_jobs`, webhooks |
 | 8 | `08_wind_merge_strategies.ipynb`   | `strategy="directional"` / `"directional_blend"` — seam elimination for multi-tile wind runs |
 | 9 | `09_error_handling_and_tuning.ipynb` | `BigPayloadError` family, retry-on-`REF_EXPIRED`, pre-flight diagnostics |
+| 10 | `10_real_world_map_overlay.ipynb`  | Overlay an analysis result image on an interactive OpenStreetMap basemap via `AreaResult.bounds` + `folium` |
 
 ## Optional: webhook receiver
 
