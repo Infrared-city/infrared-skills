@@ -7,5 +7,8 @@ plotly
 numpy
 Pillow
 
+# For 10_real_world_map_overlay.ipynb (interactive OSM basemap overlay):
+folium
+
 # For the optional webhook_receiver.py only:
 flask
