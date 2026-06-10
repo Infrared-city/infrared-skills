@@ -38,7 +38,7 @@ The Infrared SDK runs eight microclimate analyses on any polygon you give it:
 | Direct sun hours | hours grid |
 | Sky view factor | 0–100 percent grid (100 = open sky, 0 = obstructed) |
 | Thermal comfort (UTCI) | °C grid |
-| Thermal comfort statistics | % of time per UTCI band |
+| Thermal comfort statistics | hours per UTCI band (derive % as `cell_hours / window_total_hours`) |
 
 Polygons can span one tile or many — the SDK fans out, runs jobs concurrently, and merges results.
 
@@ -49,8 +49,8 @@ Run an analysis with what's already on the ground, or use the same layers in you
 | Layer | Format |
 |---|---|
 | Buildings | DotBim mesh + per-building heights |
-| Trees / vegetation | Gridded canopy heights |
-| Ground materials | Gridded surface-class IDs |
+| Trees / vegetation | GeoJSON Point Features keyed by OSM id (height, crown diameter, species) |
+| Ground materials | GeoJSON FeatureCollections keyed by material name (asphalt, concrete, soil, vegetation, water) |
 | Weather | Filtered EPW-style hourly fields |
 
 Layers are populated worldwide from OpenStreetMap-class sources; coverage and freshness vary by region.

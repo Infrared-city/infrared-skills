@@ -55,7 +55,7 @@ requires-python = ">=3.11"
 dependencies = [
   "fastapi>=0.115",
   "uvicorn[standard]>=0.32",
-  "infrared-sdk>=0.4.8",
+  "infrared-sdk>=0.4.10",
   "pydantic>=2.9",
   "pydantic-settings>=2.6",
   "python-dotenv>=1.0",

@@ -102,7 +102,7 @@ One-shot a fullstack climate-analysis playground:
 
 **Backend (Python 3.11+)**
 
-- `infrared-sdk >= 0.4.8` — the public SDK. Use `client.run_area_and_wait` for synchronous runs; switch to `client.run_area` + `merge_area_jobs` (or webhooks) only if you start running 1.5 km+ polygons or want `directional_blend` for multi-tile wind.
+- `infrared-sdk >= 0.4.10` — the public SDK. Use `client.run_area_and_wait` for synchronous runs; switch to `client.run_area` + `merge_area_jobs` (or webhooks) only if you start running 1.5 km+ polygons or want `directional_blend` for multi-tile wind.
 - `scipy >= 1.10` — for `ConvexHull` over building footprints. See "DotBim → footprint" below for why this is mandatory, not optional.
 - `fastapi >= 0.110`, `uvicorn[standard]`, `python-dotenv`, `pydantic >= 2`, `numpy`.
 
@@ -1024,7 +1024,7 @@ The component computes `pct = ((value - min) / (max - min)) * 100` and clamps to
 
 ## Things to watch out for
 
-0. **SDK version pin** — `infrared-sdk >= 0.4.8`. Older pins miss the big-payload envelope, ground-materials name validation, `AreaResult.bounds`, and `directional_blend` merge.
+0. **SDK version pin** — `infrared-sdk >= 0.4.10`. Older pins miss the big-payload envelope, ground-materials name validation, `AreaResult.bounds`, `directional_blend` merge, `[fast]` extra (`orjson` decode), float32 grid output (`merge_area_jobs(dtype=np.float32)`), streaming tile merge, and 402 fail-fast on insufficient credits.
 0a. **SVF returns 0–100** — colour-scale range must be `[0, 100]`; `[0, 1]` paints solid red. Treat the unit as `%`.
 0b. **Always pass `preview_area(polygon, analysis_type=...)`** — omitting `analysis_type` defaults to the wind grid (256 m step) and under-counts solar/UTCI/TCS tiles by ~4×. Required since 0.4.3.
 0c. **`area.buildings` items are Pydantic models** (`DotBimMesh`). Naive `json.dumps` on the disk cache raises `TypeError: Object of type DotBimMesh is not JSON serializable`. Call `.model_dump()` before writing.

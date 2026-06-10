@@ -47,6 +47,8 @@ my_trees = area_veg.features
 
 Note (changed 2026-04): vegetation features used to be converted to DotBim meshes before submission; that's now handled at the inference layer. Pass GeoJSON Points, not meshes.
 
+**`AreaVegetation.failed_tiles` (0.4.10+):** `client.vegetation.get_area(polygon)` now surfaces tiles where vegetation fetch failed in `area_veg.failed_tiles` (list of tile IDs). Previously these failures were silently dropped. Check it and decide whether to retry, proceed with partial data, or abort. Empty list = all tiles succeeded.
+
 ## Ground materials (`AreaGroundMaterials`)
 
 Format: `dict[str, GeoJSON FeatureCollection]` — keyed by **material name**, each value a FeatureCollection of polygons in lon/lat.

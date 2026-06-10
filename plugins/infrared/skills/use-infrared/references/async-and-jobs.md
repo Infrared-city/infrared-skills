@@ -120,6 +120,7 @@ with InfraredClient() as client:
 | `failed_submissions` | `tuple[str, ...]`             | Tile IDs whose submission HTTP call failed; pass to `retry_from=`.           |
 | `webhook_url`        | `str \| None`                 | Webhook URL the schedule was submitted with (preserved on retries).          |
 | `webhook_events`     | `tuple[str, ...] \| None`     | Webhook events the schedule subscribed to.                                   |
+| `submission_abort_status` | `int \| None`            | HTTP status that caused submission to fail-fast (0.4.10+). `402` = account had insufficient credits at submission time; `None` = no abort. Non-retryable — a `402` abort means no tiles were submitted; do not pass to `merge_area_jobs`. |
 
 `tile_positions`, `grid_shape`, and `config_hash` are also present on the dataclass but are internal bookkeeping for `merge_area_jobs` — agents should treat them as opaque.
 
@@ -166,6 +167,10 @@ print(state.status, state.succeeded, state.failed, state.is_complete)
 
 Once all jobs in a schedule are terminal, `client.merge_area_jobs(schedule)` downloads each succeeded job's payload, merges per-tile grids into one clipped grid, and returns the same `AreaResult` shape that `run_area_and_wait()` would. Failed and skipped jobs are accounted for via `result.failed_jobs` / `result.skipped_jobs`.
 
+Pass `dtype=np.float32` to `merge_area_jobs` for a float32 `merged_grid` (default float64; `strategy="default"` only). Added 0.4.10.
+
+**402 abort:** If `schedule.submission_abort_status == 402`, the account had insufficient credits and no tiles were submitted. Do not call `merge_area_jobs` on such a schedule — replenish credits and re-submit.
+
 ### Multi-payload runs
 
 Pass a list of payloads to submit a multi-analysis or parameter sweep over the same polygon:
@@ -185,6 +190,7 @@ All schedules share a single `max_workers` (default 20) thread pool. Webhook eve
 - **`run_area_and_wait` with `webhook_url=` still blocks.** Passing a webhook URL does **not** make the call async — events are delivered to the URL **and** the call still blocks and returns the merged `AreaResult` locally. Use it when you want both a synchronous result inline and a backend stream of job-level signals.
 - **Persisted `AreaSchedule` requires SDK version compatibility.** `from_dict` is forward-compatible across minor versions (unknown keys are ignored), but a major schema change can break replay. Don't persist schedules indefinitely across SDK upgrades; re-submit if the version moves.
 - **Multi-payload bursts.** A `run_area([p1, p2, ...], polygon, ...)` call delivers `payloads × tiles` webhook events in a tight window. See `06-webhooks.md` for the buffer-ingestion pattern.
+- **402 fail-fast is account-global and non-retryable (0.4.10+).** When the account has insufficient credits, the first tile submission returns HTTP 402 and the SDK aborts the whole schedule immediately — no tiles submitted; `schedule.submission_abort_status == 402`. Distinct from `failed_submissions` (transport errors, retryable via `retry_from=`).
 
 ## See also
 
