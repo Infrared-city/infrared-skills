@@ -47,7 +47,7 @@ with InfraredClient() as client:
 - `wind_speed` is `int` 1–100 (m/s); `wind_direction` is `int` 0–360 (meteorological: 0 = wind from north).
 - Always plot heatmaps with `zmin=result.min_legend, zmax=result.max_legend`.
 - Single-tile polygons (~512 m on a side or smaller) skip tiling entirely — no special handling needed.
-- The first request in a session is 2–5x slower (Lambda cold start); benchmark from the second call.
+- The first request in a session may be slower while the backend warms up; benchmark from the second call.
 
 ## See also
 

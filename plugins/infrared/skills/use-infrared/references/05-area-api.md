@@ -157,7 +157,7 @@ Building coordinates are always relative to the **inference square** (512×512m)
 - Buildings passed to `run_area_and_wait()` must be in **polygon-bbox-SW frame** (meters from SW corner of bbox). `client.buildings.get_area()` returns them in this frame.
 - Solar context margin produces buildings with **negative coordinates** in per-tile frame — that is correct; do not filter them out.
 - The 128 m solar context margin is also the **shadow-casting horizon** — buildings further than 128 m from a tile's edge can't occlude into that tile. At low sun angles (early/late hours, winter) shadows on multi-tile polygons may clip at tile seams. Use `estimate_sun_context_loss(...)` from `infrared_sdk.preflight` to gauge the loss before submitting, or fall back to a single-tile polygon.
-- Cold start: first request in a session is 2-5x slower (Lambda warm-up).
+- Cold start: the first request in a session may be slower while the backend warms up.
 - `MultiPolygon` is not supported. Split into separate Polygon calls.
 
 ## See also

@@ -1,6 +1,6 @@
 # Recipe: TypeScript via Direct API (no SDK)
 
-For TypeScript / Node.js / Bun / Workers code that needs Infrared results today, while the official TS SDK (`@infrared-city/infrared-sdk-ts`) is still pre-publish. Hit the public REST API directly with `fetch`. Same auth, same job lifecycle, same payload shapes the Python SDK uses — just without the typed client.
+For TypeScript / Node.js / Bun / Workers code when you want zero dependencies or a runtime the SDK doesn't target (e.g. bare Cloudflare Workers). Hit the public REST API directly with `fetch`. Same auth, same job lifecycle, same payload shapes the Python SDK uses — just without the typed client.
 
 ## When to use this
 
@@ -221,9 +221,9 @@ For full payload schemas, see the per-analysis references under [`../analyses/`]
 - **`[lat, lon]` vs `[lon, lat]`** — top-level `latitude` / `longitude` are scalars (order obvious). Inside GeoJSON the order is `[lon, lat]` (RFC 7946).
 - **Don't store `jobId` and retry indefinitely** — jobs typically complete within seconds; if `failed` happens, inspect the status response body and surface the error.
 
-## Upgrade path — when the TS SDK lands
+## Using the TS SDK instead
 
-When `@infrared-city/infrared-sdk-ts` ships to npm (Track A parity fixes outstanding as of writing), the above ~150 lines collapse to:
+`@infrared-city/infrared-sdk-ts@^0.11.0` is available now via GitHub Packages (parity with Python SDK 0.4.9). The above ~150 lines collapse to:
 
 ```ts
 import { InfraredClient, AnalysesName } from "@infrared-city/infrared-sdk-ts";
