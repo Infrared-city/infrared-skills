@@ -304,6 +304,7 @@ The yellow "i" (Remark) bubble is the most discoverable for non-coders — they 
 - **Sticky keys collide** between duplicated components unless scoped by `InstanceGuid` (Pattern 3).
 - **`# async: true` doesn't work** on Script components — use threading + `ExpireSolution(True)`.
 - **Grid orientation:** SDK `merged_grid[0, 0]` is the **SW** corner. Flip rows for any image format that expects row 0 = top (PNG, JPEG); leave alone for GIS formats with proper transforms (GeoTIFF).
+- **Localhost / enterprise gateway `base_url` (0.4.10+):** `InfraredClient(api_key=..., base_url="http://localhost:8000/api")` works without a `/v2` suffix. The `/v2` requirement only applies when overriding via `INFRARED_BASE_URL` to point at the standard cloud endpoint.
 
 ## When NOT to use this recipe
 

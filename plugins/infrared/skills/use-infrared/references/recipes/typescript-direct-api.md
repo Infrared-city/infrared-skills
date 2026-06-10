@@ -223,7 +223,7 @@ For full payload schemas, see the per-analysis references under [`../analyses/`]
 
 ## Using the TS SDK instead
 
-`@infrared-city/infrared-sdk-ts@^0.11.0` is available now via GitHub Packages (parity with Python SDK 0.4.9). The above ~150 lines collapse to:
+`@infrared-city/infrared-sdk-ts@^0.11.0` is available now via GitHub Packages (parity with Python SDK 0.4.9 — the 0.4.10 additions are Python-only: `[fast]` extra, float32 grid, streaming merge, 402 fail-fast). The above ~150 lines collapse to:
 
 ```ts
 import { InfraredClient, AnalysesName } from "@infrared-city/infrared-sdk-ts";

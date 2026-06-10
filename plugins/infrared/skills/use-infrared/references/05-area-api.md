@@ -75,7 +75,9 @@ Cell pitch is 1m. Wind merges from centre crops (default) — for multi-tile win
 
 ## Merging strategies
 
-`merge_area_jobs(schedule, *, strategy=..., wind_direction_deg=...)` controls how tile results are stitched. The convenience method `run_area_and_wait` always uses `strategy="default"` (plain centre-crop). To access the other strategies, split into the two-step path (`run_area` → poll → `merge_area_jobs`).
+`merge_area_jobs(schedule, *, strategy=..., wind_direction_deg=..., dtype=None)` controls how tile results are stitched. The convenience method `run_area_and_wait` always uses `strategy="default"` (plain centre-crop). To access the other strategies, split into the two-step path (`run_area` → poll → `merge_area_jobs`).
+
+Pass `dtype=np.float32` to receive a float32 `merged_grid` instead of the default float64. Only supported with `strategy="default"` — raises `ValueError` for directional strategies. Round-trip note: the wire format is float64; the SDK downcasts after merge, so values match casting the float64 result yourself. (Added 0.4.10.)
 
 | Strategy | When to use | Required kwarg |
 |---|---|---|
@@ -113,6 +115,9 @@ result = client.merge_area_jobs(
     strategy="directional_blend",
     wind_direction_deg=270.0,   # match the simulation's wind_direction
 )
+
+# Optional: opt into float32 merged_grid (strategy="default" only):
+# result = client.merge_area_jobs(schedule, dtype=np.float32)
 ```
 
 `wind_direction_deg` follows the meteorological convention (0 = N, 90 = E, 180 = S, 270 = W). Match the value used in the payload, or the blend mask points the wrong way.
@@ -153,6 +158,7 @@ Building coordinates are always relative to the **inference square** (512×512m)
 
 ## Pitfalls
 
+- **Streaming tile merge (0.4.10, `strategy="default"` only):** `merge_area_jobs` now merges tiles incrementally as downloads complete, lowering peak memory for large schedules. Output is bit-identical — no API or result-shape change.
 - Never derive heatmap colour range from the grid — use `min_legend` / `max_legend` as `zmin` / `zmax`. Direct Sun Hours / Daylight cluster near the max and look washed out otherwise. The API may omit these fields; always apply a fallback: `zmin = result.min_legend if result.min_legend is not None else float(np.nanmin(result.merged_grid))`.
 - Buildings passed to `run_area_and_wait()` must be in **polygon-bbox-SW frame** (meters from SW corner of bbox). `client.buildings.get_area()` returns them in this frame.
 - Solar context margin produces buildings with **negative coordinates** in per-tile frame — that is correct; do not filter them out.
