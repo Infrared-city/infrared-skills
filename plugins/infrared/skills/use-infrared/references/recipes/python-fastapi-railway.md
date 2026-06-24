@@ -146,7 +146,7 @@ Real production code would type the return value and reuse a single request buil
 
 ## app/schemas.py
 
-Note: `direct-sun-hours` requires a single-month window — multi-month requests return HTTP 400.
+Note: `direct-sun-hours` accepts multi-month windows as of 2026-06-24. The example below uses a single month for simplicity; expand `end_month` for seasonal analysis.
 
 ```python
 from pydantic import BaseModel, Field
@@ -155,7 +155,7 @@ from pydantic import BaseModel, Field
 class SunHoursRequest(BaseModel):
     lat: float = Field(..., ge=-90, le=90)
     lon: float = Field(..., ge=-180, le=180)
-    month: int = Field(7, ge=1, le=12)  # single month only — multi-month returns 400
+    month: int = Field(7, ge=1, le=12)  # month to simulate
 
 
 class SunHoursResponse(BaseModel):

@@ -19,7 +19,7 @@ Annual horizontal totals: ~1,000–1,200 kWh/m² (Central Europe), ~1,500–1,80
 
 ## daylight-availability
 
-> **Single-month only.** `daylight-availability` requires `start_month == end_month`. Multi-month windows are not supported by the server. To cover a season, run one job per month and aggregate client-side.
+> **Multi-month supported (2026-06-24).** `daylight-availability` accepts multi-month and annual `TimePeriod` windows. Submit a single seasonal job directly.
 
 **Cumulative hours of usable daylight** per pixel over the chosen `TimePeriod` (range: 0 to period length in hours). Conceptually sDA-like — not lux. Always interpret as a fraction of the window: compute `cell_hours / window_total_hours` first, then classify.
 
@@ -34,7 +34,7 @@ Annual horizontal totals: ~1,000–1,200 kWh/m² (Central Europe), ~1,500–1,80
 
 ## direct-sun-hours
 
-> **Single-month only.** `direct-sun-hours` requires `start_month == end_month`. Multi-month windows are not supported by the server. To cover a season, run one job per month and aggregate client-side.
+> **Multi-month supported (2026-06-24).** `direct-sun-hours` accepts multi-month and annual `TimePeriod` windows. Submit a single seasonal job directly.
 
 Cumulative hours of direct (un-occluded) sunlight per pixel, **summed across the filtered hour set in `TimePeriod`** (cross-product of days × hours-of-day, NOT a continuous range — see `../03-time-period.md`). So `(month=6, day=1..30, hour=11..14)` sums ~120 hours per cell, not ~700. Within a single month an all-day window (`hour=0..23`) can reach >300 hrs at fully sunlit pixels. Not a per-day average. Always normalise before classifying — divide by the filtered hour count (`days_in_window × hours_per_day`) for a universal `hrs/day` reading.
 

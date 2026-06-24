@@ -156,7 +156,7 @@ Run:
   - `SolarModelRequest` with `AnalysesName.direct_sun_hours`.
   - Needs `latitude`, `longitude`, `TimePeriod`.
   - Does not need weather data.
-  - Requires single-month windows (`start_month == end_month`).
+  - Supports multi-month windows as of 2026-06-24.
 - `thermal-comfort-index`:
   - `UtciModelRequest.from_weatherfile_payload(...)`.
   - Find nearest station with `client.weather.get_weather_file_from_location(...)`.
@@ -176,7 +176,7 @@ Area execution:
 ## Direct Sun Hours Caution
 
 If direct sun hours fails, first check `TimePeriod`:
-- `start_month` and `end_month` must be the same month.
+- `start_month` and `end_month` can span multiple months (multi-month supported as of 2026-06-24).
 - Direct sun hours values are cumulative hours over the filtered month/day/hour set, not a daily average.
 - Low sun angles and large tiled polygons can show tile-context shadow artifacts. For demos, prefer mid-day hours and simple single-month windows.
 
