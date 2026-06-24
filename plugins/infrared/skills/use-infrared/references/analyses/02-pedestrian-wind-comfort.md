@@ -12,12 +12,12 @@ from infrared_sdk.models import TimePeriod, extract_weather_fields
 weather_data = client.weather.filter_weather_data(
     identifier="your-weather-file-id",
     time_period=TimePeriod(
-        start_month=6, start_day=1, start_hour=9,
-        end_month=6, end_day=30, end_hour=17,
+        # Multi-month and annual windows are supported. A full-year wind rose
+        # (start_month=1 → end_month=12) is the standard for pedestrian comfort.
+        start_month=1, start_day=1, start_hour=0,
+        end_month=12, end_day=31, end_hour=23,
     ),
 )
-# Single-month window required. Multi-month runs currently fail server-side — split into
-# separate TimePeriods and run each sequentially if you need a longer period.
 wind_fields = extract_weather_fields(weather_data, ["windSpeed", "windDirection"])
 
 payload = PwcModelRequest(

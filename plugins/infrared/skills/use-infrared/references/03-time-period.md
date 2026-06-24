@@ -13,7 +13,7 @@ tp = TimePeriod(
 )
 ```
 
-> **Update (2026-06-24):** multi-month and annual `TimePeriod` windows are now supported for `solar-radiation`, `direct-sun-hours`, `daylight-availability`, `thermal-comfort-index`, and `thermal-comfort-statistics` (prod cutover to Rust worker). The earlier `DNI length N != sun_vectors M` error no longer occurs for these five models. `pedestrian-wind-comfort` multi-month status is unverified — use single-month windows (`end_month == start_month`) for PWC. `wind-speed` and `sky-view-factors` take no `TimePeriod`.
+> **Update (2026-06-24):** multi-month and annual `TimePeriod` windows are now supported for all six analyses that accept a `TimePeriod`: `solar-radiation`, `direct-sun-hours`, `daylight-availability`, `thermal-comfort-index`, `thermal-comfort-statistics`, and `pedestrian-wind-comfort`. The earlier `DNI length N != sun_vectors M` error never applied to PWC (it consumes `wind_speed`/`wind_direction`, not `sun_vectors`); a full-year wind rose is the standard way to assess pedestrian comfort. `wind-speed` and `sky-view-factors` take no `TimePeriod`.
 
 All 6 fields are required ints:
 

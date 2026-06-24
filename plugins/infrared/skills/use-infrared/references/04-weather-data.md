@@ -17,8 +17,8 @@ locations = client.weather.get_weather_file_from_location(
 weather_data = client.weather.filter_weather_data(
     identifier=locations[0]["uuid"],
     time_period=TimePeriod(
-        # Multi-month windows are supported for Solar / UTCI / TCS / DA / DSH
-        # as of 2026-06-24 (Rust worker). PWC multi-month status unverified.
+        # Multi-month and annual windows are supported for all six TimePeriod-based
+        # analyses (Solar / UTCI / TCS / DA / DSH / PWC) as of 2026-06-24.
         # See references/03-time-period.md for details.
         start_month=6, start_day=1, start_hour=9,
         end_month=6, end_day=30, end_hour=17,

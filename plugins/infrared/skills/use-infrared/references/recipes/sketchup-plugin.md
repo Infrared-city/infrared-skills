@@ -398,7 +398,7 @@ The ZIP file is posted as the raw request body. The API returns `{"jobId": "..."
   "end-month": 6, "end-day": 30, "end-hour": 17 }
 ```
 
-Multi-month windows are supported for all five raytraced analyses (`daylight-availability`, `direct-sun-hours`, `solar-radiation`, `thermal-comfort-index`, `thermal-comfort-statistics`) as of 2026-06-24. `pedestrian-wind-comfort` multi-month status is unverified; keep `start-month == end-month` for PWC.
+Multi-month and annual windows are supported for all six `TimePeriod`-based analyses (`daylight-availability`, `direct-sun-hours`, `solar-radiation`, `thermal-comfort-index`, `thermal-comfort-statistics`, `pedestrian-wind-comfort`) as of 2026-06-24. A full-year wind rose is the standard input for PWC.
 
 ### 4. Polling
 
@@ -613,7 +613,7 @@ The Infrared API's job status endpoint sometimes returns `"Succeded"` (one 'c').
 1. **Units**: SketchUp stores all coords in **inches**. Multiply by `0.0254` to get metres. Do not use `model.options` or `model.units` — those are display preferences; the underlying data is always inches.
 2. **Coord frame**: The simulation tile is in a **SW-corner-relative geographic frame**, not SketchUp model space. The conversion involves both the north-angle rotation and the lat/lng offset.
 3. **`verify_mode`**: `Net::HTTP` with `use_ssl = true` defaults to `VERIFY_NONE`. Set `verify_mode = OpenSSL::SSL::VERIFY_PEER` explicitly.
-4. **PWC single-month**: `pedestrian-wind-comfort` multi-month status is unverified; keep `start_month == end_month` for PWC. The five raytraced models (`daylight-availability`, `direct-sun-hours`, `solar-radiation`, `thermal-comfort-index`, `thermal-comfort-statistics`) support multi-month windows as of 2026-06-24.
+4. **PWC multi-month / annual**: `pedestrian-wind-comfort` supports multi-month and annual `TimePeriod` windows on prod (verified 2026-06-24). All six analyses that accept a `TimePeriod` (`daylight-availability`, `direct-sun-hours`, `solar-radiation`, `thermal-comfort-index`, `thermal-comfort-statistics`, `pedestrian-wind-comfort`) support this.
 5. **`"Succeded"` typo**: Handle both `"Succeeded"` and `"Succeded"` in the polling loop.
 6. **Result grid normalisation**: The API sometimes returns the output grid as a bare top-level array. Always normalise: `parsed.is_a?(Array) ? { "output" => parsed } : parsed`.
 7. **Legend bounds for daylight/direct-sun**: Using `flat.first` (≈0) as `min_v` washes out the colour scale because most shadow cells are near-zero. Use the 10th-percentile as `min_v` for these analyses.
