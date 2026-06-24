@@ -157,7 +157,7 @@ The real flow for `/async/jobs/{jobId}/results`:
 
 A 512 m × 512 m tile centred on Vienna's Rathausplatz. Single-tile means no polygon, just `latitude` + `longitude`.
 
-Note: `direct-sun-hours` and `daylight-availability` require a **single-month** time period — multi-month windows return HTTP 400 silently.
+Note: `direct-sun-hours` and `daylight-availability` support multi-month time periods as of 2026-06-24. The example uses a single month; expand `"end-month"` for seasonal analysis.
 
 ```ts
 import { submit, waitFor, downloadResults } from "./infrared";
@@ -191,7 +191,7 @@ Run it with `INFRARED_API_KEY=... bun run example.ts` or `tsx example.ts`.
 
 ```jsonc
 // direct-sun-hours / daylight-availability / svf
-// Note: direct-sun-hours and daylight-availability require a single-month window.
+// Note: direct-sun-hours and daylight-availability support multi-month windows as of 2026-06-24.
 {
   "analysis-type": "direct-sun-hours",
   "latitude": 48.21, "longitude": 16.36,

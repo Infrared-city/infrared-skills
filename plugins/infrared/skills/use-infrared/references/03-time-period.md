@@ -13,7 +13,7 @@ tp = TimePeriod(
 )
 ```
 
-> **Server-side limitation (as of 2026-04):** the inference layer's `sun_vectors` generator currently only honours **one month** of the requested window. Solar / UTCI / TCS / PWC requests with a multi-month window return `Unexpected Inference error: DNI length N != sun_vectors M`. Until that is fixed, use single-month windows (`end_month == start_month`) for those analyses. Geometry-only analyses (Wind, SVF) are unaffected.
+> **Update (2026-06-24):** multi-month and annual `TimePeriod` windows are now supported for `solar-radiation`, `direct-sun-hours`, `daylight-availability`, `thermal-comfort-index`, and `thermal-comfort-statistics` (prod cutover to Rust worker). The earlier `DNI length N != sun_vectors M` error no longer occurs for these five models. `pedestrian-wind-comfort` multi-month status is unverified — use single-month windows (`end_month == start_month`) for PWC. `wind-speed` and `sky-view-factors` take no `TimePeriod`.
 
 All 6 fields are required ints:
 
@@ -42,8 +42,8 @@ Example: `TimePeriod(start_month=6, start_day=1, start_hour=9, end_month=8, end_
 | -------------------------- | ---------- | ------------ |
 | Wind Speed                 | No         | No           |
 | Sky View Factors           | No         | No           |
-| Daylight Availability      | Yes (single month only — `start_month == end_month`) | No           |
-| Direct Sun Hours           | Yes (single month only — `start_month == end_month`) | No           |
+| Daylight Availability      | Yes | No           |
+| Direct Sun Hours           | Yes | No           |
 | Solar Radiation            | Yes        | Yes          |
 | Thermal Comfort (UTCI)     | Yes        | Yes          |
 | Thermal Comfort Statistics | Yes        | Yes          |
@@ -55,7 +55,7 @@ Example: `TimePeriod(start_month=6, start_day=1, start_hour=9, end_month=8, end_
 - `end_*` fields are inclusive on each cascade level.
 - `TimePeriod` is frozen (Pydantic `frozen=True`); construct a new one to change values.
 - Impossible calendar dates (April 31, June 31, September 31, November 31, February 30), zero-length windows, and `end < start` raise `ValidationError` at construction. February 29 is accepted (no year context). Year-wrap windows (e.g. Nov→Feb) are not supported — split into two periods.
-- `daylight-availability` and `direct-sun-hours` only support **single-month** windows (`start_month == end_month`). Multi-month windows are rejected server-side. To cover a season, submit one job per month and aggregate client-side.
+- `daylight-availability` and `direct-sun-hours` support multi-month and annual windows as of 2026-06-24 (Rust worker cutover). Submit a single job for the full season window.
 
 ## See also
 

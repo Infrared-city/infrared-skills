@@ -12,7 +12,7 @@ This recipe is one document in a larger skill (`use-infrared`). When you need de
 
 - `../00-setup.md` — install + auth.
 - `../02-geometry.md` — polygon / coords / `[lon, lat]` order.
-- `../03-time-period.md` — `TimePeriod` semantics, single-month windows.
+- `../03-time-period.md` — `TimePeriod` semantics and cascade-filter behaviour.
 - `../04-weather-data.md` — TMY stations, `filter_weather_data`, `extract_weather_fields`.
 - `../05-area-api.md` — area-API, tiling, `AreaResult`, the polygon-bbox-SW frame.
 - `../byo-inputs.md` — `buildings=`, `vegetation=`, `ground_materials=` payload shapes.
@@ -316,13 +316,7 @@ Pattern: one builder per analysis, each `(centroid: tuple[float, float], params:
 | `thermal-comfort-index` | `UtciModelRequest.from_weatherfile_payload` | `payload=UtciModelBaseRequest(analysis_type=AnalysesName.thermal_comfort_index)`, `location`, `time_period`, `weather_data` | Yes |
 | `thermal-comfort-statistics` | `TcsModelRequest.from_weatherfile_payload` | `payload=TcsModelBaseRequest(analysis_type=..., subtype=TcsSubtype("kebab-string"))`, `location`, `time_period`, `weather_data` | Yes |
 
-> **Watch out (single-month is required for SIX analyses, not four)**: `daylight-availability`, `direct-sun-hours`, `pedestrian-wind-comfort`, `solar-radiation`, `thermal-comfort-index`, and `thermal-comfort-statistics` all reject multi-month `TimePeriod`s server-side. Both the sibling docs (`../03-time-period.md` line 45, `../interpretation/solar-results.md` lines 22 + 37, `../analyses/03-daylight-availability.md`, `../analyses/04-direct-sun-hours.md`) and the SDK README make this explicit. Always pass `start_month == end_month`. Only `wind-speed` and `sky-view-factors` (which take no `TimePeriod` at all) are exempt. Inline the constraint:
->
-> ```python
-> tp = TimePeriod(start_month=m, end_month=m,
->                 start_day=ds, end_day=de,
->                 start_hour=hs, end_hour=he)
-> ```
+> **Update (2026-06-24):** multi-month and annual `TimePeriod` windows are now supported for `solar-radiation`, `daylight-availability`, `direct-sun-hours`, `thermal-comfort-index`, and `thermal-comfort-statistics` (prod cutover to Rust worker). `pedestrian-wind-comfort` multi-month status is unverified — keep `start_month == end_month` for PWC. `wind-speed` and `sky-view-factors` take no `TimePeriod`.
 >
 > **Watch out (enum convention)**: `PwcCriteria` and `TcsSubtype` are `StrEnum`s — `PwcCriteria("lawson-2001")` and `PwcCriteria.lawson_2001` both resolve to the same wire string. Pick one form and stay consistent so the rendered Python snippets are readable. The dispatch builders here use the value-from-string form (`PwcCriteria(params["criteria"])`) because `params` arrives as a kebab string from the frontend registry — the round-trip is `"lawson-2001" → PwcCriteria("lawson-2001") → "lawson-2001"`.
 
@@ -1032,7 +1026,7 @@ The component computes `pct = ((value - min) / (max - min)) * 100` and clamps to
 
 1. **`bounds` describe the merged grid, not the polygon.** SDK ceil-rounds tile counts; merged grid is larger. Use `grid_bounds_from(...)`. Polygon corners off-set the heatmap by tens of metres.
 2. **NaN → `null` on the wire.** `JSON.stringify(NaN)` is non-portable. Walk the grid in Python; frontend treats `null` as masked.
-3. **Multi-month TimePeriod is rejected server-side** for SIX analyses (everything that takes a TimePeriod): PWC, solar-radiation, UTCI, TCS, daylight-availability, direct-sun-hours. The constraint is documented in `../03-time-period.md`, `../interpretation/solar-results.md`, and the per-analysis files. Always `end_month == start_month`. Only `wind-speed` and `sky-view-factors` are exempt (they take no TimePeriod).
+3. **Multi-month TimePeriod** is now supported for `solar-radiation`, `thermal-comfort-index`, `thermal-comfort-statistics`, `daylight-availability`, and `direct-sun-hours` (as of 2026-06-24). `pedestrian-wind-comfort` multi-month status is unverified — keep `end_month == start_month` for PWC. `wind-speed` and `sky-view-factors` take no `TimePeriod`.
 4. **Hour window monotonicity**: `hour_start < hour_end`. Enforce in the `int-range` slider and at the backend.
 5. **Tree property names follow OSM**: `properties.height` (string!), `diameter_crown`, `species`, `leaf_type`, `leaf_cycle`, `natural`. User-added trees **must** use the same keys — `height_m` will be silently dropped by the inference layer. Parse `height` with `parseFloat` when reading from the frontend.
 6. **Enum convention is kebab-case values.** `PwcCriteria("lawson-2001")`, `TcsSubtype("thermal-comfort")`. Snippet templates must use the same form — mixing enum names and values produces unrunnable snippets.
@@ -1118,7 +1112,7 @@ The store is JSON-serialisable. Encode `{ centroid, areaSize, active, scenarios,
 - **Iframe embed handshake.** Only relevant for embedding the playground inside a marketing page. Skip for v1.
 - **Async + webhook delivery.** Only worth the engineering when polygons exceed ~1 km.
 - **Mobile-first stacked layout.** v1 targets desktop; `useMediaQuery('(min-width: 768px)')` to gate is a one-evening add later.
-- **Server-side multi-month aggregation.** Server rejects multi-month windows; loop on the client if you really need it.
+- **Server-side multi-month aggregation for PWC.** `pedestrian-wind-comfort` multi-month status is unverified; loop on the client if you need seasonal PWC aggregation. The five raytraced models (solar-radiation, UTCI, TCS, DA, DSH) support multi-month windows natively as of 2026-06-24.
 
 ## Deployment
 
@@ -1209,6 +1203,6 @@ If you scored 100 %, ship it. If you scored 80 %+, the gaps are probably documen
 - [`../00-setup.md`](../00-setup.md) — install + auth.
 - [`../05-area-api.md`](../05-area-api.md) — Area API, tiling, AreaResult.
 - [`../byo-inputs.md`](../byo-inputs.md) — buildings / vegetation / ground_materials payload shapes.
-- [`../03-time-period.md`](../03-time-period.md) — TimePeriod semantics + single-month constraint.
+- [`../03-time-period.md`](../03-time-period.md) — TimePeriod semantics and cascade-filter behaviour.
 - [`../analyses/`](../analyses/) — per-analysis payload + interpretation references.
 - [`gradio-area-explorer.md`](./gradio-area-explorer.md) — simpler Gradio counterpart (single-process Python).

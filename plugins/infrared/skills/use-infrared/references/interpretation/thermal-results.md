@@ -27,7 +27,7 @@ Returns the **time spent** in the chosen UTCI band per pixel — count of filter
 
 The "season × hours-of-day window" comes entirely from the `TimePeriod` you pass — there is no separate season or hours enum. Cascade filter: months, then days within those months, then hours within those days. Example: `TimePeriod(start_month=6, start_day=1, start_hour=9, end_month=6, end_day=30, end_hour=17)` = June, all days, 09:00–17:00. (`TimePeriod` is Pydantic v2 — kwargs only.)
 
-> **Server-side limitation (as of 2026-04):** TCS / UTCI / Solar runs currently fail with `DNI length N != sun_vectors M` for multi-month windows — `sun_vectors` is not yet computed across full multi-month periods. Until fixed, run sequential single-month TCS jobs and aggregate client-side if you need a multi-month summary. See `references/03-time-period.md`.
+> **Update (2026-06-24):** multi-month and annual windows are now supported for UTCI, TCS, and Solar — the `DNI length N != sun_vectors M` error no longer occurs for these models (prod cutover to Rust worker). Submit a single multi-month or annual job directly.
 
 Three subtypes via `TcsSubtype` (per-call — to get all three, run three jobs):
 
