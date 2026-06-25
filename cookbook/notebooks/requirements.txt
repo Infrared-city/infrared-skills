@@ -1,8 +1,5 @@
 # The Infrared SDK itself.
-# The [fast] extra pulls in orjson for ~2x faster tile-result decoding (optional,
-# binary-wheel-only). Fall back to plain `infrared-sdk` if your environment
-# can't install binary wheels.
-infrared-sdk[fast]>=0.4.10
+infrared-sdk
 
 python-dotenv
 matplotlib
