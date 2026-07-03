@@ -34,7 +34,7 @@ is validated against the platform's own parsers. Committed samples:
 | Height clamp | **3–200 m** (clamped, not rejected) |
 | Optional | `kind`: `residential` \| `office` \| `tower` (display colour only) |
 | Dropped | features with `material: "vegetation"` (those are surfaces) |
-| Caps | ≤ 10 MB, ≤ 50,000 features |
+| Caps | ≤ 20 MB, ≤ 50,000 features |
 | Rings | closed (first == last), exterior ring first, holes after |
 
 Footprints are extruded to 3D on upload — one mesh per polygon — and the
@@ -64,7 +64,7 @@ Two accepted shapes:
 | Canonical materials | `water` · `concrete` · `asphalt` · `vegetation` · `soil` |
 | Synonyms (auto-mapped) | grass/forest/wood/shrub/scrub/tree(s)/park/green → vegetation · road/pavement/tarmac/parking → asphalt · sand/bare_ground/bare/ground/dirt/earth/gravel → soil · pond/lake/river/sea → water · paving/building → concrete |
 | Unresolved names | mapped to **concrete** (kept, not dropped) — tag explicitly |
-| Geometry | polygons only; ≤ **500** polygons; ≤ **5 MB**; clipped to the site |
+| Geometry | polygons only; ≤ **500** polygons; ≤ **20 MB**; clipped to the site |
 
 ## Weather — EnergyPlus `.epw`
 
@@ -81,7 +81,7 @@ Two accepted shapes:
 
 ## Multi-file drop — content classification (project creation)
 
-Files dropped together on the create card are classified by **content**:
+Files — or a whole dropped **folder** (recursed; `.geojson`/`.json`/`.epw` only, ≤64 files) — are classified by **content**. The same drop zone exists in the create card, the Data-layers panel (applies to the active scenario), and the add-scenario form:
 
 | Content | Layer |
 |---|---|

@@ -41,7 +41,7 @@ BUILDINGS (buildings.geojson)
     colour only, no simulation effect.
   * Features tagged `properties.material: "vegetation"` are dropped (they are
     surfaces, not buildings).
-  * Caps: ≤ 10 MB, ≤ 50,000 features. Rings should be closed (first == last
+  * Caps: ≤ 20 MB, ≤ 50,000 features. Rings should be closed (first == last
     position); exterior ring first (holes = subsequent rings).
 
 TREES (trees.geojson)
@@ -62,7 +62,7 @@ GROUND SURFACES (surfaces.geojson)
     tarmac/parking→asphalt, sand/gravel/dirt→soil, lake/river/pond/sea→water,
     paving/building→concrete). Anything unresolved defaults to concrete —
     nothing is dropped, so tag every polygon explicitly.
-  * Polygons only; ≤ 500 polygons; ≤ 5 MB. Clipped to the site boundary.
+  * Polygons only; ≤ 500 polygons; ≤ 20 MB. Clipped to the site boundary.
 
 WEATHER (*.epw)
   * Standard EnergyPlus EPW: 8 header lines (line 1 = LOCATION with city,
