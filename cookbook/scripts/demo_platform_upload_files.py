@@ -65,9 +65,10 @@ GROUND SURFACES (surfaces.geojson)
   * Polygons only; ≤ 500 polygons; ≤ 20 MB. Clipped to the site boundary.
 
 WEATHER (*.epw)
-  * Standard EnergyPlus EPW: 8 header lines (line 1 = LOCATION with city,
-    country, lat, lon, timezone, elevation; line 8 = DATA PERIODS), then
-    8,760 hourly rows (non-leap year), comma-separated, ≥ 35 columns.
+  * A real EPW is 8 header lines (line 1 = LOCATION with city, country, lat,
+    lon, timezone, elevation; line 8 = DATA PERIODS) + 8,760 hourly rows of 35
+    columns. The parser only requires: a LOCATION line, and >=1 data row (starts
+    with an integer year) of >=22 columns with a usable dry-bulb value.
   * Dry-bulb temperature = column index 6 (0-based); 99.9 is the missing-value
     sentinel — a file whose dry-bulb column is all-missing is rejected.
   * For real projects use a measured/TMY file (e.g. climate.onebuilding.org);
