@@ -68,6 +68,12 @@ To override a layer, replace just that key:
 my_layers = {**area_gm.layers, "vegetation": my_custom_park_polygons}
 ```
 
+### Overlapping material layers
+
+The simulator decides a point's material by looking **straight down** and taking the topmost surface. If two material layers overlap — e.g. a `water` polygon sitting on a tile-wide `asphalt` background — flat (same-height) polygons tie, and a tie can flip the result: a lake resolved as `asphalt` and rendered as a hot surface instead of cool water.
+
+Fetched layers (`client.ground_materials.get_area(...)`) come pre-cleaned and stacked, so this is handled for you. When you hand-build `ground_materials`, make the material layers **mutually exclusive** — clip them so each point belongs to exactly one material — or start from `area_gm.layers` and override individual keys (above) rather than adding polygons that overlap the existing ones.
+
 ## When each layer is needed
 
 | Analysis | Buildings | Vegetation | Ground materials |

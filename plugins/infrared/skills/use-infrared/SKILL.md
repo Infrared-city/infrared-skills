@@ -36,6 +36,7 @@ Most users bring their own data (BIM/Rhino/IFC/GeoJSON footprints, custom landsc
 | Time period / weather window | [03-time-period.md](references/03-time-period.md) |
 | Weather data / EPW | [04-weather-data.md](references/04-weather-data.md) |
 | Bring your own buildings / trees / ground | [byo-inputs.md](references/byo-inputs.md) |
+| Platform FILE upload (GeoJSON/.epw formats, projections, caps) | [platform-byo-upload.md](references/platform-byo-upload.md) |
 
 ## Execution styles
 
