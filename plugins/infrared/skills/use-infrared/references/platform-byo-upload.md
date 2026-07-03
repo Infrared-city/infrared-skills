@@ -6,10 +6,13 @@ layer row takes its own file and multi-file drops are auto-classified) and
 afterwards in the project's Data-layers panel. This is the file contract.
 It is distinct from the SDK's in-memory BYO path ([byo-inputs.md](byo-inputs.md)).
 
-**Reference implementation** (rules as runnable code, stdlib Python):
-`cookbook/scripts/demo_platform_upload_files.py` — generates a sample set that
-is validated against the platform's own parsers. Committed samples:
-`cookbook/sample-data/platform-upload/`.
+**Reference implementations** (rules as runnable code, stdlib Python):
+- `cookbook/scripts/demo_platform_upload_files.py` — synthetic set (rectangles),
+  smallest possible thing that validates. Committed: `cookbook/sample-data/platform-upload/`.
+- `cookbook/scripts/demo_vienna_scenarios.py` (+ `demo_vienna_osm.py`) — **real**
+  Vienna open data (OSM buildings/surfaces + Baumkataster trees + real EPWs) shaped
+  into four visibly different, drag-and-drop scenarios. Committed:
+  `cookbook/sample-data/vienna-demo/`. Use this one for demos.
 
 ## Coordinates — every GeoJSON file
 
@@ -30,7 +33,7 @@ is validated against the platform's own parsers. Committed samples:
 |---|---|
 | Geometry | `Polygon` / `MultiPolygon` (others silently dropped; zero polygons ⇒ reject) |
 | Height property | `height_m` (also read: `height`, `h`), metres |
-| Missing height | defaults to **9 m** |
+| Missing height | defaults to **9 m** — `building:levels` is **not** read on upload, so precompute `height_m` yourself (e.g. `levels × 3`) before export |
 | Height clamp | **3–200 m** (clamped, not rejected) |
 | Optional | `kind`: `residential` \| `office` \| `tower` (display colour only) |
 | Dropped | features with `material: "vegetation"` (those are surfaces) |
@@ -50,6 +53,7 @@ uploaded buildings are what simulations run against.
 | Either missing/out-of-range | **BOTH** replaced by fallback (8 m / 5 m) — always set both |
 | Clipping | points outside the site are dropped |
 | Cap | **500 trees** kept (post-clip) |
+| File size | ≤ **5 MB** — the trees parser is stricter than the 20 MB geometry cap |
 
 ## Ground surfaces — tagged polygons
 
@@ -68,10 +72,14 @@ Two accepted shapes:
 
 ## Weather — EnergyPlus `.epw`
 
-- Standard EPW text format: **8 header lines** (line 1 = `LOCATION,<city>,
+- A real TMY/AMY file is the full **8-line header** (line 1 = `LOCATION,<city>,
   <state>,<country>,<source>,<wmo>,<lat>,<lon>,<tz>,<elevation>`; line 8 =
-  `DATA PERIODS,...`), then **8,760 hourly rows** (non-leap year), comma-
-  separated, **≥ 35 columns** per row.
+  `DATA PERIODS,...`) then **8,760** hourly rows (non-leap year) of **35**
+  columns — just download and use one.
+- What the parser *actually enforces* (looser than a full EPW, so any real file
+  passes): a `LOCATION` line must exist; a data row is any line starting with an
+  integer year and carrying **≥ 22 columns** (through wind speed); the file needs
+  **≥ 1** such row with a usable dry-bulb value. Don't hand-truncate to fewer.
 - Key columns (0-based): 1 month · 2 day · 3 hour (1–24) · **6 dry-bulb °C** ·
   8 RH % · 13 GHI Wh/m² · 20 wind dir ° · 21 wind speed m/s.
 - `99.9` in the dry-bulb column = missing; a file with **no usable dry-bulb
@@ -97,11 +105,16 @@ guess lands staged on its layer row and can be swapped before *Create project*.
 
 ## Validation status
 
-The committed sample set was run through the platform's actual upload parsers
-(classification + per-layer deep validation + EPW parse) on 2026-07-03: all
-files accepted with zero fallbacks, zero defaulted materials, zero dropped
-features. Regenerate for any location:
+Both committed sample sets were run through the platform's actual upload parsers
+(classification + per-layer deep validation + EPW parse) against `origin/staging`
+on 2026-07-03 — all files accepted with **zero fallbacks, zero defaulted
+materials, zero dropped features**. The real-data Vienna set additionally covers
+building relations/courtyards, 500-tree density, and real Vienna + Madrid EPWs.
+Regenerate for any location:
 
 ```bash
+# synthetic (fast, offline)
 python cookbook/scripts/demo_platform_upload_files.py --center <lon> <lat> --radius 200
+# real data (fetches OSM + Wien Baumkataster + EPWs)
+python cookbook/scripts/demo_vienna_scenarios.py --bbox <S> <W> <N> <E>
 ```
