@@ -1,6 +1,6 @@
 # Thermal Comfort Statistics (thermal-comfort-statistics)
 
-Per-cell aggregated thermal-comfort statistic over the requested window — fraction of hours falling in a chosen class. Subtype is selected per call: `thermal_comfort`, `heat_stress`, or `cold_stress`.
+Per-cell aggregated thermal-comfort statistic over the requested window — HOURS falling in a chosen class (divide by the window's total filtered hours for a fraction). Subtype is selected per call: `thermal_comfort`, `heat_stress`, or `cold_stress`.
 
 ## Request
 
@@ -34,7 +34,7 @@ result = client.run_area_and_wait(payload, polygon, buildings=area.buildings)
 
 ## Response
 
-`result.merged_grid` is a 2D `float` array — fraction of hours in the selected class for each cell. `min_legend` / `max_legend` are the canonical bounds. The semantic meaning depends on the chosen `subtype`.
+`result.merged_grid` is a 2D `float` array — hours in the selected class for each cell (0 to the window's total filtered hours). Derive `% time` as `cell_hours / window_total_hours`. `min_legend` / `max_legend` are the canonical bounds. The semantic meaning depends on the chosen `subtype`.
 
 ## Pitfalls
 

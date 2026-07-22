@@ -1,6 +1,6 @@
 # Solar Radiation (solar-radiation)
 
-Incident solar radiation per ground cell over a weather-driven time window, in W/m^2 (or cumulative energy depending on aggregation). Uses both direct-normal and diffuse-horizontal components from the weather file.
+Cumulative solar energy per ground cell over the selected `TimePeriod`, in kWh/m². Uses both direct-normal and diffuse-horizontal components from the weather file.
 
 ## Request
 
@@ -42,7 +42,7 @@ result = client.run_area_and_wait(payload, polygon, buildings=area.buildings)
 - Pass the SAME `TimePeriod` to `filter_weather_data` AND `from_weatherfile_payload`. Misalignment silently produces wrong results — the model assumes the arrays match the simulation window 1:1.
 - If you bring your own weather arrays, their length MUST equal what `filter_weather_data` returns for the same window.
 - `Location` is required — drives sun position.
-- This is RADIATION (W/m^2), not direct-sun DURATION. For hours sunlit use Direct Sun Hours.
+- This is cumulative ENERGY (kWh/m² over the `TimePeriod`), not direct-sun DURATION. For hours sunlit use Direct Sun Hours.
 - **Low sun angles on multi-tile polygons can show seam artefacts** — buildings outside a tile's 128 m context margin don't occlude across tile boundaries, so long shadows clip at tile edges. Use `estimate_sun_context_loss(polygon, latitude, longitude, time_period)` from `infrared_sdk.preflight` to score the risk before submitting; avoid framing analyses around early-morning / late-afternoon hours and winter months when the polygon spans multiple tiles.
 
 ## See also

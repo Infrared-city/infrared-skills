@@ -13,7 +13,7 @@ print(f"Estimated cost: {preview.estimated_cost_tokens} tokens")
 
 Returns `AreaPreview(tile_count, estimated_time_s, estimated_cost_tokens)`. Heuristics: 10 tokens/tile, 10 s/tile. `max_tiles_override=N` lifts the default ~100 non-empty cap.
 
-> **Always pass `analysis_type`.** Omitting it defaults to the wind grid (256 m step). For solar / UTCI / TCS / daylight / direct-sun-hours that under-counts tiles by ~4× and under-estimates cost. Added in SDK 0.4.3.
+> **Always pass `analysis_type`.** Omitting it defaults to the wind grid (256 m step). For solar / UTCI / TCS / daylight / direct-sun-hours that over-counts tiles by ~4× (they run on a 512 m grid vs wind's 256 m) and the estimate will not match what run_area() submits. Added in SDK 0.4.3.
 
 ## Basic usage (fetch-once-reuse)
 
