@@ -68,6 +68,7 @@ Pick the entry point first — it shapes blocking, webhooks, and persistence. Fu
 | Topic | Reference |
 |---|---|
 | Area API / tiling / AreaResult / cost preview | [05-area-api.md](references/05-area-api.md) |
+| Facade / roof / BYO-sensor analysis + terrain draping | [analyses/09-facade-terrain.md](references/analyses/09-facade-terrain.md) |
 | Async runs / `AreaSchedule` / single-tile primitives | [async-and-jobs.md](references/async-and-jobs.md) |
 | Webhooks / Standard Webhooks v1 / verification | [06-webhooks.md](references/06-webhooks.md) |
 | Image generation (PNG output) | [07-images.md](references/07-images.md) |
