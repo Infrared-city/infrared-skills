@@ -13,7 +13,7 @@ Every analysis returns the same `AreaResult` shape. These conventions hold for w
 | `sky-view-factors` | percent | 0–100 | Hemisphere visible from the cell (100 = fully open, 0 = obstructed) |
 | `solar-radiation` | kWh/m² | 0–~hundreds | Cumulative shortwave irradiance per pixel over the `TimePeriod` |
 | `thermal-comfort-index` (UTCI) | °C | -40 to 50 | Felt temperature combining air, MRT, humidity, wind |
-| `thermal-comfort-statistics` (TCS) | % time | 0–100 | Fraction of time in the chosen `TcsSubtype` band (100 = always in band) |
+| `thermal-comfort-statistics` (TCS) | hours | 0–(period length) | Hours in the chosen `TcsSubtype` band; derive `% time` as `cell_hours / window_total_hours` |
 
 For per-analysis class breaks (e.g. UTCI stress thresholds, PWC class semantics), see `wind-results.md`, `solar-results.md`, `thermal-results.md`.
 
@@ -38,6 +38,16 @@ valid = result.merged_grid[~np.isnan(result.merged_grid)]
 mean_value = valid.mean()
 area_share_above_threshold = (valid > THRESHOLD).mean()
 ```
+
+## Geo-referencing overlays — always use `AreaResult.bounds`
+
+**Anti-pattern:** reconstructing the merged grid's geographic extent from
+tiling internals (tile counts × step size, polygon bbox math). The merged
+grid is anchored at the polygon bbox SW corner and padded past the polygon
+when its sides aren't an integer multiple of the tile step — hand-derived
+extents drift by up to a tile. `AreaResult.bounds` is the SDK-computed
+`(min_lng, min_lat, max_lng, max_lat)` of the actual grid — use it directly
+for image overlays (folium/leaflet/mapbox). See `10_real_world_map_overlay.ipynb`.
 
 ## Plot bounds — always use legend metadata
 
