@@ -66,6 +66,7 @@ Terrain-only requests (no facade/sensor fields) still return the normal grid res
 
 ## See also
 
+- Rendering these results on your own model (texture route, exact `cell_tris` route) -> `../surface-results-integration.md`
 - For polygon/buildings setup -> `02-geometry.md`
 - For BYO buildings/terrain meshes -> `../byo-inputs.md`
 - For the per-model payloads -> `05-sky-view-factors.md`, `06-solar-radiation.md`, `04-direct-sun-hours.md`, `03-daylight-availability.md`
