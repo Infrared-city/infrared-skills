@@ -82,6 +82,8 @@ The notebooks are numbered to suggest a path, but each is standalone:
 | 8 | `08_wind_merge_strategies.ipynb`   | `strategy="directional"` / `"directional_blend"` — seam elimination for multi-tile wind runs |
 | 9 | `09_error_handling_and_tuning.ipynb` | `BigPayloadError` family, retry-on-`REF_EXPIRED`, pre-flight diagnostics |
 | 10 | `10_real_world_map_overlay.ipynb`  | Overlay an analysis result image on an interactive OpenStreetMap basemap via `AreaResult.bounds` + `folium` |
+| 11 | `11_facade_and_terrain.ipynb`      | Facade/roof surface analysis (`analysis_surfaces` → `SurfaceAnalysisResult`), BYO `sensor_points`, terrain draping |
+| 12 | `12_surface_results_rendering.ipynb` | Rendering `SurfaceAnalysisResult`: texture-style (`values` grid + `imshow`) and exact-geometry (`cell_tris` → `Poly3DCollection`) routes, per-building aggregates, facade-vs-roof normalization |
 
 ## Optional: webhook receiver
 
