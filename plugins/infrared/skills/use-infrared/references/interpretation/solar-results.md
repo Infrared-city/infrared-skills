@@ -15,7 +15,7 @@ Cumulative solar irradiance on the ground per pixel in **kWh/m²** over the requ
 
 Annual horizontal totals: ~1,000–1,200 kWh/m² (Central Europe), ~1,500–1,800 (Mediterranean). Requires hourly weather (`SolarRadiationModelRequest.from_weatherfile_payload(...)` is the easy path).
 
-**Pitfalls:** energy density (kWh/m²), not power (W/m²); season matters (60 kWh/m² in January is normal, in July signals occlusion); raster represents the simulated ground/canopy surface, not vertical facades.
+**Pitfalls:** energy density (kWh/m²), not power (W/m²); season matters (60 kWh/m² in January is normal, in July signals occlusion); the default grid raster represents the simulated ground/canopy surface — to get results **on** building facades or roofs, use `analysis_surfaces` ([analyses/09-facade-terrain.md](../analyses/09-facade-terrain.md)), which returns a `SurfaceAnalysisResult` rather than a grid.
 
 ## daylight-availability
 

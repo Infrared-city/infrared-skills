@@ -50,7 +50,7 @@ This is a complete production approach: ~15 shader lines + one packing loop, no 
 
 ## Display tips
 
-- **Normalise facades separately from roofs.** For solar radiation especially, horizontal surfaces dominate the range (roofs can sit at 3&ndash;5&times; facade values in summer), compressing all facade variation into the bottom of a shared colormap. Classify by `v_axis` (vertical `v_axis` &rarr; facade) or by value clustering, and give facades their own scale when facades are the story.
+- **Use ONE shared colour scale for roofs and facades.** They're read together, so a single `[min_legend, max_legend]` scale keeps every surface comparable across the whole scene — roofs sit high (open sky / high radiation), facades lower, and *that contrast is the reading*. This is the coherent default; don't give facades their own scale, or two surfaces on the same building stop being comparable. (Roofs can sit 3&ndash;5&times; facade values in summer solar. If you genuinely must inspect facades in isolation, clip to the facade percentiles as a deliberate, **labelled** exception — classify by `v_axis`, vertical `v_axis` &rarr; facade — but never silently.)
 - **Interpolation is a display choice, not an API request.** The grid is the lossless raw result; bilinear/bicubic filtering at render time produces the smooth transitions. Don't ask for (or build) pre-smoothed meshes — you'd bake in one display style and lose the sensor truth.
 - Per-building rollups (`result.aggregates["buildings"]`: `area` / `mean` / `peak`) are ready-made for element-level coloring, dashboards, and ranking without touching the grids.
 
