@@ -11,6 +11,7 @@ from infrared_sdk.models import TimePeriod
 
 payload = SolarModelRequest(
     analysis_type=AnalysesName.daylight_availability,
+    accuracy="standard",  # optional: "standard" (default) or "precision" (finer raytracing, slower)
     latitude=48.1983,
     longitude=11.575,
     time_period=TimePeriod(
