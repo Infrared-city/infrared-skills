@@ -43,6 +43,32 @@ payload = SvfModelRequest(
 )
 ```
 
+## Combining with weather-driven analyses (solar-radiation / UTCI / TCS)
+
+`solar-radiation`, `thermal-comfort-index`, and `thermal-comfort-statistics` are normally built via `<Request>.from_weatherfile_payload(payload, location, time_period, weather_data)` (see `06-solar-radiation.md`). That classmethod's signature has **no passthrough** for `analysis_surfaces` / `surface_grid_size` / `ground_geometry` / `terrain_alignment` — and every payload class inherits `Payload`'s `frozen=True`, so you cannot set attributes on the object it returns. Skip the classmethod and call `extract_weather_fields` yourself, then construct the concrete request directly with both the weather fields and the facade/terrain fields in one call:
+
+```python
+from infrared_sdk.analyses.types import AnalysesName, SolarRadiationModelRequest
+from infrared_sdk.models import extract_weather_fields
+
+accum = extract_weather_fields(
+    weather_data, ["diffuseHorizontalRadiation", "directNormalRadiation"]
+)
+payload = SolarRadiationModelRequest(
+    analysis_type=AnalysesName.solar_radiation,
+    geometries=area.buildings,          # or omit and pass buildings= to run_area instead
+    latitude=48.2038, longitude=16.3819,
+    time_period=tp,                     # same TimePeriod passed to filter_weather_data
+    analysis_surfaces="all",            # facades + roofs
+    surface_grid_size=2.0,
+    # ground_geometry={"terrain": terrain_mesh}, terrain_alignment="auto-align",  # optional
+    **accum,
+)
+result = client.run_area_and_wait(payload, polygon, buildings=None)
+```
+
+Verified live (2026-07-24) on a 6 km², 16.8k-building, 25-tile Vienna AOI at `surface_grid_size=2.0` for both a 1-day and a full-year `TimePeriod` — `SurfaceAnalysisResult` in both cases, batching (`#batch{i}` sub-jobs) triggered on ~14 of the 25 tiles.
+
 ## Response
 
 **An `analysis_surfaces` request returns a `SurfaceAnalysisResult`, NOT a grid result** — `run_area_and_wait` / `merge_area_jobs` are typed `Union[AreaResult, SurfaceAnalysisResult]`. There is no `merged_grid`:
