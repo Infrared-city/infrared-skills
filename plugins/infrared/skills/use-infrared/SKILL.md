@@ -68,9 +68,9 @@ Pick the entry point first — it shapes blocking, webhooks, and persistence. Fu
 Those payloads carry weather **arrays**, not a weather file id. Build them with the SDK — never by hand:
 
 ```python
-files = client.weather.get_weather_file_from_location(lat=lat, lon=lon)   # nearest stations
+stations = client.weather.get_weather_file_from_location(lat=lat, lon=lon)  # nearest stations
 weather_data = client.weather.filter_weather_data(
-    identifier=files[0]["fileName"], time_period=tp)                      # one point per hour in tp
+    identifier=stations[0]["uuid"], time_period=tp)                         # one point per hour in tp
 payload = SolarRadiationModelRequest.from_weatherfile_payload(..., weather_data=weather_data)
 ```
 
