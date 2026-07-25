@@ -43,9 +43,9 @@ payload = SvfModelRequest(
 )
 ```
 
-## Combining with weather-driven analyses (solar-radiation / UTCI / TCS)
+## Combining with weather-driven analyses (solar-radiation)
 
-`solar-radiation`, `thermal-comfort-index`, and `thermal-comfort-statistics` are normally built via `<Request>.from_weatherfile_payload(payload, location, time_period, weather_data)` (see `06-solar-radiation.md`). That classmethod's signature has **no passthrough** for `analysis_surfaces` / `surface_grid_size` / `ground_geometry` / `terrain_alignment` — and every payload class inherits `Payload`'s `frozen=True`, so you cannot set attributes on the object it returns. Skip the classmethod and call `extract_weather_fields` yourself, then construct the concrete request directly with both the weather fields and the facade/terrain fields in one call:
+`solar-radiation`, `thermal-comfort-index`, and `thermal-comfort-statistics` are normally built via `<Request>.from_weatherfile_payload(payload, location, time_period, weather_data)` (see `06-solar-radiation.md`). That classmethod's signature has **no passthrough** for `analysis_surfaces` / `surface_grid_size` / `ground_geometry` / `terrain_alignment` — and every payload class inherits `Payload`'s `frozen=True`, so you cannot set attributes on the object it returns. Skip the classmethod and call `extract_weather_fields` yourself, then construct the concrete request directly with both the weather fields and the facade/terrain fields in one call. The pattern below is verified for `solar-radiation` (2 weather fields); `UtciModelRequest`/`TcsModelRequest` need the full 7-field set instead of the 2 shown here (see `04-weather-data.md`'s field-to-analysis table) — same construction pattern, different `extract_weather_fields` field list, not verified live here:
 
 ```python
 from infrared_sdk.analyses.types import AnalysesName, SolarRadiationModelRequest
