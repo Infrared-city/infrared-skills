@@ -52,16 +52,33 @@ Pick the entry point first — it shapes blocking, webhooks, and persistence. Fu
 
 **READ the linked reference file before writing any code for that analysis.** The payload shape, required fields, and enum values are defined there — not in this table.
 
-| User wants to know… | Analysis | READ this reference | Result interpretation |
-|---|---|---|---|
-| Is it windy at street level? | `wind-speed` | [analyses/01-wind-speed.md](references/analyses/01-wind-speed.md) | [interpretation/wind-results.md](references/interpretation/wind-results.md) |
-| Is wind comfortable for pedestrians? | `pedestrian-wind-comfort` | [analyses/02-pedestrian-wind-comfort.md](references/analyses/02-pedestrian-wind-comfort.md) | [interpretation/wind-results.md](references/interpretation/wind-results.md) |
-| Enough daylight at street level? | `daylight-availability` | [analyses/03-daylight-availability.md](references/analyses/03-daylight-availability.md) | [interpretation/solar-results.md](references/interpretation/solar-results.md) |
-| Sun-hour exposure? | `direct-sun-hours` | [analyses/04-direct-sun-hours.md](references/analyses/04-direct-sun-hours.md) | [interpretation/solar-results.md](references/interpretation/solar-results.md) |
-| How open is the sky? | `sky-view-factors` | [analyses/05-sky-view-factors.md](references/analyses/05-sky-view-factors.md) | [interpretation/solar-results.md](references/interpretation/solar-results.md) |
-| Solar energy on a surface? | `solar-radiation` | [analyses/06-solar-radiation.md](references/analyses/06-solar-radiation.md) | [interpretation/solar-results.md](references/interpretation/solar-results.md) |
-| Outdoor thermal comfort? | `thermal-comfort-index` (UTCI) | [analyses/07-thermal-comfort-utci.md](references/analyses/07-thermal-comfort-utci.md) | [interpretation/thermal-results.md](references/interpretation/thermal-results.md) |
-| % of time uncomfortable per year? | `thermal-comfort-statistics` (TCS) | [analyses/08-thermal-comfort-statistics.md](references/analyses/08-thermal-comfort-statistics.md) | [interpretation/thermal-results.md](references/interpretation/thermal-results.md) |
+| User wants to know… | Analysis | Weather? | READ this reference | Result interpretation |
+|---|---|---|---|---|
+| Is it windy at street level? | `wind-speed` | no | [analyses/01-wind-speed.md](references/analyses/01-wind-speed.md) | [interpretation/wind-results.md](references/interpretation/wind-results.md) |
+| Is wind comfortable for pedestrians? | `pedestrian-wind-comfort` | **REQUIRED** | [analyses/02-pedestrian-wind-comfort.md](references/analyses/02-pedestrian-wind-comfort.md) | [interpretation/wind-results.md](references/interpretation/wind-results.md) |
+| Enough daylight at street level? | `daylight-availability` | no | [analyses/03-daylight-availability.md](references/analyses/03-daylight-availability.md) | [interpretation/solar-results.md](references/interpretation/solar-results.md) |
+| Sun-hour exposure? | `direct-sun-hours` | no | [analyses/04-direct-sun-hours.md](references/analyses/04-direct-sun-hours.md) | [interpretation/solar-results.md](references/interpretation/solar-results.md) |
+| How open is the sky? | `sky-view-factors` | no | [analyses/05-sky-view-factors.md](references/analyses/05-sky-view-factors.md) | [interpretation/solar-results.md](references/interpretation/solar-results.md) |
+| Solar energy on a surface? | `solar-radiation` | **REQUIRED** | [analyses/06-solar-radiation.md](references/analyses/06-solar-radiation.md) | [interpretation/solar-results.md](references/interpretation/solar-results.md) |
+| Outdoor thermal comfort? | `thermal-comfort-index` (UTCI) | **REQUIRED** | [analyses/07-thermal-comfort-utci.md](references/analyses/07-thermal-comfort-utci.md) | [interpretation/thermal-results.md](references/interpretation/thermal-results.md) |
+| % of time uncomfortable per year? | `thermal-comfort-statistics` (TCS) | **REQUIRED** | [analyses/08-thermal-comfort-statistics.md](references/analyses/08-thermal-comfort-statistics.md) | [interpretation/thermal-results.md](references/interpretation/thermal-results.md) |
+
+### Weather is not optional for the four marked REQUIRED
+
+Those payloads carry weather **arrays**, not a weather file id. Build them with the SDK — never by hand:
+
+```python
+stations = client.weather.get_weather_file_from_location(lat=lat, lon=lon)  # nearest stations
+weather_data = client.weather.filter_weather_data(
+    identifier=stations[0]["uuid"], time_period=tp)                         # one point per hour in tp
+payload = SolarRadiationModelRequest.from_weatherfile_payload(..., weather_data=weather_data)
+```
+
+Omitting them does **not** produce a clean validation error. The request is accepted (`202`), **the job is
+billed**, and it fails in the worker with a message that names an internal array, not the missing input:
+`DNI length 0 != sun_vectors 240`, `missing array 'horizontal-infrared-radiation-intensity'`.
+If you see either, you omitted weather data — add it via the snippet above and resubmit. Full API:
+[04-weather-data.md](references/04-weather-data.md).
 
 ## Cross-cutting topics
 
@@ -106,6 +123,7 @@ Use the `references/recipes/` folder for UI/app implementation recipes that comb
 - **Skipping 00-setup.md** and guessing the import path or client constructor signature.
 - `[lat, lon]` instead of `[lon, lat]` in GeoJSON (most common bug).
 - `AnalysesName.WIND_SPEED` → `AnalysesName.wind_speed` (StrEnum members are snake_case).
+- **Submitting `pedestrian-wind-comfort` / `solar-radiation` / `thermal-comfort-index` / `thermal-comfort-statistics` without weather arrays** — accepted and billed, then fails in the worker. See *Weather is not optional* above.
 - Skipping vegetation/ground for thermal or solar runs — they materially affect MRT and surface heat. See [byo-inputs.md](references/byo-inputs.md).
 - Verifying webhooks against re-encoded JSON instead of raw bytes (see [06-webhooks.md](references/06-webhooks.md)).
 
