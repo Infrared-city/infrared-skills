@@ -11,9 +11,18 @@ Every entry in `result.surfaces` is keyed `"{building-id}/{surface-index}"` — 
 - `grid_size` — cell edge length (your `surface_grid_size`)
 - `nu`, `nv` — grid dimensions; `values` has `nu * nv` entries, **row-major in v** (`index = j * nu + i`)
 - `values[k] is None` — masked cell: its centre lies outside the surface's true footprint. Never zero-fill; cut or skip these.
-- `cell_area[k]`, `cell_tris[k]` — the cell's real covered area and its exact clipped triangle geometry (flat `[x,y,z, ...]`, 9 floats per triangle)
+- `cell_area[k]` — the **fraction** of the cell inside the surface footprint, in `(0,1]` (dimensionless, *not* m²); multiply by `grid_size²` for the actual area. `cell_tris[k]` — the exact clipped triangle geometry (flat `[x,y,z, ...]`, 9 floats per triangle). Both keys are **absent** (not empty) when the server was asked not to emit them.
 
-World position of cell (i, j)'s corner: `origin + u_axis * (i * grid_size) + v_axis * (j * grid_size)`; add one `grid_size` step along `u`/`v` for the far corners.
+`origin` is the **centre of cell (0, 0)**, not a corner. So:
+
+```
+centre(i, j) = origin + u_axis * (i * grid_size) + v_axis * (j * grid_size)
+corners      = centre ± 0.5 * grid_size * u_axis ± 0.5 * grid_size * v_axis
+```
+
+Getting this wrong displaces every surface by half a cell in both `u` and `v` — a ~1.4 m diagonal error at the default 2 m `surface_grid_size`. It's a uniform offset, so it looks plausible rather than obviously broken.
+
+To detect fully-covered cells, compare with an epsilon — `cell_area` is emitted from `f32`, so use `cell_area[k] >= 1.0 - 1e-6` rather than `== 1.0`, or float noise misclassifies full cells as partial.
 
 ## Route 1 — texture mapping (fast, smooth, simplest)
 
@@ -39,6 +48,8 @@ This is a complete production approach: ~15 shader lines + one packing loop, no 
 ## Route 2 — exact mesh from `cell_tris` (crisp boundaries, no textures)
 
 `cell_tris[k]` is the cell already clipped to the surface's true outline. Emit those triangles directly with the cell's value as a flat color (or average values to shared vertices for smooth shading). Boundaries are exact — no stepping — because the server did the clipping. Cost: more geometry (a few triangles per cell) and a mesh build pass.
+
+**Check `cell_tris` is present before you rely on it** — it is absent on the centre-test / BYO-sensor path, and a client can ask the server to omit it. Fall back to the unclipped cell quad from `centre(i, j)` above (slightly over-drawn at footprint edges) or to Route 1, rather than indexing into a missing array.
 
 ## Which route
 
