@@ -177,6 +177,13 @@ Terrain-only requests (no facade/sensor fields) still return the normal grid res
 ## See also
 
 - Rendering these results on your own model (texture route, exact `cell_tris` route) -> `../surface-results-integration.md`
+
+> **Note — response size.** `cell_tris` (the exact clipped per-cell geometry) is
+> the bulk of a facade response; measurements put it around 90% of the body. It
+> defaults OFF, so ask for it only when you are drawing crisp outlines, and use
+> `cell_area` when you only need coverage. Client-side generation of the same
+> geometry (via a WASM build of the server's own clipping kernel) is in progress,
+> which will remove the trade entirely.
 - For polygon/buildings setup -> `02-geometry.md`
 - For BYO buildings/terrain meshes -> `../byo-inputs.md`
 - For the per-model payloads -> `05-sky-view-factors.md`, `06-solar-radiation.md`, `04-direct-sun-hours.md`, `03-daylight-availability.md`

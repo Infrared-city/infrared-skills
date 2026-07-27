@@ -22,6 +22,17 @@ Every entry in `result.surfaces` is keyed `"{building-id}/{surface-index}"` — 
   Handle both shapes: check for the key on `cell_tris` **and** `cell_area`, do not
   assume either is there.
 
+> **Coming soon — the same crisp result without the payload.** Route 2's exact
+> outlines currently cost you the triangle arrays, so today the choice really is
+> "crisp but heavy" (Route 2) vs "light but cell-stepped" (Route 1 / the quad
+> fallback). That trade is temporary: the server's cell-clipping kernel
+> (`ir-geo::surfgrid`) is being published as a WASM package, so a client will be
+> able to generate the exact clipped geometry **locally** from geometry it
+> already has — `emit_cell_tris=False` payloads with Route 2 quality. Nothing in
+> this document becomes wrong when that lands; the fallback paths stay valid.
+> Until then, if a facade result feels slow to download, that is the triangle
+> arrays, and `emit_cell_tris=False` is the lever.
+
 `origin` is the **centre of cell (0, 0)**, not a corner. So:
 
 ```
