@@ -44,7 +44,8 @@ with InfraredClient() as client:
 ## Pitfalls
 
 - Buildings are opt-in: pass `buildings=area.buildings` explicitly. `None` or `{}` skips them.
-- `wind_speed` is `int` 1–100 (m/s); `wind_direction` is `int` 0–360 (meteorological: 0 = wind from north).
+- `wind_speed` is a **`float`** in m/s (0 accepted) — do not round an EPW mean like `3.9`.
+  `wind_direction` is `int` 0–360 (meteorological: 0 = wind from north), deliberately whole.
 - Always plot heatmaps with `zmin=result.min_legend, zmax=result.max_legend`.
 - Single-tile polygons (~512 m on a side or smaller) skip tiling entirely — no special handling needed.
 - The first request in a session may be slower while the backend warms up; benchmark from the second call.

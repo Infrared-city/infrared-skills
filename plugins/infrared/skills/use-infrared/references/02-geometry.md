@@ -38,7 +38,11 @@ Failures raise `PolygonValidationError` (a `ValueError` subclass).
 - Numpy arrays / float32 scalars are coerced to plain Python lists/floats automatically (so shapely / GeoPandas exports work).
 - Zero-area polygons (collinear or duplicate vertices) are rejected.
 - Hard cap of 100 non-empty tiles per run; pass `max_tiles_override` to lift it. A single tile is 512 × 512 m, so ~5 km on a side is the practical ceiling.
-- `client.preview_area(polygon)` returns `tile_count`, `estimated_time_s`, and `estimated_cost_tokens` — always preview before running large polygons.
+- `client.preview_area(polygon, analysis_type=...)` returns `tile_count`, `estimated_time_s`,
+  and `estimated_cost_tokens` — always preview before running large polygons. **Pass
+  `analysis_type`.** Without it the preview defaults to the WIND tile grid (256 m step) and
+  over-counts a solar/daylight/thermal run ~4×, so the cost estimate will not match what
+  `run_area` actually charges. It warns, but the warning is easy to miss in a notebook.
 
 ## See also
 

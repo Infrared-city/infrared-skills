@@ -49,7 +49,16 @@ result = client.merge_area_jobs(
 
 ## Pitfalls
 
-- `wind_speed` is an `int` in 1-100 m/s; floats and zero are rejected by the Pydantic validator.
+- `wind_speed` is a **`float`** in m/s (SDK 0.5.1+). Fractional values are simulated as
+  given — the model applies speed as a linear scalar after inference, so it never
+  reaches the network. An EPW-derived prevailing wind is a *mean* (e.g. `3.9`), so do
+  NOT round it: at 3.9 m/s truncating to 3 shifts every cell by −23 %.
+  **`wind_speed=0` is accepted** — a legitimate calm-wind baseline.
+  (Before 0.5.1 the SDK rejected both, which was a client-side bug; the server always
+  accepted them.)
+- `wind_direction` stays an **`int`** on purpose. The model truncates a fractional
+  bearing toward zero, so the SDK rejects it loudly rather than silently shifting your
+  input by a fraction of a degree.
 - `wind_direction` follows the meteorological convention: 0 = wind FROM north, 90 = FROM east. Easy to invert.
 - This is a single-direction snapshot — for comfort over a year of weather, use Pedestrian Wind Comfort instead.
 - Leave `latitude` / `longitude` unset — they are optional and ignored by the wind model. (They become required only if you inject vegetation, since the validator needs a reference point. See [byo-inputs.md](../byo-inputs.md).)
