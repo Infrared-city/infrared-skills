@@ -10,8 +10,12 @@ No polygon, no tiling, no merge — you supply the geometry. Submit via `client.
 `run_area()` rejects it.
 
 ```python
-from infrared_sdk import InfraredClient, to_interior_entity
-from infrared_sdk.analyses.types import AnalysesName, DaylightFactorModelRequest
+from infrared_sdk import (
+    AnalysesName,
+    DaylightFactorModelRequest,
+    InfraredClient,
+    to_interior_entity,
+)
 
 job = client.analyses.execute(payload=DaylightFactorModelRequest(
     analysis_type=AnalysesName.daylight_factor,
@@ -33,7 +37,7 @@ Interior entities are **nested** — unlike the six outdoor grid models, which t
 
 **The flat shape is not rejected server-side.** The entity is read as having no geometry, skipped,
 and the analysis runs against an empty occluder — a near-uniform, meaningless field returned with
-HTTP 200. The signature is every sensor reading ≈ 107 %. `to_interior_entity()` converts, and the
+HTTP 200. The signature is a perfectly uniform field, at whatever value the floor in section 6 gives. `to_interior_entity()` converts, and the
 SDK rejects the flat form for you.
 
 **Two fields are the exception and take the FLAT shape:** `ground_geometry` and `vegetation`. One
@@ -41,7 +45,7 @@ payload carries both conventions.
 
 | field | shape |
 |---|---|
-| `barriers`, `openings`, `spatial_volumes`, `context_geometry`, `buildings[*]` | nested |
+| `barriers`, `openings`, `context_geometry`, `sensor_surfaces`, `buildings[*]` | nested |
 | `ground_geometry`, `vegetation` | flat |
 
 ## 2. Geometry recipe
@@ -115,8 +119,9 @@ openings = {
 }
 ```
 
-Measured: identical windows on opposite walls at 0.9 / 0.1 gave half-field means of **8.20** and
-**3.51**. The wire key is exactly `openingFactor` — any other spelling is ignored and the window
+Measured once on a single test room, identical windows on opposite walls at 0.9 / 0.1: half-field
+means of 8.20 and 3.51. Treat the ratio as indicative, not the absolute values — and note the
+floor described in section 6, which is included in both. The wire key is exactly `openingFactor` — any other spelling is ignored and the window
 silently becomes a **clear pane (1.0)**. Valid range `[0, 1]`; there is no server-side clamp, so an
 out-of-range value yields a daylight factor above 100 % or below zero.
 
