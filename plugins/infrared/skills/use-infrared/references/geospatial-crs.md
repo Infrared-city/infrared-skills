@@ -2,7 +2,97 @@
 
 The SDK takes **WGS84 lon/lat in degrees** (GeoJSON RFC 7946). It does not negotiate CRS, does not reproject, does not warn on plausibility — if you hand it coordinates in another CRS or in `[lat, lon]` order, it runs anyway, on the wrong patch of the planet.
 
-This file is the conversion + sanity layer for anyone arriving with real GIS data: shapefiles, GeoPackages, KML, PostGIS, rasterio bbox, Rhino/IFC models, QGIS layers.
+This file is the conversion + sanity layer for anyone arriving with real GIS data: shapefiles, GeoPackages, KML, PostGIS, rasterio bbox, Rhino/IFC models, QGIS layers. It is also the **authoritative map of every frame the SDK uses** — degrees in, two metre frames in the middle, a surface UV frame out.
+
+## The frames, end to end
+
+Four frames. Nothing in the API errors when you supply the wrong one — geometry simply lands somewhere else and the run succeeds.
+
+| Frame | Units / origin | What is in it |
+|---|---|---|
+| **WGS84 lon/lat** | degrees, `[lon, lat]` (RFC 7946) | the `polygon` argument; `vegetation` and `ground_materials` features |
+| **Polygon-bbox-SW metres** | SW corner of the *polygon's bounding box* = `(0, 0)`; `+x` east, `+y` north, `z` up | `buildings`, `context_geometry`, `ground_geometry` as passed to `run_area()` / `run_area_and_wait()`; what `client.buildings.get_area()` returns |
+| **Tile-local metres** | SW corner of that tile's **inference** square = `(0, 0)`; same axes | `payload.geometries` on a single-tile `client.analyses.execute()`; `sensor_points` / `sensor_normals`; interior-model geometry |
+| **Surface UV** | per-surface `origin` + `u_axis` / `v_axis`, in tile metres | `SurfaceAnalysisResult.surfaces[...]` — results, never inputs |
+
+**Two things in one payload are in degrees, not metres.** `vegetation` and `ground_materials` stay
+WGS84 lon/lat while `buildings` alongside them is in metres. Verified on a live fetch: a tree comes
+back as `{"geometry": {"type": "Point", "coordinates": [11.575942, 48.199694]}}`. Passing metre
+vertices to `vegetation` puts every tree off the coast of Africa without complaint.
+
+### Who converts, and when
+
+- `client.buildings.get_area(polygon)` fetches per tile, deduplicates, and hands everything back in **polygon-bbox-SW** — one frame for the whole area, whichever tile a building came from.
+- `run_area()` / `run_area_and_wait()` do the **polygon-bbox-SW → tile-local** step for you, per tile: they subtract that tile's inference SW offset from `buildings`, `context_geometry` and `ground_geometry`. You never write this transform.
+- `client.analyses.execute()` does **not**. It is a single-tile primitive, so whatever you put in `payload.geometries` and `sensor_points` is already read as tile-local.
+
+That is the whole split: **go through `run_area*` and you speak polygon-bbox-SW; drop to the job
+primitives and you speak tile-local.** The failure is mixing the two — building a payload by hand
+from `area.buildings` and posting it through `analyses.execute()` offsets the entire scene by the
+tile's position within the polygon, and both the request and the result look completely normal.
+
+### Negative coordinates are correct — do not filter them
+
+In **both** metre frames, negative x/y is normal and load-bearing:
+
+- Out of `get_area`, buildings are collected from tiles covering a margin around the polygon, so ones south or west of the bbox corner have negative coordinates. Measured on a 200 m Munich polygon: 505 buildings spanning `x ∈ [-133.1, 394.1]`, `y ∈ [-174.3, 390.0]`.
+- Per tile, a building pulled in by the 128 m solar context margin sits outside the 0–512 m inference range by construction.
+
+A tidy-up pass that drops negatives deletes exactly the neighbours that were there to cast shadow
+into your site. The result stays plausible and gets brighter.
+
+### Vertical datum
+
+`z` is metres up, and it is **relative** — the SDK asserts no geoid, no ellipsoid, no vertical EPSG.
+Only the internal agreement between your terrain and your buildings matters.
+
+`client.buildings.get_area()` returns every building **based at exactly `z = 0`** (verified: 505 of
+505 on a live fetch). They carry height, not elevation. So if you pair fetched buildings with a DEM
+in real orthometric or ellipsoidal heights, the two disagree by the site elevation — a few hundred
+metres in most of Europe. That is what `terrain_alignment` is for:
+
+| Mode | Behaviour |
+|---|---|
+| `"auto-align"` (default) | Re-bases every solid in `geometries` / `context_geometry` / `vegetation` onto the terrain below it before inference, with a 0.5 m skirt. Absorbs the mismatch silently — which is why fetched buildings plus an absolute DEM "just work". |
+| `"assume-aligned"` | Moves nothing; any base outside a ±1 m band around the terrain is a **422 for the whole job**, naming the first five offenders. Use it when you have prepped geometry against this exact DEM and want a mismatch to be loud. |
+
+With no `ground_geometry` the setting is inert and you get a **flat plane at z = 0** — not an error,
+and a result that looks entirely normal. Full treatment: [`analyses/09-facade-terrain.md`](analyses/09-facade-terrain.md).
+
+### Surface UV frames (results)
+
+Each `SurfaceSensorGrid` carries `origin`, `u_axis`, `v_axis` in tile metres. The frame is
+**right-handed: the outward normal is `u_axis × v_axis`, in that order** — the server builds it as
+`u = ẑ × n`, `v = n × u`, so outward-wound shells (everything `client.buildings` returns) give
+outward normals. Because `+x` is east and `+y` north, the compass bearing is
+`degrees(atan2(n[0], n[1])) % 360`.
+
+Cross-checked on a live 21 June direct-sun-hours run over a 200 m Munich block: the cross product
+points away from its own building on **1,526 of 1,538** vertical facades, and area-weighted mean sun
+hours by bearing came out **S 7.73 h, E 6.11 h, W 5.64 h, N 4.78 h** — an ordering only produced if
+the normal points outward and the bearing is measured this way. `s.is_vertical` agreed with
+`|n_z| ≤ 0.5` on all 1,538.
+
+Cell-centre maths, texture mapping and `cell_tris` live in
+[`surface-results-integration.md`](surface-results-integration.md), which is canonical for the UV
+frame — don't re-derive it here.
+
+## Diagnostic — "my geometry is in the wrong place"
+
+Nothing below raises. Work down the table.
+
+| Symptom | Likely frame error |
+|---|---|
+| Result is over open water, farmland, or another country | Polygon is not WGS84, or is `[lat, lon]`. Run the preflight below. |
+| Everything mirrored about the diagonal | `[lat, lon]` swap specifically — or `pyproj` without `always_xy=True`. |
+| Buildings offset by a whole multiple of 512 m (or 256 m on wind) | Polygon-bbox-SW geometry posted straight to `analyses.execute()`, which expects tile-local. |
+| Only the SW tile looks right; other tiles are bare | Same cause, seen across a multi-tile run. |
+| Trees or ground materials nowhere near the site | Metre vertices passed where lon/lat was expected. |
+| Site is unexpectedly bright; distant blocks cast no shadow | Negative-coordinate buildings filtered out, or a >128 m occluder that is simply out of tile context. |
+| Buildings float above or sink into the terrain | `ground_geometry` on an absolute vertical datum against `z = 0` buildings — see above. |
+| Terrain shading vanished after upgrading to 0.5.1 | Terrain is now sliced per tile; pass distant relief as `context_geometry`. |
+| Heatmap overlay is squashed toward the SW | Placed with `polygon.bounds` instead of `result.bounds` (which is NE-padded to the grid). |
+| Exported GeoTIFF is upside down | SDK row 0 is south, GeoTIFF row 0 is north — `np.flipud`. |
 
 ## What the SDK accepts and validates
 
@@ -23,6 +113,11 @@ It does **not** check:
 - **Plausibility** — `[0, 0]` (Gulf of Guinea, "Null Island") is a valid SDK polygon.
 - **Antimeridian crossing** — ring going from `lon=179` to `lon=-179` is accepted and produces garbage tiling (`tiles.py` explicitly: "out of scope for v1").
 - **Polar latitudes** — `|lat| > 70°` is accepted but the local-tangent-plane projection (`x = (lon - sw_lon) * 111_320 * cos(radians(lat))`, `transforms.py`) distorts noticeably. SDK is calibrated for **city-scale polygons under ~50 km span**.
+
+## Getting to WGS84 — recipes A–D
+
+Recipes A–D below are the canonical reprojection recipes for the SDK; other references link here
+rather than repeating them.
 
 ## Recipe A — shapely / GeoPandas → SDK polygon
 
@@ -232,5 +327,8 @@ Don't skip the `np.flipud` — see `interpretation/grid-conventions.md`.
 
 - [02-geometry.md](02-geometry.md) — polygon format, SDK validation chain
 - [byo-inputs.md](byo-inputs.md) — building local-meter frame vs vegetation/ground lon/lat
+- [05-area-api.md](05-area-api.md) — the per-tile transform step by step, context margin, `AreaResult.bounds`
+- [surface-results-integration.md](surface-results-integration.md) — **canonical** for the surface UV frame: cell centres, `cell_tris`, texture mapping
+- [analyses/09-facade-terrain.md](analyses/09-facade-terrain.md) — `ground_geometry`, `terrain_alignment`, per-tile terrain slicing
 - [interpretation/grid-conventions.md](interpretation/grid-conventions.md) — GeoTIFF export, row 0 = south
 - [Infrared-QGIS plugin](https://github.com/Infrared-city/Infrared-QGIS) — production reference implementation of the QGIS → UTM → SDK conversion chain

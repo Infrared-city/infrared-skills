@@ -20,6 +20,26 @@ license: Apache-2.0
 
 Do not skip step 2. The analysis file is the authoritative payload shape — not your training data.
 
+## Silently wrong — read before you trust a number
+
+The section above is *which file to read*. This is *what will bite you anyway*. Everything below
+returns a **plausible number with a 200**, not an error: nothing here raises, several are billed,
+and a reviewer reading your output cannot tell. One pass and you are immune.
+
+- **Polygon CRS is never validated** — a projected or `[lat, lon]` polygon that still lands inside `[-180,180]×[-90,90]` runs, on the wrong patch of the planet. → [geospatial-crs.md](references/geospatial-crs.md)
+- **Two metre frames, and no error between them** — `buildings` / `context_geometry` / `ground_geometry` you pass to `run_area*` are **polygon-bbox-SW**; per-tile payloads and `sensor_points` are **tile-local**. Mix them and the geometry lands a tile away, silently. → [geospatial-crs.md#the-frames-end-to-end](references/geospatial-crs.md#the-frames-end-to-end)
+- **`min_legend` / `max_legend` are `None` on every area run** — so the usual `... if not None else np.nanmin(grid)` guard takes the fallback *every* time and auto-scales each render to its own data. Populated on **surface** results only. → [recipes/rendering-results-well.md](references/recipes/rendering-results-well.md)
+- **Masked cells are `None`, never `0`** — map to `NaN` before any mean. Separately, a surface at exactly `0.0` is real data (party walls, light wells) — 32% of facades on one Munich run. Two different things. → [surface-results-integration.md](references/surface-results-integration.md)
+- **No `ground_geometry` means a flat plane at z = 0** — not an error, and the result looks entirely normal. There is no terrain client; terrain is bring-your-own, every time. → [analyses/09-facade-terrain.md](references/analyses/09-facade-terrain.md)
+- **Switching `terrain_alignment` barely moves the scene mean** while rewriting individual surfaces — measured: mean +0.03 kWh/m², 44% of facades moved by more than 1. A before/after on averages passes straight through it. → [analyses/09-facade-terrain.md](references/analyses/09-facade-terrain.md)
+- **Terrain is sliced per tile as of 0.5.1** — distant relief no longer shades unless you pass it as `context_geometry`. → [analyses/09-facade-terrain.md](references/analyses/09-facade-terrain.md)
+- **Interior entities are nested; `ground_geometry` and `vegetation` are flat** — the wrong shape is not a server error: the entity is skipped and you get a confident field over an empty occluder. → [analyses/10-interior-daylight-factor.md](references/analyses/10-interior-daylight-factor.md)
+- **Interior tier dispatch takes the first key present** (`sensor_points` → `sensor_surfaces` → `buildings` → `floors`) — the losers are dropped, not rejected: a one-storey request billed as every storey. → same file
+- **`openingFactor` is read by that exact spelling, no alias** — `opening_factor` is ignored and the window silently becomes clear glass. → same file
+- **Daylight factor sits on a ~2% floor** — the same number as the "daylit" 2% planning convention, so a per-sensor comparison against 2% does not discriminate. Read glazing changes *above* the floor. → same file
+- **`preview_area` without `analysis_type` prices the wind grid** — ~4× the tiles for a solar/thermal run (verified: 36 vs 9 on one polygon). It warns; the number it hands back is still wrong. → [05-area-api.md](references/05-area-api.md)
+- **Each facade sub-batch is billed separately** — a request over the server's 262,144-sensor cap is split transparently, and every sub-job charges. → [analyses/09-facade-terrain.md](references/analyses/09-facade-terrain.md)
+
 ## Default workflow
 
 Most users bring their own data (BIM/Rhino/IFC/GeoJSON footprints, custom landscapes, proposed-scenario ground). Ask before falling back to the SDK fetch path.
@@ -32,7 +52,7 @@ Most users bring their own data (BIM/Rhino/IFC/GeoJSON footprints, custom landsc
 | Install + auth | [00-setup.md](references/00-setup.md) |
 | End-to-end quickstart | [01-quickstart.md](references/01-quickstart.md) |
 | Polygon / GeoJSON / coords | [02-geometry.md](references/02-geometry.md) |
-| GIS data → SDK (CRS, reprojection, shapefile/GPKG/GeoTIFF, QGIS, BIM anchoring) | [geospatial-crs.md](references/geospatial-crs.md) |
+| **Coordinate systems** — every frame in one place (WGS84 in, polygon-bbox-SW, tile-local, surface UV, vertical datum), reprojection recipes, wrong-place diagnostic | [geospatial-crs.md](references/geospatial-crs.md) |
 | Time period / weather window | [03-time-period.md](references/03-time-period.md) |
 | Weather data / EPW | [04-weather-data.md](references/04-weather-data.md) |
 | Bring your own buildings / trees / ground | [byo-inputs.md](references/byo-inputs.md) |
@@ -124,7 +144,8 @@ Use the `references/recipes/` folder for UI/app implementation recipes that comb
 - For most uses: `client.run_area_and_wait(request, polygon, buildings=...)` (sync). Single-tile polygons skip tiling automatically. **Exception:** multi-tile **`wind-speed`** runs should use the two-step path with `merge_area_jobs(strategy="directional_blend", wind_direction_deg=...)` to eliminate seam artefacts — see [05-area-api.md#merging-strategies](references/05-area-api.md#merging-strategies). For async / long-running, see [async-and-jobs.md](references/async-and-jobs.md).
 - Single tile is **512 m × 512 m**. Cell pitch is **1 m × 1 m**. Polygon larger than that auto-tiles. Solar/UTCI/TCS tiles carry a **128 m context margin** per side for distant-shadow buildings.
 - `wind_speed` is `int` 1–100. Don't pass floats from weather data.
-- Plotting bounds: distributions are heavy-tailed, so never scale to the grid's own min/max. `min_legend` / `max_legend` are populated on **surface** results — use them there. On **area** results both come back `None`, so carry a fixed per-analysis domain instead (SVF/DA `[0,100]`, DSH `[0,12]`, solar `[0,1000]`, wind `[0,15]`, UTCI `[-40,46]`) and keep it constant across runs you compare. See [recipes/rendering-results-well.md](references/recipes/rendering-results-well.md).
+- Plotting bounds: distributions are heavy-tailed, so never scale to the grid's own min/max. Carry a fixed per-analysis domain — SVF/DA `[0,100]`, DSH `[0,12]`, solar `[0,1000]`, wind `[0,15]`, UTCI `[-40,46]` — and hold it constant across runs you compare. (`min_legend` / `max_legend` serve this on **surface** results only; see *Silently wrong* above.) Details: [recipes/rendering-results-well.md](references/recipes/rendering-results-well.md).
+- Coordinate frames: WGS84 lon/lat in, polygon-bbox-SW metres for caller geometry, tile-local metres inside a tile, surface UV out. Full map: [geospatial-crs.md#the-frames-end-to-end](references/geospatial-crs.md#the-frames-end-to-end).
 - Use `result.bounds` (added 0.4.4) — not `polygon.bounds` — to place the bitmap in a map viewer. `result.bounds` reflects the real NE-padded grid extent.
 
 ## Pitfalls
