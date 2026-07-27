@@ -124,7 +124,7 @@ Use the `references/recipes/` folder for UI/app implementation recipes that comb
 - For most uses: `client.run_area_and_wait(request, polygon, buildings=...)` (sync). Single-tile polygons skip tiling automatically. **Exception:** multi-tile **`wind-speed`** runs should use the two-step path with `merge_area_jobs(strategy="directional_blend", wind_direction_deg=...)` to eliminate seam artefacts — see [05-area-api.md#merging-strategies](references/05-area-api.md#merging-strategies). For async / long-running, see [async-and-jobs.md](references/async-and-jobs.md).
 - Single tile is **512 m × 512 m**. Cell pitch is **1 m × 1 m**. Polygon larger than that auto-tiles. Solar/UTCI/TCS tiles carry a **128 m context margin** per side for distant-shadow buildings.
 - `wind_speed` is `int` 1–100. Don't pass floats from weather data.
-- Use `result.min_legend` / `result.max_legend` for plotting bounds — distributions are heavy-tailed. The API may omit them; always guard: `zmin = result.min_legend if result.min_legend is not None else float(np.nanmin(result.merged_grid))`.
+- Plotting bounds: distributions are heavy-tailed, so never scale to the grid's own min/max. `min_legend` / `max_legend` are populated on **surface** results — use them there. On **area** results both come back `None`, so carry a fixed per-analysis domain instead (SVF/DA `[0,100]`, DSH `[0,12]`, solar `[0,1000]`, wind `[0,15]`, UTCI `[-40,46]`) and keep it constant across runs you compare. See [recipes/rendering-results-well.md](references/recipes/rendering-results-well.md).
 - Use `result.bounds` (added 0.4.4) — not `polygon.bounds` — to place the bitmap in a map viewer. `result.bounds` reflects the real NE-padded grid extent.
 
 ## Pitfalls

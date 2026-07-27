@@ -68,9 +68,38 @@ This is a complete production approach: ~15 shader lines + one packing loop, no 
 | Exact printable/exportable geometry, crisp edges | 2 (`cell_tris`) |
 | Best of both | 1 for the overview, 2 on demand for selected elements |
 
+## Orientation — which way a surface faces
+
+`origin` / `u_axis` / `v_axis` are a **right-handed** frame. The outward normal is
+`u_axis × v_axis`, in that order — the server builds the frame as `u = ẑ × n`, `v = n × u`
+from the surface's own triangle winding, so outward-wound shells (everything
+`client.buildings` returns) give outward normals. Tile-local metres are `+x` east, `+y`
+north, which fixes the compass mapping:
+
+```python
+import math
+import numpy as np
+
+def outward_normal(s):
+    n = np.cross(s.u_axis, s.v_axis)
+    return n / np.linalg.norm(n)
+
+def bearing(n):
+    """Degrees clockwise from north: 0 = N, 90 = E, 180 = S, 270 = W."""
+    return math.degrees(math.atan2(n[0], n[1])) % 360.0
+```
+
+Checked against physics rather than assumed: a 21 June `direct-sun-hours` run in Munich gave
+area-weighted means of **S 5.26 h, E 4.66 h, W 3.90 h, N 2.94 h** by this bearing — the
+expected ordering, which only holds if the normal points outward.
+
+For the facade/roof split use `surface.is_vertical`, which applies the server's own rule
+(`|n_z| ≤ 0.5` for `n = u_axis × v_axis`). Do not classify by `v_axis[2]` alone.
+
 ## Display tips
 
-- **Use ONE shared colour scale for roofs and facades.** They're read together, so a single `[min_legend, max_legend]` scale keeps every surface comparable across the whole scene — roofs sit high (open sky / high radiation), facades lower, and *that contrast is the reading*. This is the coherent default; don't give facades their own scale, or two surfaces on the same building stop being comparable. (Roofs can sit 3&ndash;5&times; facade values in summer solar. If you genuinely must inspect facades in isolation, clip to the facade percentiles as a deliberate, **labelled** exception — classify by `v_axis`, vertical `v_axis` &rarr; facade — but never silently.)
+- **Use ONE shared colour scale for roofs and facades.** They're read together, so a single `[min_legend, max_legend]` scale keeps every surface comparable across the whole scene — roofs sit high (open sky / high radiation), facades lower, and *that contrast is the reading*. This is the coherent default; don't give facades their own scale, or two surfaces on the same building stop being comparable. (Roofs can sit 3&ndash;5&times; facade values in summer solar. If you genuinely must inspect facades in isolation, clip to the facade percentiles as a deliberate, **labelled** exception — classify with `surface.is_vertical` — but never silently.)
+- **A surface at exactly `0.0` is data, not a gap.** Party walls and fully occluded elevations return `mean = peak = 0.0` with every cell present — distinct from the `None` masked cells, which mean "no sensor here". On a 300-building Munich `direct-sun-hours` run, **555 of 1,730 facades (32%)** were exact zeros, moving the scene mean from 5.33 h to 3.62 h. Decide explicitly whether a building or scene aggregate includes them, and say which.
 - **Interpolation is a display choice, not an API request.** The grid is the lossless raw result; bilinear/bicubic filtering at render time produces the smooth transitions. Don't ask for (or build) pre-smoothed meshes — you'd bake in one display style and lose the sensor truth.
 - Per-building rollups (`result.aggregates["buildings"]`: `area` / `mean` / `peak`) are ready-made for element-level coloring, dashboards, and ranking without touching the grids.
 

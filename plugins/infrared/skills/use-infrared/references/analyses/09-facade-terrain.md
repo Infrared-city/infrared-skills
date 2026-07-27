@@ -33,15 +33,48 @@ raw = client.jobs.decompress(client.jobs.download_results(completed.job_id).cont
 raw["output"]   # flat per-sensor list, one value per sensor in input order
 ```
 
-Terrain draping (all six raytraced models, including UTCI/TCS):
+Terrain draping (all six raytraced models, including UTCI/TCS).
+
+**The SDK does not fetch terrain.** There is no terrain client and no DEM service — `ground_geometry` is bring-your-own, always. Omitting it is not an error: you get a flat plane at z = 0 and a perfectly normal-looking result.
+
+`terrain_mesh` is one flat `{coordinates, indices}` mesh (the same shape as `buildings`, *not* the nested interior-entity shape), in **metres on the polygon-bbox-SW frame** that `area.buildings` uses: origin at the SW corner of the polygon's bounding box, `+x` east, `+y` north, `z` on the same datum as the building meshes. This turns any elevation array into it:
 
 ```python
+import numpy as np
+
+def terrain_mesh_from_grid(elevation, x0=0.0, y0=0.0, step=10.0):
+    """(ny, nx) heights in metres -> one flat SDK mesh, CCW seen from above.
+    elevation[j, i] is the height at (x0 + i*step, y0 + j*step)."""
+    elevation = np.asarray(elevation, dtype=float)
+    ny, nx = elevation.shape
+    gx, gy = np.meshgrid(x0 + step * np.arange(nx), y0 + step * np.arange(ny))
+    coords = np.stack([gx, gy, elevation], axis=-1).reshape(-1, 3)
+    i, j = np.meshgrid(np.arange(nx - 1), np.arange(ny - 1))
+    a = (j * nx + i).ravel()
+    b, c, d = a + 1, a + nx, a + nx + 1
+    tris = np.concatenate([np.stack([a, b, d], 1), np.stack([a, d, c], 1)])
+    return {"coordinates": coords.ravel().tolist(), "indices": tris.ravel().tolist()}
+
+
 payload = SvfModelRequest(
     analysis_type=AnalysesName.sky_view_factors,
-    ground_geometry={"terrain": terrain_mesh},   # DotBim-style mesh
+    ground_geometry={"terrain": terrain_mesh_from_grid(elevation, step=10.0)},
     terrain_alignment="auto-align",              # or "assume-aligned"
 )
 ```
+
+A GeoTIFF DEM read with `rasterio` (`rasterio.open(path).read(1)`, then `rasterio.warp.reproject` onto the metre grid) is the usual source of `elevation`. **`rasterio` is not an SDK dependency** — install it yourself. Whatever the source, the array must be in metres on the frame above and must cover the whole polygon; objects beyond the terrain's extent are clamped to the edge height, not refused.
+
+### `terrain_alignment` — how your geometry meets the ground
+
+| Mode | What the server does |
+|---|---|
+| `"auto-align"` (default) | **Seats the scene.** Every solid in `geometries`, `context_geometry` and `vegetation` is re-based to local grade before inference — each base vertex drops to the terrain beneath it, with a 0.5 m skirt so footprints stay sealed on a slope. The seated geometry is what the grid drape, the under-building mask, the occluder union and facade synthesis all read. |
+| `"assume-aligned"` | **Validates only, moves nothing.** Any object whose base falls outside a ±1 m band around the terrain is a **422 for the whole job**, naming the first five offenders with residuals. Use it when your geometry is already prepped against this exact DEM and you want a mismatch to be loud. |
+
+With no `ground_geometry` the setting is inert.
+
+**Do not compare alignment modes by their means.** Buildings move vertically, so facades gain and lose exposure in roughly equal measure. On a measured facade run the mean delta was **+0.03 kWh/m²** while **44% of facades moved by more than 1 kWh/m²**, spanning −48.8 to +85.6. Compare per-surface distributions.
 
 ## Combining with weather-driven analyses (solar-radiation)
 
@@ -77,7 +110,8 @@ Verified live (2026-07-24) on a 6 km², 16.8k-building, 25-tile Vienna AOI at `s
 
 - `result.surfaces` — `{"<building-id>/<surface-index>": SurfaceSensorGrid}`; each has `origin` / `u_axis` / `v_axis` (UV frame in tile metres), `nu` x `nv` grid dims, `values`, `mean`, `peak`, `area`, `cell_area`, `cell_tris`. Per-cell lists carry `None` for masked cells outside the surface footprint — map to `NaN` before numeric work.
 - `result.aggregates["buildings"]` — `{building_id: BuildingAggregate}` with `area` / `mean` / `peak`.
-- `result.sensor_count`, `result.min_legend`, `result.max_legend`.
+- `result.sensor_count`, `result.min_legend`, `result.max_legend` — the legend bounds **are** populated here, unlike area results where both are `None`.
+- Surfaces at exactly `mean = peak = 0.0` are real (party walls, fully occluded elevations), not gaps — see [`../surface-results-integration.md`](../surface-results-integration.md#orientation--which-way-a-surface-faces) for that and for the outward-normal / compass convention.
 
 `sensor_points` responses are a third shape: a flat per-sensor list under `"output"` (plus `sensor-count` and legends), one value per sensor in input order.
 

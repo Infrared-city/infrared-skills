@@ -18,23 +18,50 @@ in each — a baseline and a redesign become impossible to compare, and a flat, 
 grid gets stretched until sensor noise looks like structure. This is the single most common
 cause of an ugly or misleading image.
 
-**The rule:** use the analysis's calibrated bounds, which are on every result.
+**The rule:** the colour scale must be fixed by the *analysis*, never by the run. Where that
+fixed scale comes from depends on which result you are holding.
+
+**Surface results** (`SurfaceAnalysisResult`, from `analysis_surfaces`) populate the bounds —
+use them:
+
+```python
+norm = plt.Normalize(vmin=result.min_legend, vmax=result.max_legend)
+```
+
+**Area results** (`AreaResult`, the grid path) declare `min_legend` / `max_legend` but
+**return `None` for both**. Verified on a live SVF area run whose grid spanned −0.00 to
+96.56: both fields came back `None`. So the familiar guard —
+
+```python
+vmin = result.min_legend if result.min_legend is not None else float(np.nanmin(...))   # WRONG on area results
+```
+
+— takes its fallback branch *every single time*, which is exactly the auto-scaling this
+section exists to prevent, wearing a guard that makes it look handled. Choose the domain
+yourself and keep it constant across every run you intend to compare:
 
 ```python
 import matplotlib.pyplot as plt
-import numpy as np
 
-vmin = result.min_legend if result.min_legend is not None else float(np.nanmin(result.merged_grid))
-vmax = result.max_legend if result.max_legend is not None else float(np.nanmax(result.merged_grid))
+DOMAIN = {                       # fixed per analysis, never per run
+    "sky-view-factors": (0, 100),          # %
+    "daylight-availability": (0, 100),     # %
+    "direct-sun-hours": (0, 12),           # hours
+    "solar-radiation": (0, 1000),          # kWh/m2
+    "wind-speed": (0, 15),                 # m/s, top bin OPEN
+    "thermal-comfort-index": (-40, 46),    # degC
+}
 
+vmin, vmax = DOMAIN[result.analysis_type]
 plt.imshow(result.merged_grid, origin="lower", cmap="viridis", vmin=vmin, vmax=vmax)
 ```
 
-The guard matters — the API may omit the legend fields. Never silently fall back to the data
-range without saying so, and never fall back *per tile*.
+Never fall back to the data range without saying so in the caption, and never fall back
+*per tile*.
 
 ForgeKit hardcodes the same idea one level up: every analysis type in its registry carries a
-fixed `steps: [min, max]` domain that never depends on the run.
+fixed `steps: [min, max]` domain that never depends on the run — the table below is that
+registry, and is where the `DOMAIN` values above come from.
 
 | Analysis | ForgeKit domain | Unit |
 |---|---|---|
@@ -86,6 +113,31 @@ mean = np.nanmean(grid)                      # np.mean() would be wrong even if 
 In a GPU pipeline, discard rather than blend — see the premultiplied-mask shader in
 [`../surface-results-integration.md`](../surface-results-integration.md), which keeps bilinear
 edges clean instead of bleeding masked cells into their neighbours.
+
+### The mirror image: real zeros treated as missing
+
+The inverse mistake costs just as much. A surface can legitimately come back with
+`mean = peak = 0.0` and every cell present and finite — party walls, light wells, elevations
+a neighbour blocks entirely. That is the answer, not a gap, and it is a different thing from
+the `None` masked cells above.
+
+They are common enough to move any headline number. A June `direct-sun-hours` run over a
+300-building Munich block returned **555 of 1,730 facades at exactly zero (32%)**; the scene
+mean was 3.62 h including them and 5.33 h excluding them.
+
+Nothing in the response flags a surface as degenerate, so decide explicitly and label which
+you chose:
+
+```python
+vals = [s.mean for s in result.surfaces.values()]
+lit = [v for v in vals if v > 0.0]
+# "mean over all analysed facades"       -> statistics.mean(vals)
+# "mean over facades that see any sun"   -> statistics.mean(lit)
+```
+
+Zeros also matter for the render: on a `[0, max]` scale they take the bottom colour, which is
+correct and is *not* the same as the transparent masked cells. Keep them visible — a wall in
+permanent shade is a finding.
 
 ---
 
