@@ -164,10 +164,23 @@ Note `buildings` is *not* a competing selector when sensors are present — it s
 But a non-empty `buildings` **does** take over the occluder on every tier, so top-level `barriers`
 alongside it are silently dropped server-side.
 
-**Caps:** 15 floors per request summed across *all* buildings · 100,000
-sensors per floor · 2,000,000 occluder triangles. The SDK checks these before submitting, because the
-token deduction happens on the accept path *before* the model runs — an over-cap request would
-otherwise be accepted, billed, and only then refused.
+**Caps.** The SDK is the source of truth — read them from it rather than trusting a number
+written here, which goes stale the moment the limits move:
+
+```python
+from infrared_sdk.analyses.types import (
+    MAX_FLOORS_PER_REQUEST,     # floors summed across ALL buildings
+    MAX_SENSORS_PER_FLOOR,
+    MAX_OCCLUDER_TRIANGLES,     # across barriers + openings + context + ground + vegetation
+)
+```
+
+At the time of writing those are 15 / 100,000 / 2,000,000. The sensor-surface count is capped
+by `MAX_FLOORS_PER_REQUEST` too, so it moves with it.
+
+The SDK checks all of them before submitting, because the cap is enforced *after* the job is
+charged: an over-cap request is accepted, billed, and only then refused with a 422. Checking
+locally is free; finding out from the API is not.
 
 ## 6. Reading the result
 
