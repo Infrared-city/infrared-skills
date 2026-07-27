@@ -141,7 +141,8 @@ Guard the run path:
 Area setup:
 - Build the 1 km circle as GeoJSON with coordinates in `[longitude, latitude]`.
 - Fetch:
-  - `client.preview_area(polygon)` for cost/context preview if desired.
+  - `client.preview_area(polygon, analysis_type=...)` for cost/context preview if desired.
+    Pass `analysis_type` — the default is the wind grid and over-counts solar tiles ~4×.
   - `client.buildings.get_area(polygon)`.
   - `client.vegetation.get_area(polygon)`.
   - `client.ground_materials.get_area(polygon)`.

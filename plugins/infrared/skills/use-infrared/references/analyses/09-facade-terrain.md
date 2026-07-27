@@ -92,7 +92,52 @@ Terrain-only requests (no facade/sensor fields) still return the normal grid res
 - **Batching + billing:** a large facade request whose estimated sensor count exceeds the server's 262,144-sensor synthesis cap is transparently split into multiple sub-jobs (each seeing every other building as occluder context) and merged back into one result. **Each sub-job is billed separately.**
 - Type-check the result when a workflow mixes facade and grid runs: `isinstance(result, SurfaceAnalysisResult)`.
 - **Occluders (`context_geometry`) + `accuracy`.** `context_geometry` is a `{id: mesh}` map (same shape as `ground_geometry`) of extra shading geometry that is *not* itself analysed — surrounding context you don't want sensors on. `accuracy` (`"standard"` / `"precision"`) is accepted on `direct-sun-hours` / `daylight-availability` only. Supply both `context_geometry` and `ground_geometry` in the same polygon-bbox-SW frame as `buildings`. **On multi-tile runs this needs `infrared-sdk >= 0.4.13`**, which transforms them into each tile's local frame automatically; **0.4.12 copied them untransformed → terrain/occluders misplaced on every tile except the SW corner** (single-tile runs are correct on 0.4.12).
-- **`ground_geometry` is shifted per tile but NOT spatially sliced.** The whole terrain mesh gets deep-copied into every tile/batch, not filtered to what actually overlaps it (unlike buildings, which are). A true high-resolution terrain mesh over a large multi-tile area replicates fully into every batch — verified impractical at 2m resolution over a 6 km² AOI (tens of millions of wire vertices); a coarser mesh was needed as a workaround. Tracked at [infrared-api-sdk#217](https://github.com/Infrared-city/infrared-api-sdk/issues/217) — until fixed, keep BYO terrain resolution modest on large multi-tile runs.
+- **`ground_geometry` is SLICED per tile (SDK 0.5.1+) — and that changes results.**
+  Each tile now receives only the terrain it needs to seat its own buildings and trees
+  and ground its own sensors, instead of a full copy of the mesh. A 6 km² run drops from
+  ~140 MB of repeated terrain to ~12 MB, and **high-resolution terrain becomes usable at
+  all**: the server caps terrain at 500,000 triangles *per job*, which a 2 m mesh over a
+  few km² exceeds as one blob but fits comfortably per tile. (The old advice to keep BYO
+  terrain resolution modest no longer applies. Was [infrared-api-sdk#217](https://github.com/Infrared-city/infrared-api-sdk/issues/217).)
+
+  **This is a behaviour change, not just transport.** Terrain is an occluder server-side,
+  so cutting it removes long-range terrain shading. Terrain *inside* a tile's envelope
+  still occludes exactly as before — a hill between two buildings shades them. What stops
+  is shading from terrain the tile does not otherwise need. Nil on a flat site; not nil on
+  a valley or an escarpment. Measured on staging: a 150 m escarpment 350 m west of the
+  polygon costs up to **1.0 h** of direct sun (mean 0.35 h), and at the default reach it is
+  invisible.
+
+  **If distant relief matters to your result, pass it as `context_geometry`** — the
+  general-purpose occluder input — rather than relying on however much DEM happened to be
+  in the file you uploaded. That is geometry you choose deliberately, which is the point of
+  the split.
+
+- **`run_area(..., terrain_context_margin_m=...)`** widens how far `ground_geometry` is
+  sliced beyond each tile, in metres, for sites where distant terrain genuinely shades the
+  analysed area. Values **below the tile config's own context margin are floored to it**
+  (128 m on solar, 0 m on wind), so the knob can never strand a building or tree on absent
+  ground. `run_area(..., terrain_context_margin_m=0)` on a solar grid therefore reads back
+  `128.0`, because that is what sized the slice. Payload grows roughly with the square of
+  the reach.
+
+  `AreaSchedule.terrain_context_margin_m` records the **floored reach actually used**, not
+  what you passed, and a `retry_from` that resolves to a different reach is **refused** —
+  mixing them would merge two terrain extents into one result. Schedules written before
+  0.5.1 record nothing and are treated as unknown, so the guard never fires on old data.
+
+- **`run_area(..., max_sensors_per_job=...)`** lowers the per-job synthesized-sensor budget
+  that sizes facade sub-tile batches. A latency lever, not a correctness one, and it may
+  only make batches **smaller** — the ceiling is 90 % of the server's hard cap, because
+  batch sizing is an estimate and the margin is what keeps it safe.
+
+  Use it sparingly and measure: halving it on a 6 km² Vienna facade run took 39 jobs to 67
+  and made the run **21 % slower**, because per-request overhead then dominates. Aggressive
+  values are worse than they look — a cap of 2000 produced 1000 jobs, and a 0.3 % download
+  failure rate was then enough to abort the whole merge ([#232](https://github.com/Infrared-city/infrared-api-sdk/issues/232)).
+  Like the reach, the resolved cap is recorded on the schedule and a mismatched
+  `retry_from` is refused: batch keys are positional (`{tile}#batch0`, `#batch1`, …), so a
+  different cap **refills** them with different buildings rather than shifting them aside.
 - **Client-side merge, not server compute, dominates wall-clock on large facade runs.** Verified on a real 6 km²/16.8k-building/39-batch run: server-side raytracing was 0.5-6.3s/job (flat regardless of a 1-day vs 1-year `TimePeriod`), but `merge_area_jobs()`/`merge_surface_area_jobs()` — downloading + JSON-decoding + reanchoring + typed-parsing every batch's result — was 55-80% of total time. Installing `infrared-sdk[fast]` (orjson) materially helps this stage. Budget your own timing expectations accordingly: annual vs. daily windows cost about the same; job/batch count is what scales cost, not simulated time span.
 
 ## See also
