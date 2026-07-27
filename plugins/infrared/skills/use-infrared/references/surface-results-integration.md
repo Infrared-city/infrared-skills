@@ -12,12 +12,15 @@ Every entry in `result.surfaces` is keyed `"{building-id}/{surface-index}"` — 
 - `nu`, `nv` — grid dimensions; `values` has `nu * nv` entries, **row-major in v** (`index = j * nu + i`)
 - `values[k] is None` — masked cell: its centre lies outside the surface's true footprint. Never zero-fill; cut or skip these.
 - `cell_area[k]` — the **fraction** of the cell inside the surface footprint, in `(0,1]` (dimensionless, *not* m²); multiply by `grid_size²` for the actual area. `cell_tris[k]` — the exact clipped triangle geometry (flat `[x,y,z, ...]`, 9 floats per triangle). Both keys are **absent** (not empty) when the server was asked not to emit them.
-  That is controlled by **`emit_cell_tris`** on the request (SDK 0.5.1+): leave it unset
-  for the default, or set it `False` to drop `cell_tris`/`cell_area` from the response
-  when you are texture-mapping (Route 1) and do not need the clipped geometry. It is a
-  payload-size lever — on a large facade run the triangle arrays dominate the download,
-  which is the phase that dominates wall-clock. Handle both shapes: check for the key,
-  do not assume it is there.
+  That is controlled by **`emit_cell_tris`** on the request (SDK 0.5.1+), which **defaults
+  to `False`** on every `analysis_surfaces` request — efficient by default, because on a
+  large facade run the triangle arrays dominate the download (measured 93.7% of the
+  payload), and the download is the phase that dominates wall-clock. Set it `True`
+  explicitly when you need the clipped geometry for Route 2; leave it alone for Route 1
+  or analysis-only work. `values` and every aggregate are identical either way, so
+  nothing analytical is lost — only the exact per-cell outlines used for *drawing*.
+  Handle both shapes: check for the key on `cell_tris` **and** `cell_area`, do not
+  assume either is there.
 
 `origin` is the **centre of cell (0, 0)**, not a corner. So:
 
@@ -73,5 +76,6 @@ This is a complete production approach: ~15 shader lines + one packing loop, no 
 
 ## See also
 
+- Making the render *read* correctly — legend bounds, masked cells, categorical output, colormap choice, north-up -> [`recipes/rendering-results-well.md`](recipes/rendering-results-well.md)
 - Request fields, applicability, response shape -> `analyses/09-facade-terrain.md`
 - Geometry / coordinate conventions -> `02-geometry.md`
