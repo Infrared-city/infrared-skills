@@ -100,6 +100,7 @@ If you see either, you omitted weather data — add it via the snippet above and
 | Errors / exception hierarchy | [08-error-handling.md](references/08-error-handling.md) |
 | Plotting / compare scenarios (baseline vs proposed) / GeoTIFF export | [interpretation/grid-conventions.md](references/interpretation/grid-conventions.md) |
 | Gradio area explorer app recipe | [recipes/gradio-area-explorer.md](references/recipes/gradio-area-explorer.md) |
+| Making a render read correctly (legend bounds, masked cells, categorical output, colormaps) | [recipes/rendering-results-well.md](references/recipes/rendering-results-well.md) |
 
 ## Recipes
 
@@ -110,6 +111,7 @@ Use the `references/recipes/` folder for UI/app implementation recipes that comb
 - To build a **SketchUp Ruby extension** that submits simulations directly from a 3D model and renders heatmap results as coloured faces in the viewport — including a post-run KPI panel with stats and charts — see [recipes/sketchup-plugin.md](references/recipes/sketchup-plugin.md). Note: this recipe uses Ruby (not Python); the Infrared API contract (auth headers, payload shapes, async job lifecycle) is identical.
 - To call the SDK from **Rhino 8 Grasshopper** Python 3 Script components, see [recipes/grasshopper.md](references/recipes/grasshopper.md) — a flat list of small patterns: SDK install via `# r:`, auto-registering outputs (`ScriptVariableParam` + `BeforeRunScript`), sticky state, off-UI-thread work with `threading` + `ExpireSolution(True)`, browser-based AOI picker, DotBim ↔ Rhino Mesh, locating the .gh file, saving PNG / GeoTIFF, heatmap mesh from a numpy grid, and visible logging.
 - For **hackathon/demo stacks** (TypeScript direct API, FastAPI + Railway, React frontends, persistence, billing): see [recipes/hackathon-tools.md](references/recipes/hackathon-tools.md).
+- **Before your first render**, read [recipes/rendering-results-well.md](references/recipes/rendering-results-well.md) — the traps that make correct results *look* wrong (per-run auto-scaling, masked cells painted as zero, facades on their own scale, continuous ramps on categorical output, rainbow colormaps, flipped north), and what ForgeKit does instead. Tool-agnostic: applies to matplotlib, Three.js, DeckGL, or a BIM viewport.
 
 ## Invariants
 
