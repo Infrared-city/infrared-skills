@@ -145,8 +145,9 @@ The `floors` and `buildings` tiers additionally require barriers carrying `categ
 once is not an error either: points win and the surfaces are silently ignored.
 
 **Caps:** 15 floors per request summed across *all* buildings · 100,000
-sensors per floor · 2,000,000 occluder triangles. The SDK checks these before submitting, because an
-over-cap request is billed and *then* refused.
+sensors per floor · 2,000,000 occluder triangles. These are enforced **server-side only** — the SDK does not
+check them, so an over-cap request is accepted, **billed**, and then refused. Count your floors
+and sensors before you submit.
 
 ## 6. Reading the result
 
