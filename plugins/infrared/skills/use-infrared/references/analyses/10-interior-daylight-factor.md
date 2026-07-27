@@ -137,6 +137,23 @@ out-of-range value yields a daylight factor above 100 % or below zero.
 derived from your `openings`; omitting it silently uses a hardcoded 2.0 m². Reflectance keys are exactly `floor` / `walls` / `ceiling` — a
 misspelled key silently uses the default (0.2 / 0.5 / 0.7).
 
+**`window_area` does not control how much light enters, and on a big room it barely moves the
+number.** Light in comes from the `openings` geometry and its `openingFactor`, which is what
+the raytracer sees. `window_area` feeds one term — the split-flux internally reflected
+component, a single scalar added uniformly to every sensor:
+
+```
+DF = (SC + ERC + IRC) / 10,000 lux x 100
+IRC = mean(SC) x window_area x rho_avg / (floor_area x (1 - rho_avg))
+```
+
+Its effect therefore scales with `window_area / floor_area`. Measured on staging, taking
+`window_area` from 2 to 16 m² (8x) with everything else fixed: an 8 x 8 m room moved
+**5.65% -> 6.33%** (+0.68), a 16 x 16 m room **2.97% -> 3.01%** (+0.05). Both match the
+formula to four decimals — the flat response on a deep plan is arithmetic, not a defect. To
+model more glazing, change the `openings` mesh or `openingFactor`; set `window_area` so the
+reflected term is right. `room_reflectances` scales the same term and dilutes the same way.
+
 ## 4. Surrounding buildings
 
 `context_geometry` is how neighbours shade the room. Omitting it does not error — the room just

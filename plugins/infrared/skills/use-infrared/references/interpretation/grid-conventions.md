@@ -49,20 +49,32 @@ extents drift by up to a tile. `AreaResult.bounds` is the SDK-computed
 `(min_lng, min_lat, max_lng, max_lat)` of the actual grid — use it directly
 for image overlays (folium/leaflet/mapbox). See `10_real_world_map_overlay.ipynb`.
 
-## Plot bounds — always use legend metadata
+## Plot bounds — fix them per analysis, never per run
 
-Distributions are heavy-tailed (especially solar/daylight). Use the result's legend metadata, not the data range, for colour bounds:
+Distributions are heavy-tailed (especially solar/daylight), so colour bounds taken from the data give a different scale on every run and two runs stop being comparable.
+
+`min_legend` / `max_legend` are populated on **surface** results. On **area** results (`AreaResult`, what `run_area_and_wait` returns for a grid) both fields come back **`None`** — verified on a live SVF run whose grid spanned −0.00 to 96.56. Carry your own domain:
 
 ```python
+DOMAIN = {
+    "sky-view-factors": (0, 100),          # %
+    "daylight-availability": (0, 100),     # %
+    "direct-sun-hours": (0, 12),           # hours
+    "solar-radiation": (0, 1000),          # kWh/m2
+    "wind-speed": (0, 15),                 # m/s, top bin open
+    "thermal-comfort-index": (-40, 46),    # degC
+}
+zmin, zmax = DOMAIN[result.analysis_type]
+
 fig = px.imshow(
     result.merged_grid,
-    zmin=result.min_legend,   # NOT result.merged_grid.min()
-    zmax=result.max_legend,
+    zmin=zmin,                # NOT result.merged_grid.min()
+    zmax=zmax,
     origin="lower",
 )
 ```
 
-`min_legend` / `max_legend` are calibrated per analysis type so heatmaps from different runs of the same analysis stay comparable.
+Keeping the domain fixed per analysis type is what makes heatmaps from different runs of the same analysis comparable. See [`../recipes/rendering-results-well.md`](../recipes/rendering-results-well.md) §1.
 
 ## Comparing scenarios (baseline vs proposed)
 
