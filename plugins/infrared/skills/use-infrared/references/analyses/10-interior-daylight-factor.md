@@ -153,14 +153,21 @@ a fixed figure.
 | `floors` | `{"floors": {"0": …}}` |
 | `buildings` | `{"buildings": {bid: {"floors": {…}}}}` |
 
+Dispatch is `sensor_points` → `sensor_surfaces` → `buildings` → `floors`; the **first key present
+wins** and the rest are ignored. Supplying two selectors therefore analyses something other than
+what you asked for — the SDK rejects that rather than letting it run.
+
 The `floors` and `buildings` tiers additionally require barriers carrying `category="floor"` **with
-`position`/`rotation`** — plain barriers give a *billed* rejection. Supplying two sensor tiers at
-once is not an error either: points win and the surfaces are silently ignored.
+`position`/`rotation`**, also checked before submitting.
+
+Note `buildings` is *not* a competing selector when sensors are present — it supplies the occluder.
+But a non-empty `buildings` **does** take over the occluder on every tier, so top-level `barriers`
+alongside it are silently dropped server-side.
 
 **Caps:** 15 floors per request summed across *all* buildings · 100,000
-sensors per floor · 2,000,000 occluder triangles. These are enforced **server-side only** — the SDK does not
-check them, so an over-cap request is accepted, **billed**, and then refused. Count your floors
-and sensors before you submit.
+sensors per floor · 2,000,000 occluder triangles. The SDK checks these before submitting, because the
+token deduction happens on the accept path *before* the model runs — an over-cap request would
+otherwise be accepted, billed, and only then refused.
 
 ## 6. Reading the result
 
