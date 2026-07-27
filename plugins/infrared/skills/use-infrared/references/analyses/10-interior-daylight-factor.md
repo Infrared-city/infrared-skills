@@ -85,9 +85,12 @@ sensors = [[x*PITCH + PITCH/2, y*PITCH + PITCH/2, 0.8]
 **Enclose the room.** A missing wall is a hole the sky pours through — the run succeeds and the
 number is simply too high.
 
-**Cover the whole floor at a uniform pitch.** On the `sensor_points` tier the analysed floor area is
-inferred from the sensor cloud, so a sparse or partial grid changes the daylight factor itself, not
-just its resolution.
+**Cover the whole floor at a uniform pitch, and keep every point inside the room.** On the
+`sensor_points` tier the analysed floor area is inferred from the sensor cloud — never from the
+barrier mesh — so the grid changes the daylight factor itself, not just its resolution. Points are
+*not* checked against the room envelope: a handful of stray points outside the walls shifts the
+inferred pitch and biases **every** sensor, including the legitimate interior ones. Measured: six
+stray points moved the mean of 144 valid sensors by +17%.
 
 ### From meshes you already have
 
@@ -119,6 +122,9 @@ openings = {
 }
 ```
 
+Glazing is read **only from `openings`** — an aperture filed under `barriers` or `context_geometry`
+is fully opaque, and the result is a flat field rather than an error.
+
 Measured once on a single test room, identical windows on opposite walls at 0.9 / 0.1: half-field
 means of 8.20 and 3.51. Treat the ratio as indicative, not the absolute values — and note the
 floor described in section 6, which is included in both. The wire key is exactly `openingFactor` — any other spelling is ignored and the window
@@ -126,7 +132,9 @@ silently becomes a **clear pane (1.0)**. Valid range `[0, 1]`; there is no serve
 out-of-range value yields a daylight factor above 100 % or below zero.
 
 **Two different scopes — do not flatten them:** `openingFactor` is per *opening*, while
-`room_reflectances` / `window_area` / `exterior_ground_reflectance` are per *request*. Reflectance keys are exactly `floor` / `walls` / `ceiling` — a
+`room_reflectances` / `window_area` / `exterior_ground_reflectance` are per *request*. **Set
+`window_area` to your real glazing area** — it feeds the internally-reflected term and is not
+derived from your `openings`; omitting it silently uses a hardcoded 2.0 m². Reflectance keys are exactly `floor` / `walls` / `ceiling` — a
 misspelled key silently uses the default (0.2 / 0.5 / 0.7).
 
 ## 4. Surrounding buildings
