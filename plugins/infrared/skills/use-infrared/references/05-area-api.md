@@ -136,8 +136,8 @@ See `cookbook/notebooks/08_wind_merge_strategies.ipynb` for a side-by-side compa
 | `succeeded_jobs` / `total_jobs` | `int`  | Job counts                          |
 | `failed_jobs` / `skipped_jobs`  | `list[str]` | Failed / non-terminal job IDs  |
 | `failed_tiles`   | `list[TileFailure]` | Per-tile failure records: `tile_id`, `row`, `col`, `error`, `phase` — added in 0.4.9. `phase` is a `TileFailurePhase` StrEnum: `submit` / `compute` / `download` / `skipped` (priority `submit > compute > download > skipped`; same `tile_id` never appears twice). Use this — not `failed_jobs → tile_id` reverse-mapping — to identify which tiles produced no usable output. Empty on full success. |
-| `min_legend`     | `float\|None`     | Legend min across tiles (use as zmin)      |
-| `max_legend`     | `float\|None`     | Legend max across tiles (use as zmax)      |
+| `min_legend`     | `float\|None`     | Declared, but **`None` in practice on area runs** — the grid path never populates it. Populated only on `SurfaceAnalysisResult`. |
+| `max_legend`     | `float\|None`     | Same. Do not build a colour scale on these; carry a fixed domain. |
 
 `result.to_dict()` serializes for JSON (numpy -> nested lists, NaN -> `None`) — this is also the shape `client.weather.gen_grid_image()` expects.
 
@@ -159,7 +159,7 @@ Building coordinates are always relative to the **inference square** (512×512m)
 ## Pitfalls
 
 - **Streaming tile merge (0.4.10, `strategy="default"` only):** `merge_area_jobs` now merges tiles incrementally as downloads complete, lowering peak memory for large schedules. Output is bit-identical — no API or result-shape change.
-- Never derive heatmap colour range from the grid — use `min_legend` / `max_legend` as `zmin` / `zmax`. Direct Sun Hours / Daylight cluster near the max and look washed out otherwise. The API may omit these fields; always apply a fallback: `zmin = result.min_legend if result.min_legend is not None else float(np.nanmin(result.merged_grid))`.
+- Never derive the heatmap colour range from the grid — Direct Sun Hours / Daylight cluster near the max and look washed out. And do **not** reach for `min_legend` / `max_legend` here: on an `AreaResult` both are `None`, so the familiar `result.min_legend if ... is not None else float(np.nanmin(grid))` guard takes the fallback on every run and auto-scales each plot to its own data without saying so. Carry a fixed per-analysis domain instead — see `recipes/rendering-results-well.md`.
 - Buildings passed to `run_area_and_wait()` must be in **polygon-bbox-SW frame** (meters from SW corner of bbox). `client.buildings.get_area()` returns them in this frame.
 - Solar context margin produces buildings with **negative coordinates** in per-tile frame — that is correct; do not filter them out.
 - The 128 m solar context margin is also the **shadow-casting horizon** — buildings further than 128 m from a tile's edge can't occlude into that tile. At low sun angles (early/late hours, winter) shadows on multi-tile polygons may clip at tile seams. Use `estimate_sun_context_loss(...)` from `infrared_sdk.preflight` to gauge the loss before submitting, or fall back to a single-tile polygon.

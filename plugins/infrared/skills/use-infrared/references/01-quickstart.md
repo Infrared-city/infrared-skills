@@ -39,14 +39,14 @@ with InfraredClient() as client:
 
 ## Reading the result
 
-`result.merged_grid` is a 2-D numpy array (~1 m per cell, NaN outside the polygon). Use `result.min_legend` / `result.max_legend` as the colour-scale bounds when plotting — deriving the range from the data alone produces washed-out heatmaps for solar/daylight analyses.
+`result.merged_grid` is a 2-D numpy array (~1 m per cell, NaN outside the polygon). Deriving the colour range from the data alone produces washed-out heatmaps for solar/daylight analyses — and a different scale on every run. On an `AreaResult`, `min_legend` / `max_legend` are **`None`**, so fix a per-analysis domain yourself (`recipes/rendering-results-well.md`); they are populated only on `SurfaceAnalysisResult`.
 
 ## Pitfalls
 
 - Buildings are opt-in: pass `buildings=area.buildings` explicitly. `None` or `{}` skips them.
 - `wind_speed` is a **`float`** in m/s (0 accepted) — do not round an EPW mean like `3.9`.
   `wind_direction` is `int` 0–360 (meteorological: 0 = wind from north), deliberately whole.
-- Always plot heatmaps with `zmin=result.min_legend, zmax=result.max_legend`.
+- Plot heatmaps on a fixed per-analysis domain. `zmin=result.min_legend` is `None` on an area run, so this is not the shortcut it looks like.
 - Single-tile polygons (~512 m on a side or smaller) skip tiling entirely — no special handling needed.
 - The first request in a session may be slower while the backend warms up; benchmark from the second call.
 
