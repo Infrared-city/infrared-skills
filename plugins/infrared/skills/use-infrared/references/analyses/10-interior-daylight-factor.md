@@ -1,22 +1,13 @@
-# Interior analysis — daylight factor & energy balance
+# Interior analysis — daylight factor
 
-| Analysis | Answers | Weather? | Time period? |
-|---|---|---|---|
-| `daylight-factor` | daylight at each point in a room, as % of unobstructed outdoor illuminance | no | **no** — the CIE overcast sky is time-independent |
-| `energy-balance` | annual heating/cooling demand per zone | no weather *file* | **no** — the climate series *is* the time input |
+`daylight-factor` measures daylight at each point *inside* a room, as a percentage of unobstructed
+outdoor illuminance. The CIE overcast sky is time-independent, so it takes no time period and no
+weather.
 
-> 🛑 **`energy-balance` output is not currently reliable — do not use it for decisions.** Both
-> `EUI_heat` and `EUI_cool` can return `0.0` for entirely ordinary buildings. Cooling is only
-> computed when the monthly *mean* outdoor temperature exceeds 26 °C, so it is zero year-round in
-> most European climates; the heating error peaks for well-insulated, highly glazed zones. `0.0` is
-> not an error — it reads as "no demand", exactly the kind of plausible answer nobody questions, and
-> the job is still billed. A model fix is in progress. **`daylight-factor` is unaffected** and
-> everything below applies to it fully.
-
-## Not area models
+## Not an area model
 
 No polygon, no tiling, no merge — you supply the geometry. Submit via `client.analyses.execute()`;
-`run_area()` rejects them.
+`run_area()` rejects it.
 
 ```python
 from infrared_sdk import InfraredClient, to_interior_entity
@@ -129,9 +120,8 @@ Measured: identical windows on opposite walls at 0.9 / 0.1 gave half-field means
 silently becomes a **clear pane (1.0)**. Valid range `[0, 1]`; there is no server-side clamp, so an
 out-of-range value yields a daylight factor above 100 % or below zero.
 
-**Three different scopes — do not flatten them:** `openingFactor` is per *opening*;
-`room_reflectances` / `window_area` / `exterior_ground_reflectance` are per *request*;
-`energy-settings` is per *building*. Reflectance keys are exactly `floor` / `walls` / `ceiling` — a
+**Two different scopes — do not flatten them:** `openingFactor` is per *opening*, while
+`room_reflectances` / `window_area` / `exterior_ground_reflectance` are per *request*. Reflectance keys are exactly `floor` / `walls` / `ceiling` — a
 misspelled key silently uses the default (0.2 / 0.5 / 0.7).
 
 ## 4. Surrounding buildings
@@ -141,19 +131,7 @@ reads brighter than it is. The effect is entirely scene-dependent: three close 2
 DF **29 %**, while 1570 real Vienna buildings around the same room cut it only **3 %**. Never quote
 a fixed figure.
 
-## 5. energy-balance specifics
-
-Every entity needs a **`category`** — `"space"` for `spatial_volumes`, `"wall"`/`"floor"` for
-barriers, `"window"` for openings. A missing or mistyped category is silently skipped, so a room
-with mistyped walls reports no exterior wall loss at all. `spatial_volumes` also need `position`
-**and** `rotation`; openings need `rotation` — absence is a 500, not a validation error.
-`to_interior_entity(mesh, category="space")` supplies identity transforms.
-
-Climate: `dry_bulb_temperature` (°C) and `global_horizontal_radiation` must be equal length, ≥ 12
-samples, spanning a full year — 12, 52, 365 and 8760 all work. Radiation is **Wh/m² per sample**,
-not mean W/m²; the natural reading makes solar gains ~1000× too small and still returns 200.
-
-## 6. daylight-factor tiers
+## 5. Measurement tiers
 
 | tier | result shape |
 |---|---|
@@ -166,11 +144,11 @@ The `floors` and `buildings` tiers additionally require barriers carrying `categ
 `position`/`rotation`** — plain barriers give a *billed* rejection. Supplying two sensor tiers at
 once is not an error either: points win and the surfaces are silently ignored.
 
-**Caps (daylight-factor only):** 15 floors per request summed across *all* buildings · 100,000
-sensors per floor · 2,000,000 occluder triangles. `energy-balance` has no caps. The SDK checks these
-before submitting, because an over-cap request is billed and *then* refused.
+**Caps:** 15 floors per request summed across *all* buildings · 100,000
+sensors per floor · 2,000,000 occluder triangles. The SDK checks these before submitting, because an
+over-cap request is billed and *then* refused.
 
-## 7. Reading the result
+## 6. Reading the result
 
 Results are a ZIP:
 

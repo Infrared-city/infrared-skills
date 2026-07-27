@@ -62,15 +62,13 @@ Pick the entry point first — it shapes blocking, webhooks, and persistence. Fu
 | Solar energy on a surface? | `solar-radiation` | **REQUIRED** | [analyses/06-solar-radiation.md](references/analyses/06-solar-radiation.md) | [interpretation/solar-results.md](references/interpretation/solar-results.md) |
 | Outdoor thermal comfort? | `thermal-comfort-index` (UTCI) | **REQUIRED** | [analyses/07-thermal-comfort-utci.md](references/analyses/07-thermal-comfort-utci.md) | [interpretation/thermal-results.md](references/interpretation/thermal-results.md) |
 | % of time uncomfortable per year? | `thermal-comfort-statistics` (TCS) | **REQUIRED** | [analyses/08-thermal-comfort-statistics.md](references/analyses/08-thermal-comfort-statistics.md) | [interpretation/thermal-results.md](references/interpretation/thermal-results.md) |
-| Daylight **inside** a room? | `daylight-factor` | no | [analyses/10-interior-daylight-energy.md](references/analyses/10-interior-daylight-energy.md) | same reference |
-| Heating/cooling demand per zone? | `energy-balance` | no (climate arrays) | [analyses/10-interior-daylight-energy.md](references/analyses/10-interior-daylight-energy.md) | same reference |
+| Daylight **inside** a room? | `daylight-factor` | no | [analyses/10-interior-daylight-factor.md](references/analyses/10-interior-daylight-factor.md) | same reference |
 
-### The last two are INTERIOR models
+### `daylight-factor` is an INTERIOR model
 
-No polygon, no Area API — `run_area()` rejects them — and their entities use a **nested** mesh shape
-where the flat outdoor shape silently yields an empty occluder. `energy-balance` output is currently
-unreliable. Read
-[analyses/10-interior-daylight-energy.md](references/analyses/10-interior-daylight-energy.md) first.
+No polygon, no Area API — `run_area()` rejects it — and its entities use a **nested** mesh shape
+where the flat outdoor shape silently yields an empty occluder. Read
+[analyses/10-interior-daylight-factor.md](references/analyses/10-interior-daylight-factor.md) first.
 
 ### Weather is not optional for the four marked REQUIRED
 
@@ -95,7 +93,7 @@ If you see either, you omitted weather data — add it via the snippet above and
 |---|---|
 | Area API / tiling / AreaResult / cost preview | [05-area-api.md](references/05-area-api.md) |
 | Facade / roof / BYO-sensor analysis + terrain draping | [analyses/09-facade-terrain.md](references/analyses/09-facade-terrain.md) |
-| Interior geometry preparation (rooms, windows, per-window glazing, sensor grids) | [analyses/10-interior-daylight-energy.md](references/analyses/10-interior-daylight-energy.md) |
+| Interior geometry preparation (rooms, windows, per-window glazing, sensor grids) | [analyses/10-interior-daylight-factor.md](references/analyses/10-interior-daylight-factor.md) |
 | Async runs / `AreaSchedule` / single-tile primitives | [async-and-jobs.md](references/async-and-jobs.md) |
 | Webhooks / Standard Webhooks v1 / verification | [06-webhooks.md](references/06-webhooks.md) |
 | Image generation (PNG output) | [07-images.md](references/07-images.md) |
