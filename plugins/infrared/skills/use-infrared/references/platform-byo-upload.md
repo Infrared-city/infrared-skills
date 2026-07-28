@@ -37,10 +37,18 @@ people up, so check the entry point before blaming the file:
 | **Create-project card — a layer row's Upload button** | `.geojson` `.json` only — **`.obj` is NOT accepted here**; use the drop zone |
 | Create-project card — the Weather row | `.epw` |
 
-`.ifc` and `.bim` (DotBim) are declared in the format registry but their
-adapters are **disabled** — they are rejected today. Do not offer them. GLB was
-dropped and is not coming back. Anything else (`.shp`, `.dxf`, `.gltf`, `.csv`,
-`.kml`) is not accepted; convert to GeoJSON first.
+`.ifc` is declared in the format registry but its adapter is a **disabled stub**
+— rejected today. Do not offer it. GLB was dropped and is not coming back.
+Anything else — `.bim` (DotBim), `.shp`, `.dxf`, `.gltf`, `.csv`, `.kml` — has no
+adapter at all and fails as `Unsupported file type`; convert to GeoJSON first.
+
+> `.bim` is **not** a declared-but-disabled format: `format-adapters/index.ts`
+> registers only GeoJSON (enabled) plus tree/surface/IFC stubs. That file's own
+> header comment claims "GeoJSON, Shapefile, and .bim (DotBim)" and contradicts
+> its adapter list — a stale comment in the platform, not a format that exists.
+> (`DotBimMesh` in that codebase is an internal in-memory mesh type, unrelated to
+> a `.bim` upload.) Outcome for a user is the same — rejected — but don't
+> describe it as disabled-but-declared.
 
 An `.obj` dropped on **any** geometry layer row is routed to the shared
 multi-kind OBJ importer, not to that row's layer — so dropping a model on the
@@ -76,6 +84,14 @@ Removing an uploaded layer reverts that row to the SDK fetch source.
 
 Uploading never triggers an SDK fetch, and uploaded layers are what the
 simulations actually run against.
+
+**You do not have to upload all four layers.** There are four independent layer
+kinds — buildings, trees, ground surfaces, weather — and each defaults to the SDK
+fetch source (`input-source-registry.ts`: every kind is `default: 'sdk'`,
+`defaultBundle: true`). A layer you never upload behaves exactly like one you
+uploaded and then removed: it is fetched. So uploading only buildings and trees
+is a normal, fully runnable project — the ground map and weather come from the
+fetch path, and the scenario runs. Upload only what you actually want to override.
 
 ## Where files go on disk
 
@@ -154,13 +170,24 @@ my-site/
 
 ## Buildings — `FeatureCollection` of footprints
 
+> **Every key in the table below is read from the feature's `properties` object** —
+> `height_m`, `kind` and all the height synonyms live under `properties`, never at
+> the Feature's top level. Same as Trees and Surfaces, which spell it out as
+> `properties.height` / `properties.material`.
+>
+> ```json
+> { "type": "Feature",
+>   "properties": { "height_m": 24, "kind": "office" },
+>   "geometry": { "type": "Polygon", "coordinates": [[[16.371,48.208],[16.372,48.208],[16.372,48.209],[16.371,48.209],[16.371,48.208]]] } }
+> ```
+
 | Rule | Value |
 |---|---|
 | Geometry | `Polygon` / `MultiPolygon` (others silently dropped; zero polygons ⇒ reject). MultiPolygons are split into one feature per part |
 | Height property | `height_m`, metres — see the resolution order below |
 | Missing height | defaults to **10 m** |
 | Height clamp | **3–200 m** (clamped, not rejected) |
-| Optional | `kind`: `residential` \| `office` \| `tower` (display colour only; defaults to `residential`) |
+| Optional | `kind`: `residential` \| `office` \| `tower` (display colour only; defaults to `residential`). **Case-sensitive and unvalidated** — any string passes through as-is, so `"Residential"` is stored verbatim and simply won't match a known colour. Lowercase exactly (`geojson-adapter.ts:203`) |
 | Dropped | features with `material: "vegetation"` (those are surfaces) |
 | Caps | ≤ 40 MB, ≤ 100,000 features (counted after MultiPolygon splitting) |
 | Rings | closed (first == last), exterior ring first, holes after |
@@ -346,7 +373,8 @@ you only notice in the result.
 | `you already added a <kind> file — replace it from the <kind> row instead.` | A 2nd trees/surfaces file in one drop — **aborts the whole drop** | Upload it separately |
 | `Not a valid .epw weather file — …` / `no usable weather readings.` | Missing `LOCATION`, a data row under 22 columns, or all dry-bulb values missing | Use an unmodified TMY/AMY file |
 | `No plausible unit found …` | OBJ whose extent is implausible at every unit | Check the export scale |
-| `Unsupported file type.` / format `not enabled yet` | `.ifc`, `.bim`, or anything unrecognised | Convert to GeoJSON |
+| format `not enabled yet` | `.ifc` — registered but a disabled stub | Convert to GeoJSON |
+| `Unsupported file type.` | `.bim`, `.shp`, `.dxf`, `.gltf`, `.csv`, `.kml` — no adapter at all | Convert to GeoJSON |
 
 ### Silent corrections — no error, wrong-looking result
 
