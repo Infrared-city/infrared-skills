@@ -15,7 +15,10 @@ license: Apache-2.0
 
 1. Read **[00-setup.md](references/00-setup.md)** — install, auth, client init, Python 3.9+ requirement
 2. Identify the analysis type → read its reference file from the table in *Choosing an analysis* below
-3. If the user brings their own geometry/buildings → also read **[byo-inputs.md](references/byo-inputs.md)**
+3. If the user brings their own geometry/buildings → **pick the right path first, they are different things:**
+   - Data goes into **SDK calls** (in-memory payloads, your own Python) → **[byo-inputs.md](references/byo-inputs.md)**
+   - Data goes into the **platform** as **files** (platform.infrared.city — "Bring your own data" at project creation, or the Data-layers panel) → **[platform-byo-upload.md](references/platform-byo-upload.md)**
+   - If the user just says "get my data into Infrared" without saying which, **ask** — the file contracts are not interchangeable.
 4. If async, webhooks, or multi-tile → also read **[async-and-jobs.md](references/async-and-jobs.md)**
 
 Do not skip step 2. The analysis file is the authoritative payload shape — not your training data.
@@ -43,7 +46,7 @@ and a reviewer reading your output cannot tell. One pass and you are immune.
 ## Default workflow
 
 Most users bring their own data (BIM/Rhino/IFC/GeoJSON footprints, custom landscapes, proposed-scenario ground). Ask before falling back to the SDK fetch path.
-→ **BYO (default):** [byo-inputs.md](references/byo-inputs.md) — **Prototype with fetched data:** [01-quickstart.md](references/01-quickstart.md)
+→ **BYO via SDK (default):** [byo-inputs.md](references/byo-inputs.md) — **BYO as files into the platform:** [platform-byo-upload.md](references/platform-byo-upload.md) — **Prototype with fetched data:** [01-quickstart.md](references/01-quickstart.md)
 
 ## Setup and basics
 
@@ -56,7 +59,7 @@ Most users bring their own data (BIM/Rhino/IFC/GeoJSON footprints, custom landsc
 | Time period / weather window | [03-time-period.md](references/03-time-period.md) |
 | Weather data / EPW | [04-weather-data.md](references/04-weather-data.md) |
 | Bring your own buildings / trees / ground | [byo-inputs.md](references/byo-inputs.md) |
-| Platform FILE upload (GeoJSON/.epw formats, projections, caps) | [platform-byo-upload.md](references/platform-byo-upload.md) |
+| Platform FILE upload (GeoJSON/.obj/.epw formats, projections, caps) | [platform-byo-upload.md](references/platform-byo-upload.md) |
 
 ## Execution styles
 
