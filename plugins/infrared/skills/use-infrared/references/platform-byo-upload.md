@@ -13,6 +13,109 @@ It is distinct from the SDK's in-memory BYO path ([byo-inputs.md](byo-inputs.md)
   buildings/surfaces + Baumkataster trees + real EPWs) shaped into four visibly
   different, drag-and-drop scenarios. Use this one for demos.
 
+## Layers and accepted formats
+
+A project scenario has exactly **four** uploadable layers. There is no terrain
+layer, no separate context layer, and no site-boundary upload — the boundary is
+derived (see *Coordinates*), and terrain is not user-supplied at all.
+
+| Layer | What it is | Upload formats |
+|---|---|---|
+| `buildings` | Footprints, extruded to 3D on upload | `.geojson` / `.json` · `.obj` |
+| `trees` | Tree points → canopy meshes | `.geojson` / `.json` · `.obj` |
+| `materials` | Ground-surface classification polygons | `.geojson` / `.json` · `.obj` |
+| `weather` | Hourly climate file | `.epw` |
+
+**Which extensions actually work depends on where you drop them** — this trips
+people up, so check the entry point before blaming the file:
+
+| Entry point | Accepts |
+|---|---|
+| Multi-file drop zone (creation card, Data-layers panel, add-scenario form) | `.geojson` `.json` `.epw` **`.obj`** |
+| Data-layers panel — a layer row's Upload button | `.geojson` `.json` **`.obj`** |
+| Data-layers panel — the Weather row | `.epw` |
+| **Create-project card — a layer row's Upload button** | `.geojson` `.json` only — **`.obj` is NOT accepted here**; use the drop zone |
+| Create-project card — the Weather row | `.epw` |
+
+`.ifc` and `.bim` (DotBim) are declared in the format registry but their
+adapters are **disabled** — they are rejected today. Do not offer them. GLB was
+dropped and is not coming back. Anything else (`.shp`, `.dxf`, `.gltf`, `.csv`,
+`.kml`) is not accepted; convert to GeoJSON first.
+
+An `.obj` dropped on **any** geometry layer row is routed to the shared
+multi-kind OBJ importer, not to that row's layer — so dropping a model on the
+trees row can still import buildings and surfaces from it.
+
+## How the upload happens
+
+**Two entry paths.** Both end in the same parsers, so the file contract is
+identical; what differs is whether a site already exists.
+
+**A. At project creation — "Bring your own data".**
+1. Drop your files (or a folder) on the creation card's drop zone, or attach
+   them one at a time to the per-layer rows.
+2. Each file is classified by **content** onto a layer and lands *staged* on
+   that layer's row, showing its filename. Re-assign or replace anything the
+   guess got wrong before continuing.
+3. The site boundary + centroid are derived from the union of the accepted
+   geometry, so **at least one geometry file is required** — an `.epw`-only drop
+   cannot create a project.
+4. *Create project* commits the staged files. A metric/no-CRS file cannot be
+   used here (nothing tells the platform where the project is) — create the
+   project from a geo-referenced file or a picked location first.
+5. An `.obj` takes a different route: it starts a *model-anchored* project where
+   you pick the location on the map and the boundary comes from the model
+   footprint.
+
+**B. After creation — the Data-layers panel.** Uploads apply to the **active
+scenario**. Use a layer row's Upload button to set/replace one layer, or the
+panel's drop zone for several at once. This is the only path that accepts
+local-coordinate files: they are auto-centred on the site and you position them
+with the on-map placement gimbal, after which the layer stays movable ("Adjust").
+Removing an uploaded layer reverts that row to the SDK fetch source.
+
+Uploading never triggers an SDK fetch, and uploaded layers are what the
+simulations actually run against.
+
+## Where files go on disk
+
+There is **no manifest and no required filename** — every GeoJSON is classified
+by its *content*, so `export_3.geojson` works as well as `buildings.geojson`.
+Names are still worth setting: they are what the staged rows and every error
+toast show you, and post-creation they become the variant scenario's name.
+
+A complete single-scenario set is four files in one flat folder:
+
+```
+my-site/
+  buildings.geojson    FeatureCollection of Polygon/MultiPolygon footprints
+  trees.geojson        FeatureCollection of Points
+  surfaces.geojson     FeatureCollection of Polygons tagged properties.material
+  weather.epw          EnergyPlus weather file
+```
+
+- **One file per layer.** Do not split buildings across two files in one drop —
+  the second polygon file becomes a *design-variant scenario*, not more
+  buildings. Merge them into one FeatureCollection first.
+- Extra buildings files are the *only* intentional way to create variants:
+  ```
+  my-site/
+    buildings.geojson    → baseline scenario
+    proposal-a.geojson   → a variant scenario
+    proposal-b.geojson   → a variant scenario
+    trees.geojson  surfaces.geojson  weather.epw
+  ```
+  **The variant's name depends on where you drop it:** at project creation the
+  filename is ignored and variants are named `Variant A`, `Variant B`, … in drop
+  order; dropped on the Data-layers panel afterwards, the variant takes the
+  filename without its extension. Only the baseline scenario gets the trees /
+  surfaces / weather from the same drop — variants carry buildings only.
+- Sub-folders are fine (a dropped folder is recursed 4 levels, 64 files max),
+  but organise by *scenario*, not by layer — a folder per layer buys nothing
+  since classification ignores paths.
+- Files starting with `.` are skipped; so is anything that is not
+  `.geojson` / `.json` / `.epw` / `.obj`.
+
 ## Coordinates — every GeoJSON file
 
 - **CRS: EPSG:4326 (WGS84)**, GeoJSON axis order **[longitude, latitude]**.
@@ -176,12 +279,14 @@ site. One file can carry buildings, trees **and** ground surfaces at once.
 - Several OBJs exported from the same model (buildings, then trees) align
   automatically when re-uploaded into the same scenario.
 
-## Multi-file drop — content classification (project creation)
+## Multi-file drop — content classification
 
 Files — or a whole dropped **folder** (recursed; `.geojson`/`.json`/`.epw`/`.obj`
-only, ≤64 files, ≤4 levels deep) — are classified by **content**. The same drop
-zone exists in the create card, the Data-layers panel (applies to the active
-scenario), and the add-scenario form:
+only, ≤64 files, ≤4 levels deep) — are classified by **content**, never by
+filename or path. The same drop zone and the same classifier serve the create
+card, the Data-layers panel (applies to the active scenario), and the
+add-scenario form — including the "extra buildings file ⇒ variant scenario"
+rule, which fires in all three:
 
 | Content | Layer |
 |---|---|
@@ -206,6 +311,57 @@ proceeds. Only a drop with nothing usable at all fails outright.
 still aborts the whole drop with an error. Only buildings files may repeat (they
 become variants). Upload the replacement separately from its layer row.
 
+In a mixed GeoJSON + OBJ drop the GeoJSON layers are written first and each kind
+is **claimed by its first successful writer** — an OBJ bucket for a kind a
+GeoJSON file already filled is skipped with a note. Put a kind in one source or
+the other, not both.
+
+## Failure modes — the error you'll see and what causes it
+
+Rejections are per-file and the message names the file. Everything in the first
+group **rejects the file**; everything in the second is a **silent correction**
+you only notice in the result.
+
+### Hard rejects
+
+| Error | Cause | Fix |
+|---|---|---|
+| `File too large — max 40 MB.` | Buildings/surfaces file over the cap | Simplify or split |
+| `File is too large (… MB). Maximum allowed size is 5 MB.` | Trees file over the **5 MB** tree-specific cap | Thin the point set |
+| `Too many features (…). Max 100,000` | Buildings file over the feature cap | Split or simplify |
+| `File is not valid JSON.` / `Invalid JSON.` | Truncated or non-JSON file | Re-export |
+| `Expected a GeoJSON FeatureCollection.` / `The file has no features.` | Bare geometry, bare Feature, or an empty FC | Wrap in a FeatureCollection with ≥ 1 feature |
+| `No building polygons found in this file.` | A trees/surfaces file sent to the buildings row | Use the drop zone or the right row |
+| `Tree imports must contain only Point features. Found '<type>'.` | Any non-`Point` in a trees file (incl. `MultiPoint`) | One `Point` per tree |
+| `Coordinates use EPSG:<n>, an unsupported projected CRS.` | Declared CRS outside the supported set | Re-export as EPSG:4326 |
+| `This file's coordinates aren't longitude/latitude …` | Projected metres, no `crs`, no safe swap — **at project creation** | Create from a geo-referenced file/location, then upload via Data layers |
+| `This file appears mislocated for this project — … lat/lon order …` | Swapped axes confirmed against the project centroid | Re-export as `[lon, lat]` |
+| `This geometry looks mislocated (implausibly large span or near a pole).` | File spans > 2°/axis or sits near a pole | Crop; check the CRS |
+| `Uploaded geometry spans … km² — exceeds the 10 km² upload cap.` | Union extent too large | Crop or split into projects |
+| `This geometry doesn't overlap your site …` | File belongs to a different site | Start a new project from it |
+| `No valid building footprints found — every polygon was empty or degenerate.` | Zero-area / malformed rings | Fix ring geometry |
+| `No trees could be imported …` / `No polygons fell inside the site boundary.` | Everything clipped away | Check it overlaps the site |
+| `This surfaces file mixes lon/lat layers with local-coordinate layers` | Dict form with inconsistent CRS across members | One coordinate system for all members |
+| `only one .epw weather file per project.` | Two `.epw`s in one drop | Drop one |
+| `you already added a <kind> file — replace it from the <kind> row instead.` | A 2nd trees/surfaces file in one drop — **aborts the whole drop** | Upload it separately |
+| `Not a valid .epw weather file — …` / `no usable weather readings.` | Missing `LOCATION`, a data row under 22 columns, or all dry-bulb values missing | Use an unmodified TMY/AMY file |
+| `No plausible unit found …` | OBJ whose extent is implausible at every unit | Check the export scale |
+| `Unsupported file type.` / format `not enabled yet` | `.ifc`, `.bim`, or anything unrecognised | Convert to GeoJSON |
+
+### Silent corrections — no error, wrong-looking result
+
+| Symptom | Cause |
+|---|---|
+| Buildings all the same height | No recognised height property ⇒ everyone gets the 10 m default |
+| One building far too short/tall | Value clamped into 3–200 m |
+| A building is missing | Non-polygon geometry, or `material: "vegetation"` — both dropped |
+| Trees all identical (8 m / 5 m crown) | `height`/`crownDiameter` missing or out of range ⇒ **both** replaced |
+| Fewer trees than expected | Clipped to the site, then capped at 500 |
+| Every surface came in as `concrete` | Tagged with `properties.surface` instead of `properties.material`, or unrecognised names |
+| Surfaces missing | Aggregate 500-polygon cap — later materials truncated first |
+| Analysis covers less than you uploaded | Extent > 6 km² ⇒ AOI centred and shrunk; geometry kept as context |
+| Geometry landed centred on the site, not where you meant | Metric no-CRS file auto-placed — use *Adjust* to position it |
+
 ## Validation status
 
 Both committed sample sets were run through the platform's actual upload parsers
@@ -214,8 +370,3 @@ on 2026-07-03 — all files accepted with **zero fallbacks, zero defaulted
 materials, zero dropped features**. The real-data Vienna set additionally covers
 building relations/courtyards, 500-tree density, and real Vienna + Madrid EPWs.
 The rules above were re-verified against `forge-kit@origin/main` on 2026-07-28.
-
-The Python generators that produced these sets (`demo_platform_upload_files.py`,
-`demo_vienna_scenarios.py`, `demo_vienna_osm.py`) were removed from
-`cookbook/scripts/` on 2026-07-22 by the automated cookbook sync — the committed
-sample data under `cookbook/sample-data/` is unaffected and remains valid.
