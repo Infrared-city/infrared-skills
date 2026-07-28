@@ -327,7 +327,10 @@ rule, which fires in all three:
 One file per layer (extra buildings files become variants); **at least one
 geometry file** (buildings/trees/surfaces/OBJ) is required to place the site.
 Every guess lands staged on its layer row and can be swapped before
-*Create project*. Max **40 MB** per file.
+*Create project*. Per-file size caps are **per layer**, not a flat 40 MB:
+buildings and surfaces **40 MB**, trees **5 MB**. A 10 MB trees file is rejected
+by the tree parser even though it is well under the geometry cap — see the
+per-layer caps above.
 
 Failure handling is per-file, not per-batch: a file that is unreadable (bad JSON
 / not a FeatureCollection), fails its layer's validation, or fails its own
