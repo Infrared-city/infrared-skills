@@ -22,6 +22,16 @@ Every entry in `result.surfaces` is keyed `"{building-id}/{surface-index}"` — 
   Handle both shapes: check for the key on `cell_tris` **and** `cell_area`, do not
   assume either is there.
 
+> **The crisp-vs-light trade is temporary.** Today Route 2's exact outlines cost
+> you the triangle arrays, so the choice is "crisp but heavy" versus "light but
+> cell-stepped" (Route 1 / the quad fallback). Work is under way to let a client
+> reproduce the server's cell clipping locally, from geometry it already holds —
+> Route 2 quality on an `emit_cell_tris=False` payload. Nothing in this document
+> becomes wrong when that lands; the fallback paths stay valid either way. Until
+> then: if a facade result feels slow to download, that is the triangle arrays,
+> and `emit_cell_tris=False` is the lever — which is why both SDKs already
+> default it to `False`.
+
 `origin` is the **centre of cell (0, 0)**, not a corner. So:
 
 ```
