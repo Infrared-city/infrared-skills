@@ -13,7 +13,7 @@ Returns a 2-D `merged_grid` of wind magnitude in **m/s** at pedestrian level (~1
 | 3.5–6 | Breezy |
 | > 6 | Strong / uncomfortable for sitting |
 
-`wind_speed` payload field is `int` 1–100. Don't pass floats from weather data.
+`wind_speed` payload field is a **`float`** in m/s, `0 ≤ v ≤ 100` (SDK 0.5.1+) — pass an EPW-derived mean as-is; truncating 3.9 to 3 shifts every cell by −23 %. `wind_direction` is a whole-degree `int` `0–360`; a fractional bearing is rejected at construction.
 
 **Pitfalls:** single-direction snapshot (run several to estimate annual exposure); `wind_direction=270` means wind **from** the west; NaN ≠ zero; **if you see grid-aligned discontinuities on multi-tile runs**, switch from the default centre-crop merge to `merge_area_jobs(strategy="directional_blend", wind_direction_deg=...)` — see [`../05-area-api.md#merging-strategies`](../05-area-api.md#merging-strategies).
 
