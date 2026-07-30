@@ -35,7 +35,16 @@ For true BYO from a BIM model (Rhino/Revit/IFC → DotBim), you build the same d
 
 ## Vegetation (`AreaVegetation`)
 
-Format: `dict[str, GeoJSON Feature]` — keyed by dedup id (e.g. OSM tree id); each Feature is a Point with `geometry.coordinates = [lon, lat]` and `properties` carrying tree attributes (species, crown radius, height, etc.).
+Format: `dict[str, GeoJSON Feature]` — keyed by dedup id (e.g. OSM tree id); each Feature is a Point with `geometry.coordinates = [lon, lat]` and `properties` carrying tree attributes.
+
+**Tree size is read ONLY from these property keys** — anything else (e.g. `crown_radius`, `treeHeight`) is silently ignored and the tree simulates at the default size (6 m tall, 4 m crown). No error is raised anywhere; the SDK emits a `UserWarning` when it spots size-like keys outside this set:
+
+| Dimension | Keys (first parseable wins) |
+|---|---|
+| Height (m) | `height`, `height_m` |
+| Crown **diameter** (m) | `crownDiameter`, `diameter_crown`, `diameter_m`, `crown_m` |
+
+Values may be numbers or OSM-style strings (`"12 m"`, `"5,5"`). All crown keys are the **diameter**, not the radius — a radius under these keys makes every tree half as wide as intended. Trees with no size keys at all deliberately get the defaults.
 
 ```python
 area_veg = client.vegetation.get_area(polygon)
