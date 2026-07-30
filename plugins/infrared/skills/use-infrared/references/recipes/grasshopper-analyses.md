@@ -238,7 +238,12 @@ def surface_result_to_mesh(result, origin_xy, lo, hi):
         added = m.Vertices.AddVertices([rg.Point3f(*p) for p in verts])
         for a, b, cc, d in faces:
             m.Faces.AddFace(a, b, cc, d)
-        m.VertexColors.SetColors([sd.Color.FromArgb(255, *c) for c in cols])
+        # colour_of already returns a System.Drawing.Color from the LUT --
+        # do NOT splat it into FromArgb again. A Color is not iterable, so
+        # `FromArgb(255, *c)` raises TypeError on every non-empty result,
+        # AFTER the analysis has been billed. Hand the Colors over directly;
+        # it is also one fewer marshalled call per vertex.
+        m.VertexColors.SetColors(System.Array[sd.Color](cols))
         m.Normals.ComputeNormals()
         # NEVER Compact(): it drops unused vertices and RE-INDEXES the rest,
         # which the parallel colour list does not follow. Because masked cells
