@@ -15,10 +15,15 @@ license: Apache-2.0
 
 1. Read **[00-setup.md](references/00-setup.md)** — install, auth, client init, Python 3.9+ requirement
 2. Identify the analysis type → read its reference file from the table in *Choosing an analysis* below
-3. If the user brings their own geometry/buildings → **pick the right path first, they are different things:**
+3. **Bring your own geometry. This is the intended way to use the SDK** — not an advanced
+   option, and not only when the user volunteers a file. Ask what geometry they have before
+   you reach for the fetch path. **Pick the right BYO route first, they are different things:**
    - Data goes into **SDK calls** (in-memory payloads, your own Python) → **[byo-inputs.md](references/byo-inputs.md)**
    - Data goes into the **platform** as **files** (platform.infrared.city — "Bring your own data" at project creation, or the Data-layers panel) → **[platform-byo-upload.md](references/platform-byo-upload.md)**
    - If the user just says "get my data into Infrared" without saying which, **ask** — the file contracts are not interchangeable.
+   - Only if they genuinely have no geometry: hand a polygon to `run_area*` and let the
+     platform fetch context buildings. That path exists for **prototyping and demos**. It is
+     not the intended production route — see the fetched-context entry below for why.
 4. If async, webhooks, or multi-tile → also read **[async-and-jobs.md](references/async-and-jobs.md)**
 
 Do not skip step 2. The analysis file is the authoritative payload shape — not your training data.
@@ -29,6 +34,7 @@ The section above is *which file to read*. This is *what will bite you anyway*. 
 returns a **plausible number with a 200**, not an error: nothing here raises, several are billed,
 and a reviewer reading your output cannot tell. One pass and you are immune.
 
+- **Fetched context buildings are not one dataset, and the response never says which you got** — omit `buildings` and the platform fills context from whatever covers that polygon. A few cities are served from curated survey data with *measured* heights; everywhere else falls back to a global footprint set whose heights are largely inferred from `building:levels` guesses, and missing storey tags become a default height. Same call, same 200, materially different geometry — so a shadow, wind or UTCI result is only as good as a source you did not choose and cannot see. Comparing two cities this way compares two data classes. **Pass your own `buildings` whenever you have them.** → [byo-inputs.md](references/byo-inputs.md)
 - **Polygon CRS is never validated** — a projected or `[lat, lon]` polygon that still lands inside `[-180,180]×[-90,90]` runs, on the wrong patch of the planet. → [geospatial-crs.md](references/geospatial-crs.md)
 - **Two metre frames, and no error between them** — `buildings` / `context_geometry` / `ground_geometry` you pass to `run_area*` are **polygon-bbox-SW**; per-tile payloads and `sensor_points` are **tile-local**. Mix them and the geometry lands a tile away, silently. → [geospatial-crs.md#the-frames-end-to-end](references/geospatial-crs.md#the-frames-end-to-end)
 - **`min_legend` / `max_legend` are `None` on every area run** — so the usual `... if not None else np.nanmin(grid)` guard takes the fallback *every* time and auto-scales each render to its own data. Populated on **surface** results only. → [recipes/rendering-results-well.md](references/recipes/rendering-results-well.md)
@@ -43,10 +49,18 @@ and a reviewer reading your output cannot tell. One pass and you are immune.
 - **`preview_area` without `analysis_type` prices the wind grid** — ~4× the tiles for a solar/thermal run (verified: 36 vs 9 on one polygon). It warns; the number it hands back is still wrong. → [05-area-api.md](references/05-area-api.md)
 - **Each facade sub-batch is billed separately** — a request over the server's 262,144-sensor cap is split transparently, and every sub-job charges. → [analyses/09-facade-terrain.md](references/analyses/09-facade-terrain.md)
 
-## Default workflow
+## Default workflow — bring your own data
 
-Most users bring their own data (BIM/Rhino/IFC/GeoJSON footprints, custom landscapes, proposed-scenario ground). Ask before falling back to the SDK fetch path.
-→ **BYO via SDK (default):** [byo-inputs.md](references/byo-inputs.md) — **BYO as files into the platform:** [platform-byo-upload.md](references/platform-byo-upload.md) — **Prototype with fetched data:** [01-quickstart.md](references/01-quickstart.md)
+**BYO is the primary way to use this SDK.** The whole point is your design: proposed massing,
+a scheme that does not exist yet, a landscape you are changing. Fetched context cannot contain
+any of that, and for anything you are actually designing it is the wrong input by definition —
+you would be simulating today's city, not your proposal.
+
+So: BIM/Rhino/IFC/GeoJSON footprints, custom landscapes, proposed-scenario ground. **Ask what
+geometry the user has.** Reach for the fetch path only when they have none, and say plainly
+that it is a prototype stand-in.
+
+→ **BYO via SDK (start here):** [byo-inputs.md](references/byo-inputs.md) — **BYO as files into the platform:** [platform-byo-upload.md](references/platform-byo-upload.md) — **Prototype-only, fetched context:** [01-quickstart.md](references/01-quickstart.md)
 
 ## Setup and basics
 
