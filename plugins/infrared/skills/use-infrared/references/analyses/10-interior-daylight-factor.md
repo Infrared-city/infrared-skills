@@ -37,7 +37,7 @@ Interior entities are **nested** — unlike the six outdoor grid models, which t
 
 **The flat shape is not rejected server-side.** The entity is read as having no geometry, skipped,
 and the analysis runs against an empty occluder — a near-uniform, meaningless field returned with
-HTTP 200. The signature is a perfectly uniform field, at whatever value the floor in section 6 gives. `to_interior_entity()` converts, and the
+HTTP 200. The signature is a perfectly uniform field — since the 2026-08 server change (lambda-models#234/#239) at ~0 % rather than the old 2 % floor. `to_interior_entity()` converts, and the
 SDK rejects the flat form for you.
 
 **Two fields are the exception and take the FLAT shape:** `ground_geometry` and `vegetation`. One
@@ -125,14 +125,18 @@ openings = {
 Glazing is read **only from `openings`** — an aperture filed under `barriers` or `context_geometry`
 is fully opaque, and the result is a flat field rather than an error.
 
-Measured once on a single test room, identical windows on opposite walls at 0.9 / 0.1: half-field
-means of 8.20 and 3.51. Treat the ratio as indicative, not the absolute values — and note the
-floor described in section 6, which is included in both. The wire key is exactly `openingFactor` — any other spelling is ignored and the window
+Measured once (pre-2026-08 server) on a single test room, identical windows on opposite walls at
+0.9 / 0.1: half-field means of 8.20 and 3.51. Treat the ratio as indicative, not the absolute
+values — both included the since-removed 2 % floor, so absolute numbers read lower today and the
+glazing ratio reads truer (the floor compressed it). The wire key is exactly `openingFactor` — any other spelling is ignored and the window
 silently becomes a **clear pane (1.0)**. Valid range `[0, 1]`; there is no server-side clamp, so an
 out-of-range value yields a daylight factor above 100 % or below zero.
 
 **Two different scopes — do not flatten them:** `openingFactor` is per *opening*, while
-`room_reflectances` / `window_area` / `exterior_ground_reflectance` are per *request*. **Set
+`room_reflectances` / `window_area` / `exterior_ground_reflectance` are per *request*. Note
+`exterior_ground_reflectance` is accepted but currently has NO effect (since lambda-models#239; a
+work-plane sensor cannot see the ground directly — reactivation tracked in lambda-models#241), so
+sweeping it produces distinct billed runs with identical results. **Set
 `window_area` to your real glazing area** — it feeds the internally-reflected term and is not
 derived from your `openings`; omitting it silently uses a hardcoded 2.0 m². Reflectance keys are exactly `floor` / `walls` / `ceiling` — a
 misspelled key silently uses the default (0.2 / 0.5 / 0.7).
@@ -146,6 +150,10 @@ component, a single scalar added uniformly to every sensor:
 DF = (SC + ERC + IRC) / 10,000 lux x 100
 IRC = mean(SC) x window_area x rho_avg / (floor_area x (1 - rho_avg))
 ```
+
+Since 2026-08 (lambda-models#239), ERC is *traced*: buildings seen through your `openings`
+re-emit 10 % of the sky they hide. It is 0 for a sealed room, 0 without `openings`, and it no
+longer adds a flat `exterior_ground_reflectance x 10` floor to every sensor.
 
 Its effect therefore scales with `window_area / floor_area`. Measured on staging, taking
 `window_area` from 2 to 16 m² (8x) with everything else fixed: an 8 x 8 m room moved
@@ -211,9 +219,13 @@ values = [p["df"] for p in result["output"]]
 assert len(set(values)) > 1, "uniform field — the occluder was empty"
 ```
 
-**Always check for a uniform field** — it is the one failure that looks like a success. For a daylit
-room, 1–2 % is dim, 2–5 % normal, > 5 % generously glazed, and values should fall off sharply away
-from the aperture. A flat field means something never reached the model.
+**Always check for a uniform field in a room that HAS `openings`** — it is the one failure that
+looks like a success (a deliberately sealed or opening-less room correctly returns uniform 0.0;
+that is the answer, not a failure). Reading bands since the 2026-08 server change (the old 2 %
+floor is gone, so deep sensors read lower): under ~1 % is dim, ~1.5–4 % normal for a daylit room,
+> 4–5 % generously glazed — and values should fall off sharply away from the aperture. A flat
+nonzero field, or an implausibly dark field with an intact gradient (a misaligned neighbour
+pressed against the window), means something never reached the model correctly.
 
 Compute is fast (~0.1 s); the wait is queue time (~20 s). Payload size is not the driver, so there
 is nothing to gain from splitting a request that already fits.
