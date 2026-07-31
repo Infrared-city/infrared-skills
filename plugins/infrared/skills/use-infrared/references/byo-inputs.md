@@ -37,7 +37,7 @@ For true BYO from a BIM model (Rhino/Revit/IFC → DotBim), you build the same d
 
 Format: `dict[str, GeoJSON Feature]` — keyed by dedup id (e.g. OSM tree id); each Feature is a Point with `geometry.coordinates = [lon, lat]` and `properties` carrying tree attributes.
 
-**Tree size is read ONLY from these property keys** — anything else (e.g. `crown_radius`, `treeHeight`) is silently ignored and the tree simulates at the default size (6 m tall, 4 m crown). No error is raised anywhere; the SDK emits a `UserWarning` when it spots size-like keys outside this set:
+**Tree size is read ONLY from these property keys** — anything else (e.g. `crown_radius`, `treeHeight`) is silently ignored and the tree simulates at the server's default size instead of yours (today: 6 m tall, 4 m crown). No error is raised anywhere. The SDK warns (`UserWarning`) when a property key both *looks* size-like (`height`/`crown`/`diameter`) **and** holds a value that parses as a dimension — so a metadata field like `height_confidence: "low"` is not flagged, but `crown_radius: 4.5` is:
 
 | Dimension | Keys (first parseable wins) |
 |---|---|
