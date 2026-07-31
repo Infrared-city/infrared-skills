@@ -31,6 +31,10 @@ area = client.buildings.get_area(polygon)
 my_buildings = area.buildings   # ready to pass through
 ```
 
+`area.buildings` is a **`dict[str, DotBimMesh]`** keyed by building id — not GeoJSON. A
+FeatureCollection-shaped read (`area.buildings.get("features")`) silently yields nothing;
+count buildings with `len(area.buildings)`.
+
 For true BYO from a BIM model (Rhino/Revit/IFC → DotBim), you build the same dict yourself. The DotBim format is documented at <https://github.com/paireks/dotbim>; each entry needs `coordinates: list[float]` (flat XYZ, length = 3 × N vertices), `indices: list[int]` (flat triangulation, length = 3 × N faces), and a few metadata fields.
 
 ## Vegetation (`AreaVegetation`)

@@ -45,7 +45,7 @@ result = client.merge_area_jobs(
 
 ## Response
 
-`result.merged_grid` is a 2D `float` numpy array of wind speed in m/s at pedestrian height. `result.min_legend` / `max_legend` give the canonical color-scale bounds for plotting. `succeeded` / `failed` describe per-tile execution.
+`result.merged_grid` is a 2D `float` numpy array of wind speed in m/s at pedestrian height. `result.min_legend` / `max_legend` give the canonical color-scale bounds for plotting. Per-tile execution lives in `result.succeeded_jobs` / `result.total_jobs` (ints) and `result.failed_jobs` / `result.skipped_jobs` (lists of job ids) — there is no `result.succeeded` / `result.failed`; those names exist only on the `AreaState` returned by `check_area_state()`.
 
 ## Pitfalls
 
