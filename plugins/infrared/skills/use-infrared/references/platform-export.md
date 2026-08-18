@@ -14,8 +14,9 @@ The dialogs sit behind the build flag `VITE_PROJECT_PORTABILITY`, which the
 deploy workflow sets only for the `staging` branch. Do not promise project
 export to a customer until Infrared moves the flag to production.
 
-Result GeoTIFF export from a result view is a separate, older path and is not
-behind this flag.
+This flag gates the GeoTIFF and JPEG result files too. Every result-raster
+writer in the client sits inside the export code, so there is no separate
+result download on production today.
 
 ## What the export offers
 
@@ -69,10 +70,10 @@ frame, encoding, byte size, and SHA-256 of every file.
 | `tree` | tree position and source properties | Import as semantic trees |
 | `ground-surface` | surface geometry and material | Import as ground materials |
 
-Footprints are a deterministic convex hull of the 3D mesh, stamped
-`footprint_method: projected-convex-hull-v1` so a GIS consumer can tell them
-apart from a surveyed outline. **Trees are never meshes in the OBJ** — they stay
-as `Point` features.
+Each footprint is a deterministic convex hull of its 3D mesh. Each one carries
+`footprint_method: projected-convex-hull-v1`. Use that value to tell an
+approximated outline from a surveyed one. **Trees are never meshes in the OBJ**
+— they stay as `Point` features.
 
 The building output has one choice, `obj` (default) or `geojson`. With
 `geojson` there is no `geometry.obj` and the buildings are footprints in

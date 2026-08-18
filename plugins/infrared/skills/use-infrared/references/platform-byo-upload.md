@@ -1,9 +1,9 @@
-# Platform file upload — exporting a file the platform accepts
+# Platform file upload — producing a file the platform accepts
 
 <!-- Verified against forge-kit@origin/main fc69c214 (2026-08-18). -->
 
-How to export from Rhino, Grasshopper, QGIS, ArcGIS, Blender, or SketchUp so
-that platform.infrared.city accepts the file at the first try.
+How to save a file from Rhino, Grasshopper, QGIS, ArcGIS, Blender, or SketchUp
+so that platform.infrared.city accepts it at the first try.
 
 This is the **file** contract for the platform. For in-memory payloads in your
 own Python, read [byo-inputs.md](byo-inputs.md) — the two are not
@@ -12,12 +12,12 @@ interchangeable. To get data out, read [platform-export.md](platform-export.md).
 Validated sample data: `cookbook/sample-data/platform-upload/` (synthetic,
 minimal) and `cookbook/sample-data/vienna-demo/` (real Vienna open data).
 
-## Checklist before you export
+## Checklist before you write the file
 
 | # | Do this | If you do not |
 |---|---|---|
-| 1 | Export GeoJSON as **EPSG:4326**, axis order `[longitude, latitude]`. | A file with no `crs` lands on the site centre and you must move it. |
-| 2 | Export OBJ in **metres**. | The unit is guessed. A wrong guess also breaks the classification. |
+| 1 | Write GeoJSON as **EPSG:4326**, axis order `[longitude, latitude]`. | A file with no `crs` lands on the site centre and you must move it. |
+| 2 | Write OBJ in **metres**. | The unit is guessed. A wrong guess also breaks the classification. |
 | 3 | Name every OBJ object `building*`, `tree*`, or `ground*`. | Unnamed objects are classified by shape. |
 | 4 | Put the building height in `properties.height_m`. | Every building becomes 10 m. |
 | 5 | Set **both** `properties.height` and `properties.crownDiameter` on trees. | Both are replaced by 8 m / 5 m. |
@@ -25,6 +25,17 @@ minimal) and `cookbook/sample-data/vienna-demo/` (real Vienna open data).
 | 7 | Do **not** put `material` or `surface` on a building polygon. | The building goes to the ground layer. |
 | 8 | Close every ring. Outer ring first, holes after. | A degenerate ring makes no mesh. |
 | 9 | Keep each file below 40 MB, 500 trees, and 500 ground polygons. | The excess is rejected or truncated. |
+
+## Per application
+
+| Source | Watch for |
+|---|---|
+| Rhino, Grasshopper | Set document units to metres — Rhino writes millimetres by default. Name layers and objects. |
+| QGIS | Save as EPSG:4326. Delete a `surface` field from a buildings layer, or the buildings become ground polygons. |
+| ArcGIS | Shapefile truncates field names to 10 characters, hence `buildingto` / `buildingbo`. Write GeoJSON — there is no shapefile adapter. |
+| Blender | Scene unit metres, scale 1.0. Name every object. |
+| SketchUp | Write OBJ in metres. Name each group. |
+| OSM data | `building:levels` and `diameter_crown` work as-is. Convert `circumference` to a height first. |
 
 ## Accepted formats
 
@@ -98,8 +109,8 @@ top level of the Feature.
 | Feature cap | 100,000 after MultiPolygon splitting |
 
 **You do not have to precompute `height_m`.** The platform tries three groups in
-order and takes the first hit. Keys are case-insensitive, numeric strings are
-accepted, and a zero or negative value falls through to the next name.
+order and uses the first value found. Keys are case-insensitive. Numeric
+strings are accepted. A zero or negative value falls through to the next name.
 
 1. **Direct height, metres** — `height_m`, `heightm`, `height`, `h`,
    `building_height`, `buildingheight`, `bldg_height`, `building:height`,
@@ -107,13 +118,14 @@ accepted, and a zero or negative value falls through to the next name.
    `altura`, `hauteur`.
 2. **Top and bottom elevation, both required** — tops: `buildingtop`,
    `buildingto`, `z_max`, `zmax`, `maxheight`, `max_height`, `relh_max`;
-   bottoms: `buildingbottom`, `buildingbo`, `ground_height`, `base_height`,
-   `z_min`, `zmin`, `minheight`, `min_height`, `relh_min`.
+   bottoms: `buildingbottom`, `buildingbo`, `ground_height`, `groundheight`,
+   `base_height`, `baseheight`, `z_min`, `zmin`, `minheight`, `min_height`,
+   `relh_min`.
 3. **Floor count × 3.0 m** — `building:levels`, `building_levels`, `levels`,
-   `floors`, `num_floors`, `storeys`, `stories`, `geschosse`, `geschosszahl`,
-   `geschossza`, `anzahl_geschosse`, `etagen`.
+   `floors`, `num_floors`, `numfloors`, `storeys`, `stories`, `geschosse`,
+   `geschosszahl`, `geschossza`, `anzahl_geschosse`, `etagen`.
 
-An OSM export with `building:levels` and an ArcGIS export with the truncated
+A raw OSM file with `building:levels` and an ArcGIS file with the truncated
 `BuildingTo` / `BuildingBo` both extrude correctly.
 
 ## Trees
@@ -125,8 +137,8 @@ One `Point` feature per tree. `MultiPoint` counts as unsupported and is dropped.
 | Height (m) | `height`, `height_m` | 1–30 |
 | Crown **diameter** (m) | `crownDiameter`, `diameter_crown`, `diameter_m`, `crown_m` | 1–20 |
 
-All four crown keys are a diameter, not a radius. A value found under an alias
-is written back to the canonical key.
+All four crown keys are diameters, not radii. A value found under an alias is
+written back to the canonical key.
 
 **Set both values.** If either one is missing, unreadable, or out of range, the
 platform replaces **both** with 8 m and 5 m to keep the proportions correct.
@@ -135,7 +147,8 @@ trees.
 
 **`properties.circumference` does not work on upload.** The renderer can derive
 a height from it, but the importer never reads it — the 8 m fallback is written
-into `height` first. Convert circumference to a height in your export.
+into `height` first. Convert circumference to a height before you write the
+file.
 
 **Trees outside the AOI are kept**, marked `outsideBoundary`, and drawn. A tree
 near the edge still shades the result through the tiler context margin. The
@@ -146,9 +159,8 @@ trees can never evict simulated ones.
 `properties.archetype`, or write nothing. Those are the only values the platform
 renderer accepts; anything else silently becomes `round`. The Infrared Core
 registry (`archetypes-2026-06-13`) uses a different vocabulary — `broadleaf`,
-`conifer`, `columnar`, `palm` — and only `columnar` is in both. Writing a
-registry name gives you round trees. Report this disagreement rather than work
-around it.
+`conifer`, `columnar`, `palm`. The two vocabularies overlap only at `columnar`,
+so a registry name gives you round trees. There is no workaround.
 
 The OBJ import fits the archetype from the mesh: constant width → `columnar`,
 widest at the bottom → `conical`, widest in the middle or top → `round`.
@@ -175,21 +187,24 @@ buildings, trees, and surfaces together.
 
 ### Units
 
-**OBJ carries no unit.** The platform scores `m`, `mm`, `ft`, `cm`, `dm` on two
-tests — site extent (10 m to 20 km, ideal 40 m to 3 km) and tallest object (1 to
-500 m, ideal 3 to 120 m) — then multiplies by a preference: m 1.0, mm 0.9, ft
-0.8, cm 0.7, dm 0.4.
+**OBJ carries no unit.** The platform scores each candidate on two tests — site
+extent (10 m to 20 km, ideal 40 m to 3 km) and tallest object (1 to 500 m,
+ideal 3 to 120 m) — then multiplies by a preference:
 
-**A large metric model can score better as feet.** A 5 km site with 200 m towers
-is above the ideal band in metres and inside it in feet, so "feet" wins and the
-model arrives at 30 % of its true size.
+| Unit | m | mm | ft | cm | dm |
+|---|---|---|---|---|---|
+| Preference | 1.0 | 0.9 | 0.8 | 0.7 | 0.4 |
+
+**A large metric model can score better as feet.** Take a 5 km site with 200 m
+towers. In metres both measurements are above the ideal band. In feet both fall
+inside it. "Feet" then wins, and the model arrives at 30 % of its true size.
 
 **A wrong unit also changes the classification**, because the classifier
 measures heights in metres. A building that reads as 3 m tall passes the tree
 test instead. This is how a building model becomes "trees".
 
-Export in metres, keep the model near the origin, and keep it to a real site
-size. Above about 3 km, expect a wrong guess and correct it in **Review model**.
+Write the file in metres. Keep the model near the origin. Keep it to a real
+site size. Above about 3 km, expect a wrong guess and correct it in **Review model**.
 
 ### Object names
 
@@ -288,9 +303,13 @@ PERIODS,…`) then 8,760 hourly rows of 35 columns.
 
 The parser is looser than the standard, so any real file passes: it needs a
 `LOCATION` line and at least one usable dry-bulb value. `99.9` means missing.
-Do not truncate columns by hand. Key columns, from 0: 1 month · 2 day · 3 hour ·
-**6 dry-bulb °C** · 8 RH % · 13 GHI Wh/m² · 20 wind direction ° · 21 wind speed
-m/s. See [04-weather-data.md](04-weather-data.md).
+Do not truncate columns by hand.
+
+| Column (from 0) | 1 | 2 | 3 | **6** | 8 | 13 | 20 | 21 |
+|---|---|---|---|---|---|---|---|---|
+| Holds | month | day | hour | **dry-bulb °C** | RH % | GHI Wh/m² | wind direction ° | wind speed m/s |
+
+See [04-weather-data.md](04-weather-data.md).
 
 An uploaded EPW drives the SDK analyses. **AI-backed workflows use weather that
 AIBackend selects** — an EPW upload does not change them.
@@ -329,24 +348,13 @@ Silent corrections — no error, but the result looks wrong:
 | A building is missing | Its geometry is not a `Polygon` / `MultiPolygon` |
 | All trees identical (8 m, 5 m) | Height or crown missing / out of range — **both** replaced |
 | Trees round when you expected conifers | `archetype` used a registry name the renderer does not know |
-| Fewer trees than exported | The 500 cap, inside the AOI first |
+| Fewer trees than the file holds | The 500 cap, inside the AOI first |
 | Every surface is `concrete` | Material name not canonical and not a known synonym |
 | Surfaces missing | The 500-polygon cap — later materials truncated first |
 | Buildings became trees, everything too small | Wrong OBJ unit — it also drives the classification |
 | Model sits on the site centre | A file with no georeferencing is auto-centred. Drag it before Save. |
 | Two files stacked on each other | Placement is per file. Move each one. |
 | Analysis covers less than you uploaded | Fit capped the AOI at 6 km²; the rest is kept as context |
-
-Per application:
-
-| Source | Watch for |
-|---|---|
-| Rhino, Grasshopper | Set document units to metres — Rhino writes millimetres by default. Name layers and objects. |
-| QGIS | Export EPSG:4326. Delete a `surface` field from a buildings layer, or the buildings become ground polygons. |
-| ArcGIS | Shapefile truncates field names to 10 characters, hence `buildingto` / `buildingbo`. Export GeoJSON — there is no shapefile adapter. |
-| Blender | Scene unit metres, scale 1.0. Name every object. |
-| SketchUp | Export OBJ in metres. Name each group. |
-| OSM data | `building:levels` and `diameter_crown` work as-is. Convert `circumference` to a height first. |
 
 ## See also
 
