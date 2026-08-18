@@ -1,403 +1,365 @@
-# Platform file upload — producing correct BYO data
+# Platform file upload — producing a file the platform accepts
 
-The Infrared **platform** (platform.infrared.city) accepts *files* for a
-project's data layers — at project creation ("Bring your own data", where each
-layer row takes its own file and multi-file drops are auto-classified) and
-afterwards in the project's Data-layers panel. This is the file contract.
-It is distinct from the SDK's in-memory BYO path ([byo-inputs.md](byo-inputs.md)).
+<!-- Verified against forge-kit@origin/main fc69c214 (2026-08-18). -->
 
-**Reference data** (validated sets, committed in this repo):
-- `cookbook/sample-data/platform-upload/` — synthetic set (rectangles), the
-  smallest possible thing that validates.
-- `cookbook/sample-data/vienna-demo/` — **real** Vienna open data (OSM
-  buildings/surfaces + Baumkataster trees + real EPWs) shaped into four visibly
-  different, drag-and-drop scenarios. Use this one for demos.
+How to save a file from Rhino, Grasshopper, QGIS, ArcGIS, Blender, or SketchUp
+so that platform.infrared.city accepts it at the first try.
 
-## Layers and accepted formats
+This is the **file** contract for the platform. For in-memory payloads in your
+own Python, read [byo-inputs.md](byo-inputs.md) — the two are not
+interchangeable. To get data out, read [platform-export.md](platform-export.md).
 
-A project scenario has exactly **four** uploadable layers. There is no terrain
-layer, no separate context layer, and no site-boundary upload — the boundary is
-derived (see *Coordinates*), and terrain is not user-supplied at all.
+Validated sample data: `cookbook/sample-data/platform-upload/` (synthetic,
+minimal) and `cookbook/sample-data/vienna-demo/` (real Vienna open data).
 
-| Layer | What it is | Upload formats |
+## Checklist before you write the file
+
+| # | Do this | If you do not |
 |---|---|---|
-| `buildings` | Footprints, extruded to 3D on upload | `.geojson` / `.json` · `.obj` |
-| `trees` | Tree points → canopy meshes | `.geojson` / `.json` · `.obj` |
-| `materials` | Ground-surface classification polygons | `.geojson` / `.json` · `.obj` |
-| `weather` | Hourly climate file | `.epw` |
+| 1 | Write GeoJSON as **EPSG:4326**, axis order `[longitude, latitude]`. | A file with no `crs` lands on the site centre and you must move it. |
+| 2 | Write OBJ in **metres**. | The unit is guessed. A wrong guess also breaks the classification. |
+| 3 | Name every OBJ object `building*`, `tree*`, or `ground*`. | Unnamed objects are classified by shape. |
+| 4 | Put the building height in `properties.height_m`. | Every building becomes 10 m. |
+| 5 | Set **both** `properties.height` and `properties.crownDiameter` on trees. | Both are replaced by 8 m / 5 m. |
+| 6 | Tag ground polygons `properties.material` with a canonical name. | The surface becomes `concrete`. |
+| 7 | Do **not** put `material` or `surface` on a building polygon. | The building goes to the ground layer. |
+| 8 | Close every ring. Outer ring first, holes after. | A degenerate ring makes no mesh. |
+| 9 | Keep each file below 40 MB, 500 trees, and 500 ground polygons. | The excess is rejected or truncated. |
 
-**Which extensions actually work depends on where you drop them** — this trips
-people up, so check the entry point before blaming the file:
+## Per application
 
-| Entry point | Accepts |
+| Source | Watch for |
 |---|---|
-| Multi-file drop zone (creation card, Data-layers panel, add-scenario form) | `.geojson` `.json` `.epw` **`.obj`** |
-| Data-layers panel — a layer row's Upload button | `.geojson` `.json` **`.obj`** |
-| Data-layers panel — the Weather row | `.epw` |
-| **Create-project card — a layer row's Upload button** | `.geojson` `.json` only — **`.obj` is NOT accepted here**; use the drop zone |
-| Create-project card — the Weather row | `.epw` |
+| Rhino, Grasshopper | Set document units to metres — Rhino writes millimetres by default. Name layers and objects. |
+| QGIS | Save as EPSG:4326. Delete a `surface` field from a buildings layer, or the buildings become ground polygons. |
+| ArcGIS | Shapefile truncates field names to 10 characters, hence `buildingto` / `buildingbo`. Write GeoJSON — there is no shapefile adapter. |
+| Blender | Scene unit metres, scale 1.0. Name every object. |
+| SketchUp | Write OBJ in metres. Name each group. |
+| OSM data | `building:levels` and `diameter_crown` work as-is. Convert `circumference` to a height first. |
 
-`.ifc` is declared in the format registry but its adapter is a **disabled stub**
-— rejected today. Do not offer it. GLB was dropped and is not coming back.
-Anything else — `.bim` (DotBim), `.shp`, `.dxf`, `.gltf`, `.csv`, `.kml` — has no
-adapter at all and fails as `Unsupported file type`; convert to GeoJSON first.
+## Accepted formats
 
-> `.bim` is **not** a declared-but-disabled format: `format-adapters/index.ts`
-> registers only GeoJSON (enabled) plus tree/surface/IFC stubs. That file's own
-> header comment claims "GeoJSON, Shapefile, and .bim (DotBim)" and contradicts
-> its adapter list — a stale comment in the platform, not a format that exists.
-> (`DotBimMesh` in that codebase is an internal in-memory mesh type, unrelated to
-> a `.bim` upload.) Outcome for a user is the same — rejected — but don't
-> describe it as disabled-but-declared.
+| Format | Extensions | Layers it can fill |
+|---|---|---|
+| GeoJSON | `.geojson`, `.json` | buildings, trees, ground materials |
+| Wavefront OBJ | `.obj` | buildings, trees, ground materials |
+| EnergyPlus Weather | `.epw` | weather |
 
-An `.obj` dropped on **any** geometry layer row is routed to the shared
-multi-kind OBJ importer, not to that row's layer — so dropping a model on the
-trees row can still import buildings and surfaces from it.
+There are exactly three adapters. `.ifc`, `.bim`, `.shp`, `.dxf`, `.gltf`,
+`.glb`, `.3dm`, `.csv`, and `.kml` all fail. Convert to GeoJSON or OBJ first.
 
-## How the upload happens
+You do not have to supply all four layers. Any layer you do not upload comes
+from the platform fetch source, so a buildings-only project is normal and it
+runs.
 
-**Two entry paths.** Both end in the same parsers, so the file contract is
-identical; what differs is whether a site already exists.
+## How an upload works
 
-**A. At project creation — "Bring your own data".**
-1. Drop your files (or a folder) on the creation card's drop zone, or attach
-   them one at a time to the per-layer rows.
-2. Each file is classified by **content** onto a layer and lands *staged* on
-   that layer's row, showing its filename. Re-assign or replace anything the
-   guess got wrong before continuing.
-3. The site boundary + centroid are derived from the union of the accepted
-   geometry, so **at least one geometry file is required** — an `.epw`-only drop
-   cannot create a project.
-4. *Create project* commits the staged files. A metric/no-CRS file cannot be
-   used here (nothing tells the platform where the project is) — create the
-   project from a geo-referenced file or a picked location first.
-5. An `.obj` takes a different route: it starts a *model-anchored* project where
-   you pick the location on the map and the boundary comes from the model
-   footprint.
+Every entry point — the project-creation card, the Data-layers panel, and each
+layer row — opens the same local draft.
 
-**B. After creation — the Data-layers panel.** Uploads apply to the **active
-scenario**. Use a layer row's Upload button to set/replace one layer, or the
-panel's drop zone for several at once. This is the only path that accepts
-local-coordinate files: they are auto-centred on the site and you position them
-with the on-map placement gimbal, after which the layer stays movable ("Adjust").
-Removing an uploaded layer reverts that row to the SDK fetch source.
+1. Select the files. The browser parses them. Nothing goes to the server.
+2. The platform shows one combined model on the map.
+3. Move each file into position. Drag to move, shift-drag to turn.
+4. Draw or adjust the site boundary (the AOI).
+5. Select **Save**. This is the only step that writes.
 
-Uploading never triggers an SDK fetch, and uploaded layers are what the
-simulations actually run against.
+Consequences:
 
-**You do not have to upload all four layers.** There are four independent layer
-kinds — buildings, trees, ground surfaces, weather — and each defaults to the SDK
-fetch source (`input-source-registry.ts`: every kind is `default: 'sdk'`,
-`defaultBundle: true`). A layer you never upload behaves exactly like one you
-uploaded and then removed: it is fetched. So uploading only buildings and trees
-is a normal, fully runnable project — the ground map and weather come from the
-fetch path, and the scenario runs. Upload only what you actually want to override.
+- **An unsaved draft is lost when the tab closes.** This is intended.
+- **Placement is per file.** Separate uploads are never pre-aligned — they stack
+  on the site centre until you move them.
+- **Files of the same kind combine.** They do not replace each other. Only
+  weather is limited to one file per draft.
 
-## Where files go on disk
+## One file, several layers
 
-There is **no manifest and no required filename** — every GeoJSON is classified
-by its *content*, so `export_3.geojson` works as well as `buildings.geojson`.
-Names are still worth setting: they are what the staged rows and every error
-toast show you, and post-creation they become the variant scenario's name.
+The platform routes **each feature**, not the whole file.
 
-A complete single-scenario set is four files in one flat folder:
+| Geometry | Properties | Goes to |
+|---|---|---|
+| `Point` | any | trees |
+| `Polygon` / `MultiPolygon` | `material` or `surface` is a non-empty string | ground materials |
+| `Polygon` / `MultiPolygon` | neither key | buildings |
+| anything else | any | dropped, with `Ignored N unsupported GeoJSON features.` |
 
-```
-my-site/
-  buildings.geojson    FeatureCollection of Polygon/MultiPolygon footprints
-  trees.geojson        FeatureCollection of Points
-  surfaces.geojson     FeatureCollection of Polygons tagged properties.material
-  weather.epw          EnergyPlus weather file
+So one FeatureCollection can carry buildings, trees, and surfaces together —
+and a stray `surface` tag on a building sends that building to the ground
+layer. `surface` also sets the material, not only the layer.
+
+Ground materials accept a second shape: an object of per-material collections,
+for example `{"asphalt": FeatureCollection, "water": FeatureCollection}`.
+
+## Buildings
+
+A `FeatureCollection` of `Polygon` or `MultiPolygon`. Each MultiPolygon part
+becomes its own feature. **Every key below sits in `properties`**, never at the
+top level of the Feature.
+
+```json
+{ "type": "Feature",
+  "properties": { "height_m": 24, "kind": "office" },
+  "geometry": { "type": "Polygon", "coordinates": [[[16.371,48.208],[16.372,48.208],[16.372,48.209],[16.371,48.209],[16.371,48.208]]] } }
 ```
 
-- **One file per layer.** Do not split buildings across two files in one drop —
-  the second polygon file becomes a *design-variant scenario*, not more
-  buildings. Merge them into one FeatureCollection first.
-- Extra buildings files are the *only* intentional way to create variants:
-  ```
-  my-site/
-    buildings.geojson    → baseline scenario
-    proposal-a.geojson   → a variant scenario
-    proposal-b.geojson   → a variant scenario
-    trees.geojson  surfaces.geojson  weather.epw
-  ```
-  **The variant's name depends on where you drop it:** at project creation the
-  filename is ignored and variants are named `Variant A`, `Variant B`, … in drop
-  order; dropped on the Data-layers panel afterwards, the variant takes the
-  filename without its extension. Only the baseline scenario gets the trees /
-  surfaces / weather from the same drop — variants carry buildings only.
-- Sub-folders are fine (a dropped folder is recursed 4 levels, 64 files max),
-  but organise by *scenario*, not by layer — a folder per layer buys nothing
-  since classification ignores paths.
-- Files starting with `.` are skipped; so is anything that is not
-  `.geojson` / `.json` / `.epw` / `.obj`.
-
-## Coordinates — every GeoJSON file
-
-- **CRS: EPSG:4326 (WGS84)**, GeoJSON axis order **[longitude, latitude]**.
-  That is still the target — but the platform now *repairs* the common
-  deviations instead of bouncing them (see [geospatial-crs.md](geospatial-crs.md)):
-
-| Input | What happens |
-|---|---|
-| Projected coords + a `crs` member with a **supported** EPSG | **auto-reprojected** to WGS84, non-blocking notice |
-| Projected coords + an **unsupported** EPSG | rejected, message names the code |
-| Metre coords, **no** `crs` member | rejected **at project creation** (a local frame can't say *where* the project is) — but **accepted in an existing project's Data-layers panel**: auto-centred on the site, then you move/rotate it on the map |
-| Lat/lon **swapped** | auto-corrected when unambiguous (\|lat\| > 90) or when the project centroid confirms it; otherwise rejected |
-
-- Auto-reprojection covers WGS84/UTM (`EPSG:326xx` / `327xx`, zones 1–60),
-  ETRS89/UTM (`25828`–`25838`), DHDN Gauss-Krüger (`31466`–`31469`), plus
-  `27700` (British National Grid), `2154` (Lambert-93), `28992` (RD New),
-  `3035` (ETRS89-LAEA) and `3857` (Web Mercator). The `crs` member is read in
-  the OGC-URN, `EPSG:<code>`, `{type:'EPSG',properties:{code}}`, `CRS84` and
-  bare-number forms.
-- **Each file is gated on its OWN extent**: ≤ **2.0° per axis**, centroid off
-  the poles (|lat| ≤ 85). A file that fails is dropped **and named** — the rest
-  of the batch still creates the project.
-- The site bounding box is the union of the surviving files, expanded +15% per
-  side (min 0.001°). Total extent must be **≤ 10 km²**; above that the upload is
-  rejected.
-- **Extent > 6 km² is not an error.** All geometry is kept (buildings outside
-  the analysis area still shade it), but the *analysis AOI* is centred and
-  shrunk to ≤ 6 km² — and shrunk further for elongated shapes until it tiles
-  under the platform's tile ceiling. Practical rule: keep what you want
-  *analysed* within ~1.2 km of the site centre.
-- The site boundary is **derived automatically** from the union bbox of the
-  uploaded geometry — you do not upload a boundary.
-- Uploading into an **existing** project additionally requires the file's bbox
-  to overlap the site bbox (+15%, min 0.01°) — a file from another city is
-  rejected rather than rendering an empty map.
-
-## Buildings — `FeatureCollection` of footprints
-
-> **Every key in the table below is read from the feature's `properties` object** —
-> `height_m`, `kind` and all the height synonyms live under `properties`, never at
-> the Feature's top level. Same as Trees and Surfaces, which spell it out as
-> `properties.height` / `properties.material`.
->
-> ```json
-> { "type": "Feature",
->   "properties": { "height_m": 24, "kind": "office" },
->   "geometry": { "type": "Polygon", "coordinates": [[[16.371,48.208],[16.372,48.208],[16.372,48.209],[16.371,48.209],[16.371,48.208]]] } }
-> ```
-
 | Rule | Value |
 |---|---|
-| Geometry | `Polygon` / `MultiPolygon` (others silently dropped; zero polygons ⇒ reject). MultiPolygons are split into one feature per part |
-| Height property | `height_m`, metres — see the resolution order below |
-| Missing height | defaults to **10 m** |
-| Height clamp | **3–200 m** (clamped, not rejected) |
-| Optional | `kind`: `residential` \| `office` \| `tower` (display colour only; defaults to `residential`). **Case-sensitive and unvalidated** — any string passes through as-is, so `"Residential"` is stored verbatim and simply won't match a known colour. Lowercase exactly (`geojson-adapter.ts:203`) |
-| Dropped | features with `material: "vegetation"` (those are surfaces) |
-| Caps | ≤ 40 MB, ≤ 100,000 features (counted after MultiPolygon splitting) |
-| Rings | closed (first == last), exterior ring first, holes after |
-| All-degenerate file | rejected (no mesh could be extruded) |
+| Missing height | 10 m |
+| Height clamp | 3–200 m, clamped and not rejected |
+| Optional `kind` | `residential`, `office`, `tower` — display colour only, lower case, not validated |
+| Feature cap | 100,000 after MultiPolygon splitting |
 
-**Height resolution** — the platform no longer needs a literal `height_m`; it
-tries, in order, and takes the first hit (keys are case-insensitive, numeric
-strings like `"7.7"` are accepted, and a present-but-zero/negative value is
-skipped so a later synonym still wins):
+**You do not have to precompute `height_m`.** The platform tries three groups in
+order and uses the first value found. Keys are case-insensitive. Numeric
+strings are accepted. A zero or negative value falls through to the next name.
 
-1. **A direct height** (metres): `height_m` · `heightm` · `height` · `h` ·
-   `building_height` · `buildingheight` · `bldg_height` · `building:height` ·
-   `roof_height` · `roofheight` · `gebaeudehoehe` / `gebäudehöhe` · `hoehe` /
-   `höhe` · `altura` · `hauteur`.
-2. **A top − bottom elevation pair** — **both** must be present, so a lone
-   above-sea-level value can't extrude a 340 m tower. Tops: `buildingtop` ·
-   `buildingto` (ESRI 10-char truncation) · `z_max` / `zmax` · `maxheight` /
-   `max_height` · `relh_max`. Bottoms: `buildingbottom` · `buildingbo` ·
-   `ground_height` · `base_height` · `z_min` / `zmin` · `minheight` /
-   `min_height` · `relh_min`.
-3. **A floor count × 3.0 m**: `building:levels` · `building_levels` · `levels` ·
-   `floors` · `num_floors` · `storeys` / `stories` · `geschosse` /
-   `geschosszahl` / `geschossza` · `anzahl_geschosse` · `etagen`.
+1. **Direct height, metres** — `height_m`, `heightm`, `height`, `h`,
+   `building_height`, `buildingheight`, `bldg_height`, `building:height`,
+   `roof_height`, `roofheight`, `gebaeudehoehe`, `gebäudehöhe`, `hoehe`, `höhe`,
+   `altura`, `hauteur`.
+2. **Top and bottom elevation, both required** — tops: `buildingtop`,
+   `buildingto`, `z_max`, `zmax`, `maxheight`, `max_height`, `relh_max`;
+   bottoms: `buildingbottom`, `buildingbo`, `ground_height`, `groundheight`,
+   `base_height`, `baseheight`, `z_min`, `zmin`, `minheight`, `min_height`,
+   `relh_min`.
+3. **Floor count × 3.0 m** — `building:levels`, `building_levels`, `levels`,
+   `floors`, `num_floors`, `numfloors`, `storeys`, `stories`, `geschosse`,
+   `geschosszahl`, `geschossza`, `anzahl_geschosse`, `etagen`.
 
-So a raw OSM export with `building:levels` and a QGIS/ArcGIS export with
-truncated `BuildingTo`/`BuildingBo` both extrude correctly now — precomputing
-`height_m` is no longer required, only the most explicit option.
+A raw OSM file with `building:levels` and an ArcGIS file with the truncated
+`BuildingTo` / `BuildingBo` both extrude correctly.
 
-Footprints are extruded to 3D on upload — one mesh per polygon — and the
-uploaded buildings are what simulations run against.
+## Trees
 
-## Trees — `FeatureCollection` of `Point`s ONLY
+One `Point` feature per tree. `MultiPoint` counts as unsupported and is dropped.
 
-| Rule | Value |
-|---|---|
-| Geometry | `Point`, one per tree. **Any non-Point feature rejects the file** |
-| `properties.height` | metres, valid **1–30** |
-| `properties.crownDiameter` | metres, valid **1–20** |
-| Either missing/out-of-range | **BOTH** replaced by fallback (8 m / 5 m) — always set both |
-| Clipping | points outside the site are dropped |
-| Cap | **500 trees** kept (post-clip) |
-| File size | ≤ **5 MB** — the trees parser is stricter than the 40 MB geometry cap |
-
-`MultiPoint` counts as points when the drop is *classified*, but the trees
-parser then rejects the file — emit one `Point` feature per tree.
-
-## Ground surfaces — tagged polygons
-
-Two accepted shapes:
-
-1. One `FeatureCollection` whose polygons carry `properties.material`, or
-2. a JSON dict of per-material FCs: `{"asphalt": FC, "water": FC, ...}`.
-
-| Rule | Value |
-|---|---|
-| Canonical materials | `water` · `concrete` · `asphalt` · `vegetation` · `soil` |
-| Synonyms (auto-mapped) | grass/forest/wood/shrub/scrub/tree(s)/park/green → vegetation · road/pavement/tarmac/parking → asphalt · sand/bare_ground/bare/ground/dirt/earth/gravel → soil · pond/lake/river/sea → water · paving/building → concrete |
-| Unresolved names | mapped to **concrete** (kept, not dropped) — tag explicitly |
-| Untagged features | also mapped to **concrete**, reported as `(unlabeled)` |
-| Geometry | polygons only (non-polygons filtered out); clipped to the site; ≤ **40 MB** |
-| Polygon cap | **500** in total across all materials, counted after MultiPolygon splitting — later materials are truncated first |
-
-⚠️ **`properties.surface` only decides classification, not the material.** A file
-tagged solely with `surface` is routed to the surfaces layer and then lands
-entirely in `concrete`, because grouping reads `properties.material` only. Tag
-with `material`.
-
-For the dict shape, all member FCs must share one coordinate system — mixing
-lon/lat layers with local-metre layers is rejected.
-
-## Weather — EnergyPlus `.epw`
-
-- A real TMY/AMY file is the full **8-line header** (line 1 = `LOCATION,<city>,
-  <state>,<country>,<source>,<wmo>,<lat>,<lon>,<tz>,<elevation>`; line 8 =
-  `DATA PERIODS,...`) then **8,760** hourly rows (non-leap year) of **35**
-  columns — just download and use one.
-- What the parser *actually enforces* (looser than a full EPW, so any real file
-  passes): a `LOCATION` line must exist; a data row is any line starting with an
-  integer year, and every such row must carry **≥ 22 columns** (through wind
-  speed) or the whole file is rejected; the file needs **≥ 1** row with a usable
-  dry-bulb value. Don't hand-truncate to fewer columns.
-- Key columns (0-based): 1 month · 2 day · 3 hour (1–24) · **6 dry-bulb °C** ·
-  8 RH % · 13 GHI Wh/m² · 20 wind dir ° · 21 wind speed m/s.
-- `99.9` in the dry-bulb column = missing; a file with **no usable dry-bulb
-  values is rejected**.
-- Real projects: use a measured or TMY file (climate.onebuilding.org, the
-  EnergyPlus weather archive). See [04-weather-data.md](04-weather-data.md).
-
-## 3D models — `.obj`
-
-A `.obj` in **local model coordinates** is accepted alongside GeoJSON; it needs
-no georeferencing. Dropped on the create card it starts a *model-anchored*
-project — you pick the location on the map and the site boundary is derived from
-the model footprint. Dropped into an existing project it is auto-centred on the
-site. One file can carry buildings, trees **and** ground surfaces at once.
-
-- **Classification** is by `o`/`g` object name plus its `usemtl` names, matched
-  case-insensitively on word boundaries: *build/building/bldg/haus/gebäude/
-  house/massing/volume/tower/block* → buildings · *tree/baum/bäume/arbre/canopy/
-  crown/bush/shrub/hedge* → trees · *ground/terrain/topo/surface/floor/road/
-  street/straße/weg/path/asphalt/concrete/paving/pavement/sidewalk/plaza/platz/
-  water/pond/lake/river/grass/lawn/soil/sand/gravel/site/context* → surfaces.
-  *vegetation/veg/green/greenery/forest/wood* is ambiguous and resolved by
-  flatness: z-extent < 0.5 m ⇒ surface, otherwise trees.
-- **Unnamed objects** fall back to geometry: flat ⇒ surface; ≥ 3 connected
-  components of which ≥ 70 % are tree-plausible (1.5–35 m tall, crown ≤ 25 m)
-  ⇒ trees; otherwise buildings. Name your objects if you care about the split —
-  you can also override each object's category in the confirm dialog.
-- **Units** (m / dm / cm / mm / ft), up-axis, flip and drop-to-ground are
-  auto-detected and confirmed by you in the Fix-geometry modal.
-- Trees are simplified to canopy archetypes (round / conical / columnar), then
-  go through the same 500-tree cap; surfaces go through the same material
-  canonicalisation and 500-polygon cap as the GeoJSON path.
-- Faces may be tris, quads or n-gons. Negative (relative) face indices are
-  rejected; free-form curve elements are skipped with a warning.
-- Several OBJs exported from the same model (buildings, then trees) align
-  automatically when re-uploaded into the same scenario.
-
-## Multi-file drop — content classification
-
-Files — or a whole dropped **folder** (recursed; `.geojson`/`.json`/`.epw`/`.obj`
-only, ≤64 files, ≤4 levels deep) — are classified by **content**, never by
-filename or path. The same drop zone and the same classifier serve the create
-card, the Data-layers panel (applies to the active scenario), and the
-add-scenario form — including the "extra buildings file ⇒ variant scenario"
-rule, which fires in all three:
-
-| Content | Layer |
-|---|---|
-| `.epw` extension | weather |
-| `.obj` extension | 3D model (own import path, see above) |
-| more Points than polygons | trees |
-| ≥ half of the polygons material/surface-tagged, or the dict shape | surfaces |
-| polygons otherwise | buildings |
-| each ADDITIONAL buildings-like file | a design-variant scenario |
-
-One file per layer (extra buildings files become variants); **at least one
-geometry file** (buildings/trees/surfaces/OBJ) is required to place the site.
-Every guess lands staged on its layer row and can be swapped before
-*Create project*. Per-file size caps are **per layer**, not a flat 40 MB:
-buildings and surfaces **40 MB**, trees **5 MB**. A 10 MB trees file is rejected
-by the tree parser even though it is well under the geometry cap — see the
-per-layer caps above.
-
-Failure handling is per-file, not per-batch: a file that is unreadable (bad JSON
-/ not a FeatureCollection), fails its layer's validation, or fails its own
-placement gate is dropped **and named in a toast** while the rest of the drop
-proceeds. Only a drop with nothing usable at all fails outright.
-
-⚠️ One exception: a **second trees, surfaces or weather file in the same drop**
-still aborts the whole drop with an error. Only buildings files may repeat (they
-become variants). Upload the replacement separately from its layer row.
-
-In a mixed GeoJSON + OBJ drop the GeoJSON layers are written first and each kind
-is **claimed by its first successful writer** — an OBJ bucket for a kind a
-GeoJSON file already filled is skipped with a note. Put a kind in one source or
-the other, not both.
-
-## Failure modes — the error you'll see and what causes it
-
-Rejections are per-file and the message names the file. Everything in the first
-group **rejects the file**; everything in the second is a **silent correction**
-you only notice in the result.
-
-### Hard rejects
-
-| Error | Cause | Fix |
+| Value | Keys, first positive number wins | Valid range |
 |---|---|---|
-| `File too large — max 40 MB.` | Buildings/surfaces file over the cap | Simplify or split |
-| `File is too large (… MB). Maximum allowed size is 5 MB.` | Trees file over the **5 MB** tree-specific cap | Thin the point set |
-| `Too many features (…). Max 100,000` | Buildings file over the feature cap | Split or simplify |
-| `File is not valid JSON.` / `Invalid JSON.` | Truncated or non-JSON file | Re-export |
-| `Expected a GeoJSON FeatureCollection.` / `The file has no features.` | Bare geometry, bare Feature, or an empty FC | Wrap in a FeatureCollection with ≥ 1 feature |
-| `No building polygons found in this file.` | A trees/surfaces file sent to the buildings row | Use the drop zone or the right row |
-| `Tree imports must contain only Point features. Found '<type>'.` | Any non-`Point` in a trees file (incl. `MultiPoint`) | One `Point` per tree |
-| `Coordinates use EPSG:<n>, an unsupported projected CRS.` | Declared CRS outside the supported set | Re-export as EPSG:4326 |
-| `This file's coordinates aren't longitude/latitude …` | Projected metres, no `crs`, no safe swap — **at project creation** | Create from a geo-referenced file/location, then upload via Data layers |
-| `This file appears mislocated for this project — … lat/lon order …` | Swapped axes confirmed against the project centroid | Re-export as `[lon, lat]` |
-| `This geometry looks mislocated (implausibly large span or near a pole).` | File spans > 2°/axis or sits near a pole | Crop; check the CRS |
-| `Uploaded geometry spans … km² — exceeds the 10 km² upload cap.` | Union extent too large | Crop or split into projects |
-| `This geometry doesn't overlap your site …` | File belongs to a different site | Start a new project from it |
-| `No valid building footprints found — every polygon was empty or degenerate.` | Zero-area / malformed rings | Fix ring geometry |
-| `No trees could be imported …` / `No polygons fell inside the site boundary.` | Everything clipped away | Check it overlaps the site |
-| `This surfaces file mixes lon/lat layers with local-coordinate layers` | Dict form with inconsistent CRS across members | One coordinate system for all members |
-| `only one .epw weather file per project.` | Two `.epw`s in one drop | Drop one |
-| `you already added a <kind> file — replace it from the <kind> row instead.` | A 2nd trees/surfaces file in one drop — **aborts the whole drop** | Upload it separately |
-| `Not a valid .epw weather file — …` / `no usable weather readings.` | Missing `LOCATION`, a data row under 22 columns, or all dry-bulb values missing | Use an unmodified TMY/AMY file |
-| `No plausible unit found …` | OBJ whose extent is implausible at every unit | Check the export scale |
-| format `not enabled yet` | `.ifc` — registered but a disabled stub | Convert to GeoJSON |
-| `Unsupported file type.` | `.bim`, `.shp`, `.dxf`, `.gltf`, `.csv`, `.kml` — no adapter at all | Convert to GeoJSON |
+| Height (m) | `height`, `height_m` | 1–30 |
+| Crown **diameter** (m) | `crownDiameter`, `diameter_crown`, `diameter_m`, `crown_m` | 1–20 |
 
-### Silent corrections — no error, wrong-looking result
+All four crown keys are diameters, not radii. A value found under an alias is
+written back to the canonical key.
 
-| Symptom | Cause |
+**Set both values.** If either one is missing, unreadable, or out of range, the
+platform replaces **both** with 8 m and 5 m to keep the proportions correct.
+This is why a file with good heights and no crown diameter gives identical
+trees.
+
+**`properties.circumference` does not work on upload.** The renderer can derive
+a height from it, but the importer never reads it — the 8 m fallback is written
+into `height` first. Convert circumference to a height before you write the
+file.
+
+**Trees outside the AOI are kept**, marked `outsideBoundary`, and drawn. A tree
+near the edge still shades the result through the tiler context margin. The
+500-tree cap runs afterwards and takes trees inside the AOI first, so reference
+trees can never evict simulated ones.
+
+**Tree shape:** write `round`, `conical`, or `columnar` in
+`properties.archetype`, or write nothing. Those are the only values the platform
+renderer accepts; anything else silently becomes `round`. The Infrared Core
+registry (`archetypes-2026-06-13`) uses a different vocabulary — `broadleaf`,
+`conifer`, `columnar`, `palm`. The two vocabularies overlap only at `columnar`,
+so a registry name gives you round trees. There is no workaround.
+
+The OBJ import fits the archetype from the mesh: constant width → `columnar`,
+widest at the bottom → `conical`, widest in the middle or top → `round`.
+
+## Ground surfaces
+
+| Rule | Value |
 |---|---|
-| Buildings all the same height | No recognised height property ⇒ everyone gets the 10 m default |
-| One building far too short/tall | Value clamped into 3–200 m |
-| A building is missing | Non-polygon geometry, or `material: "vegetation"` — both dropped |
-| Trees all identical (8 m / 5 m crown) | `height`/`crownDiameter` missing or out of range ⇒ **both** replaced |
-| Fewer trees than expected | Clipped to the site, then capped at 500 |
-| Every surface came in as `concrete` | Tagged with `properties.surface` instead of `properties.material`, or unrecognised names |
-| Surfaces missing | Aggregate 500-polygon cap — later materials truncated first |
-| Analysis covers less than you uploaded | Extent > 6 km² ⇒ AOI centred and shrunk; geometry kept as context |
-| Geometry landed centred on the site, not where you meant | Metric no-CRS file auto-placed — use *Adjust* to position it |
+| Canonical materials | `water`, `concrete`, `asphalt`, `vegetation`, `soil` |
+| Synonyms | grass, forest, wood, shrub, scrub, tree(s), park, green → `vegetation` · road, pavement, tarmac, parking → `asphalt` · sand, bare_ground, bare, ground, dirt, earth, gravel → `soil` · pond, lake, river, sea → `water` · paving, building → `concrete` |
+| Unknown or untagged | mapped to `concrete` and kept, with a warning |
+| Polygon cap | 500 in total. Later materials are truncated first. |
 
-## Validation status
+Surfaces are not clipped. A surface outside the AOI is kept for reference but it
+does **not** change the result — ground materials have no context margin. A
+surface crossing the boundary is kept whole, and only the part inside counts.
 
-Both committed sample sets were run through the platform's actual upload parsers
-(classification + per-layer deep validation + EPW parse) against `origin/staging`
-on 2026-07-03 — all files accepted with **zero fallbacks, zero defaulted
-materials, zero dropped features**. The real-data Vienna set additionally covers
-building relations/courtyards, 500-tree density, and real Vienna + Madrid EPWs.
-The rules above were re-verified against `forge-kit@origin/main` on 2026-07-28.
+In the object shape, every member must use one coordinate system.
+
+## OBJ — units and object names
+
+An OBJ holds local coordinates and needs no georeferencing. One file can carry
+buildings, trees, and surfaces together.
+
+### Units
+
+**OBJ carries no unit.** The platform scores each candidate on two tests — site
+extent (10 m to 20 km, ideal 40 m to 3 km) and tallest object (1 to 500 m,
+ideal 3 to 120 m) — then multiplies by a preference:
+
+| Unit | m | mm | ft | cm | dm |
+|---|---|---|---|---|---|
+| Preference | 1.0 | 0.9 | 0.8 | 0.7 | 0.4 |
+
+**A large metric model can score better as feet.** Take a 5 km site with 200 m
+towers. In metres both measurements are above the ideal band. In feet both fall
+inside it. "Feet" then wins, and the model arrives at 30 % of its true size.
+
+**A wrong unit also changes the classification**, because the classifier
+measures heights in metres. A building that reads as 3 m tall passes the tree
+test instead. This is how a building model becomes "trees".
+
+Write the file in metres. Keep the model near the origin. Keep it to a real
+site size. Above about 3 km, expect a wrong guess and correct it in **Review model**.
+
+### Object names
+
+The platform reads the `o` / `g` name together with the `usemtl` names, on word
+boundaries, ignoring case. A building name wins over a tree name.
+
+| Name contains | Class |
+|---|---|
+| build, building(s), bldg, haus, gebäude, gebaeude, house(s), massing, volume, tower, block | buildings |
+| tree(s), baum, bäume, baeume, arbre, canopy, crown, bush(es), shrub, hedge | trees |
+| ground, terrain, topo, surface, floor, road(s), street(s), straße, strasse, weg, path, asphalt, concrete, paving, pavement, sidewalk, plaza, platz, water, pond, lake, river, grass, lawn, soil, sand, gravel, site, context | ground surfaces |
+| vegetation, veg, green, greenery, forest, wood | ambiguous — z-extent under 0.5 m gives a surface, more gives trees |
+
+With no name match the platform uses the geometry: z-extent under 0.5 m gives a
+**surface**; three or more parts of which 70 % are 1.5–35 m tall with a crown of
+25 m or less give **trees**; everything else gives **buildings**.
+
+Faces may be triangles, quads, or n-gons. Negative face indices are rejected.
+Free-form curves are skipped with a warning. The platform centres the model on
+the site and grounds its lowest point.
+
+### Review model — work in this order
+
+**Review model** is optional; the platform applies its guesses immediately.
+Inside the dialog:
+
+1. Set **Units** first. A unit change re-plans and re-classifies everything.
+2. Set the orientation controls (up axis, flip, swap axes, drop to ground).
+3. Select **Show all (N)** — see the warning below.
+4. Correct the categories. Machine-numbered names such as `ctx_0` … `ctx_289`
+   collapse into one row, and one click assigns the whole group.
+5. Select **Apply**.
+
+> **Known bug.** The dialog opens on "Unassigned objects". Assigning a category
+> removes that object from the list, and when the list empties, the whole
+> component disappears — taking the **Show all** link with it. You then cannot
+> change a category back. **Select "Show all (N)" before you assign anything.**
+> If the list is already gone, Cancel and import the file again.
+
+## Coordinates and the site boundary
+
+Use EPSG:4326 with `[longitude, latitude]`. The platform repairs the common
+deviations:
+
+| Input | Result |
+|---|---|
+| Projected + `crs` for a supported EPSG | reprojected, with a notice |
+| Projected + unsupported EPSG | rejected; the message names the code |
+| Metres, no `crs` | centred on your site; you then move it on the map |
+| Swapped axes | corrected when unambiguous, otherwise rejected |
+
+Supported for automatic reprojection: WGS84/UTM (`326xx`, `327xx`), ETRS89/UTM
+(`25828`–`25838`), Gauss-Krüger (`31466`–`31469`), `27700`, `2154`, `28992`,
+`3035`, `3857`. A span over **2° per axis** or a centroid above **85° latitude**
+is rejected before anything else.
+
+The AOI is the polygon that is tiled, priced, and run. It is **not** the extent
+of your geometry.
+
+- **A project has one boundary.** An explicit edit writes to every scenario in
+  the project.
+- A new project takes its boundary from the first georeferenced file. A file
+  with no georeferencing gets a suggested rectangle with a 30 m margin, centred
+  on the map camera.
+- **Fit AOI to model** caps the area at 6 km² and shrinks a long, thin shape
+  further until it tiles into 128 cells or fewer.
+- **Geometry outside the AOI is kept and drawn.** It is never clipped or
+  deleted. You get `Some geometry is outside the site.` and the offer to fit.
+  Data with no ground in common gives `This data is far from your site — it is
+  drawn at its own location.`
+
+Practical rule: keep what you want *analysed* within about 1.2 km of the site
+centre, and keep the surrounding buildings in the file — they still shade the
+result.
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| GeoJSON / OBJ / EPW file | 40 MB each |
+| Building features | 100,000 |
+| Trees kept | 500, inside the AOI first |
+| Ground polygons kept | 500 in total |
+| Analysis AOI area | 6 km² |
+| Tiles per AOI | 128 non-empty cells |
+| Body through the API worker | up to 32 MB; above that a presigned upload, up to 1 GiB |
+
+The 32 MB and 1 GiB values are server limits for the saved artifact. The client
+rejects your file at 40 MB first, so a normal geometry file never meets them.
+
+## Weather
+
+Use an unedited TMY or AMY file (climate.onebuilding.org, the EnergyPlus
+archive). A full file is an 8-line header (line 1 `LOCATION,…`, line 8 `DATA
+PERIODS,…`) then 8,760 hourly rows of 35 columns.
+
+The parser is looser than the standard, so any real file passes: it needs a
+`LOCATION` line and at least one usable dry-bulb value. `99.9` means missing.
+Do not truncate columns by hand.
+
+| Column (from 0) | 1 | 2 | 3 | **6** | 8 | 13 | 20 | 21 |
+|---|---|---|---|---|---|---|---|---|
+| Holds | month | day | hour | **dry-bulb °C** | RH % | GHI Wh/m² | wind direction ° | wind speed m/s |
+
+See [04-weather-data.md](04-weather-data.md).
+
+An uploaded EPW drives the SDK analyses. **AI-backed workflows use weather that
+AIBackend selects** — an EPW upload does not change them.
+
+## Pitfalls
+
+Hard rejects — the message names the file:
+
+| Message | Cause |
+|---|---|
+| `<name>: this format cannot be added to a BYO draft.` | Extension is not `.geojson`, `.json`, `.obj`, `.epw` |
+| `<name>: file exceeds the <format> size limit.` / `File too large — max 40 MB.` | Over 40 MB |
+| `File is not valid JSON.` | Truncated or non-JSON |
+| `Expected a GeoJSON FeatureCollection or material-layer object.` | Bare Feature, bare geometry, or another root |
+| `Too many features (N). Max 100,000` | Too many building polygons |
+| `This file has no supported non-empty draft geometry.` | Every feature was unsupported |
+| `Coordinates use EPSG:<n>, an unsupported projected CRS.` | CRS outside the supported set |
+| `This file's coordinates aren't longitude/latitude …` | Projected metres, no `crs`, no safe repair |
+| `This file appears mislocated for this project — … lat/lon order …` | Swapped axes |
+| `This geometry looks mislocated (implausibly large span or near a pole).` | Over 2° per axis, or near a pole |
+| `No valid building footprints found — every polygon was empty or degenerate.` | Zero-area or malformed rings |
+| `Not a valid GeoJSON FeatureCollection of Point features.` | A trees layer failed its schema check |
+| `This surfaces file mixes lon/lat layers with local-coordinate layers` | Two coordinate systems in the object shape |
+| `A BYO draft can contain only one weather file.` | Two `.epw` files |
+| `Not a valid .epw weather file — …` / `This .epw file has no usable weather readings.` | No `LOCATION` line, or every dry-bulb value missing |
+| `The OBJ file has no importable geometry.` | No usable faces |
+| `No plausible unit found …` | Impossible size at every unit |
+
+Silent corrections — no error, but the result looks wrong:
+
+| What you see | Cause |
+|---|---|
+| All buildings the same height | No height key recognised — everyone got 10 m |
+| One building far too short or tall | Clamped into 3–200 m |
+| A building landed in the ground layer | It carries `material` or `surface` |
+| A building is missing | Its geometry is not a `Polygon` / `MultiPolygon` |
+| All trees identical (8 m, 5 m) | Height or crown missing / out of range — **both** replaced |
+| Trees round when you expected conifers | `archetype` used a registry name the renderer does not know |
+| Fewer trees than the file holds | The 500 cap, inside the AOI first |
+| Every surface is `concrete` | Material name not canonical and not a known synonym |
+| Surfaces missing | The 500-polygon cap — later materials truncated first |
+| Buildings became trees, everything too small | Wrong OBJ unit — it also drives the classification |
+| Model sits on the site centre | A file with no georeferencing is auto-centred. Drag it before Save. |
+| Two files stacked on each other | Placement is per file. Move each one. |
+| Analysis covers less than you uploaded | Fit capped the AOI at 6 km²; the rest is kept as context |
+
+## See also
+
+- [byo-inputs.md](byo-inputs.md) — the SDK path. Same tree key names, but no
+  1–30 / 1–20 gate, and untagged trees default to 6 m × 4 m. Do not carry a
+  number between the two pages.
+- [geospatial-crs.md](geospatial-crs.md) — reprojection recipes.
+- [platform-export.md](platform-export.md) — getting data back out.

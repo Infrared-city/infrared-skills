@@ -1,6 +1,6 @@
 ---
 name: use-infrared
-description: Use the Infrared SDK (`pip install infrared-sdk`) to run urban microclimate simulations — wind, pedestrian wind comfort (PWC), solar radiation, daylight, sun hours, sky view factor (SVF), thermal comfort (UTCI), thermal comfort statistics (TCS) — and interpret results. Activate when the user mentions Infrared, infrared.city, infrared-sdk, urban microclimate, wind / PWC / Lawson, solar / daylight / sun hours / SVF, UTCI / thermal comfort, or asks to run an outdoor environmental simulation on a polygon.
+description: Use the Infrared SDK (`pip install infrared-sdk`) to run urban microclimate simulations — wind, pedestrian wind comfort (PWC), solar radiation, daylight, sun hours, sky view factor (SVF), thermal comfort (UTCI), thermal comfort statistics (TCS) — and interpret results. Also covers getting data in and out of the Infrared platform as files. Activate when the user mentions Infrared, infrared.city, infrared-sdk, urban microclimate, wind / PWC / Lawson, solar / daylight / sun hours / SVF, UTCI / thermal comfort, asks to run an outdoor environmental simulation on a polygon, or asks how to upload / import / export / download / back up their data, project or results — GeoJSON, OBJ, EPW, GeoTIFF or ZIP — or how to save a file from Rhino, Grasshopper, QGIS, ArcGIS, Blender or SketchUp for Infrared.
 allowed-tools: Bash(pip:*), Bash(uv:*), Bash(python:*), Bash(python3:*), Bash(curl:*)
 license: Apache-2.0
 ---
@@ -19,7 +19,7 @@ license: Apache-2.0
    option, and not only when the user volunteers a file. Ask what geometry they have before
    you reach for the fetch path. **Pick the right BYO route first, they are different things:**
    - Data goes into **SDK calls** (in-memory payloads, your own Python) → **[byo-inputs.md](references/byo-inputs.md)**
-   - Data goes into the **platform** as **files** (platform.infrared.city — "Bring your own data" at project creation, or the Data-layers panel) → **[platform-byo-upload.md](references/platform-byo-upload.md)**
+   - Data goes into the **platform** as **files** (platform.infrared.city — "Bring your own data" at project creation, or the Data-layers panel) → **[platform-byo-upload.md](references/platform-byo-upload.md)**. Data comes back **out** of the platform → **[platform-export.md](references/platform-export.md)**.
    - If the user just says "get my data into Infrared" without saying which, **ask** — the file contracts are not interchangeable.
    - Only if they genuinely have no geometry: hand a polygon to `run_area*` and let the
      platform fetch context buildings. That path exists for **prototyping and demos**. It is
@@ -73,7 +73,8 @@ that it is a prototype stand-in.
 | Time period / weather window | [03-time-period.md](references/03-time-period.md) |
 | Weather data / EPW | [04-weather-data.md](references/04-weather-data.md) |
 | Bring your own buildings / trees / ground | [byo-inputs.md](references/byo-inputs.md) |
-| Platform FILE upload (GeoJSON/.obj/.epw formats, projections, caps) | [platform-byo-upload.md](references/platform-byo-upload.md) |
+| Platform FILE upload (GeoJSON/.obj/.epw formats, projections, caps, units, saving a file from Rhino/QGIS/ArcGIS/Blender) | [platform-byo-upload.md](references/platform-byo-upload.md) |
+| Platform FILE export (ZIP contents, geometry exchange triplet, bundle import — **staging-only today**) | [platform-export.md](references/platform-export.md) |
 
 ## Execution styles
 
