@@ -9,7 +9,7 @@ Every analysis returns the same `AreaResult` shape. These conventions hold for w
 | `wind-speed` | m/s | 0–30 | Steady-state wind magnitude near pedestrian level for one (speed, direction) inflow |
 | `pedestrian-wind-comfort` | comfort class (int) | 0–4 (A=0 best … E=4 unsafe) | Categorical class per chosen criterion |
 | `daylight-availability` | hours | 0 – period length | Cumulative hours of usable daylight per cell over the `TimePeriod` |
-| `direct-sun-hours` | hours | 0 – period length | Cumulative un-occluded sun hours over the `TimePeriod` |
+| `direct-sun-hours` | hours | 0 – hourly samples in the window | Cumulative un-occluded sun hours over the `TimePeriod`. **Keep the window daylight-only** — night samples count as sun on the grid path ([`../analyses/04-direct-sun-hours.md`](../analyses/04-direct-sun-hours.md#keep-the-window-inside-daylight)) |
 | `sky-view-factors` | percent | 0–100 | Hemisphere visible from the cell (100 = fully open, 0 = obstructed) |
 | `solar-radiation` | kWh/m² | 0–~hundreds | Cumulative shortwave irradiance per pixel over the `TimePeriod` |
 | `thermal-comfort-index` (UTCI) | °C | -40 to 50 | Felt temperature combining air, MRT, humidity, wind |
@@ -25,7 +25,8 @@ For per-analysis class breaks (e.g. UTCI stress thresholds, PWC class semantics)
 |---|---|
 | Cell pitch | **1 m × 1 m** (fixed; do not assume otherwise) |
 | Single-tile coverage | **512 m × 512 m** (auto-tiled if polygon larger) |
-| Outside polygon | `NaN` (never zero — distinguishes "no data" from "cold/dark/calm") |
+| Outside polygon / off the terrain | `NaN` — "no data", distinct from "cold/dark/calm" |
+| Under a building footprint, **terrain-draped run** (`ground_geometry` passed) | **`0.0` — a real value, not `NaN`.** Measured 11 168 zeros among 123 024 cells on one ArchiCAD site (2026-09-02). Treat as masked, never as "no sun". Verified on the terrain path only — check `(grid == 0).sum()` against your footprint area before assuming the same for a flat run |
 | Row 0 | South edge of polygon bbox |
 | Column 0 | West edge of polygon bbox |
 | Orientation | Plot with `origin="lower"` (matplotlib) or unflipped (Plotly) for north-up |
@@ -38,6 +39,8 @@ valid = result.merged_grid[~np.isnan(result.merged_grid)]
 mean_value = valid.mean()
 area_share_above_threshold = (valid > THRESHOLD).mean()
 ```
+
+On a terrain-draped run also exclude the footprint cells before a shadow statistic — they are `0.0`, and a cell with no sun cannot lose any. Keeping them moved one before/after mean from −1.38 h to −1.52 h and the "changed" share from 78.6 % to 86.4 %. Prefer a mask built from your own footprints; masking `grid == 0` also drops genuinely sunless open-ground cells.
 
 ## Geo-referencing overlays — always use `AreaResult.bounds`
 
@@ -59,7 +62,7 @@ Distributions are heavy-tailed (especially solar/daylight), so colour bounds tak
 DOMAIN = {
     "sky-view-factors": (0, 100),          # %
     "daylight-availability": (0, 100),     # %
-    "direct-sun-hours": (0, 12),           # hours
+    "direct-sun-hours": (0, 12),           # hours — for a 9–17 window; ceiling = daylight samples in YOUR window
     "solar-radiation": (0, 1000),          # kWh/m2
     "wind-speed": (0, 15),                 # m/s, top bin open
     "thermal-comfort-index": (-40, 46),    # degC

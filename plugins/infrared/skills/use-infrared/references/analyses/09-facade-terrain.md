@@ -4,6 +4,22 @@ Analyse **building surfaces** (facades, roofs) or **arbitrary sensor points** in
 
 Facade/BYO-sensor fields work on the 4 raytraced solar-family models ONLY: `sky-view-factors`, `solar-radiation`, `direct-sun-hours`, `daylight-availability`. Terrain fields additionally work on `thermal-comfort-index` / `thermal-comfort-statistics`.
 
+## The five geometry channels
+
+Sensors land in exactly one place per request — ground grid, `analysis_surfaces`, `sensor_points`, or the interior `daylight-factor` model; see *Where do the sensors go* in [`SKILL.md`](../../SKILL.md). Geometry gets there through five channels, and the three mesh channels are **not** interchangeable:
+
+| Channel | Role | Put here |
+|---|---|---|
+| `geometries` (payload) / `buildings=` (`run_area*`) | **Analysed.** Sensors land on these in surface mode; their footprints are masked on the grid. | buildings only |
+| `context_geometry` | **Occluder.** Traced for shadow, never analysed, never carries a sensor. | neighbours, distant ridges and towers, flyovers |
+| `ground_geometry` | **Terrain.** Drape surface + occluder, never analysed. | the DEM / the BIM Mesh's top surface |
+| `vegetation` | GeoJSON Point features, lon/lat | trees |
+| `ground_materials` | GeoJSON polygons per material, lon/lat | asphalt · concrete · soil · vegetation · water |
+
+All three mesh channels take `{id: {"coordinates": [x, y, z, …], "indices": […]}}` in metres, origin at the polygon-bbox SW corner, `+x` east, `+y` north, `z` up. `run_area*` re-frames them per tile; you never do. Per analysis: the two wind models take `geometries` only (no terrain, no occluders, no surface mode); the four raytraced solar models take everything; UTCI/TCS take `ground_geometry` but **not** `context_geometry` or `analysis_surfaces`.
+
+**Terrain never goes in `geometries`.** It is accepted, billed, and returns a shattered mesh: surface synthesis clusters faces into flat regions (same normal within 5°, same plane within 2 cm), which a TIN fails on nearly every edge. Measured on three ArchiCAD terrains (2026-09-02): 242 / 85 / 47 up-facing triangles became **153 / 34 / 9 independent surfaces**, each gridded and clipped on its own, with the underside gridded too — seams on every edge, holes where a region keeps no cell. Put it in `ground_geometry`: the ground grid drapes onto it automatically ([*Results on the ground, with terrain*](#results-on-the-ground-with-terrain)).
+
 ## Request
 
 ```python
@@ -17,6 +33,23 @@ payload = SvfModelRequest(
 )
 result = client.run_area_and_wait(payload, polygon, buildings=area.buildings)
 ```
+
+**"My design, in its real neighbourhood"** — the cheap pattern for surface mode. Cost scales with the surfaces you *ask for*, not with how much city you send, so put the one building you are designing in `geometries` and everything else in `context_geometry`:
+
+```python
+payload = SolarModelRequest(
+    analysis_type=AnalysesName.direct_sun_hours,
+    latitude=48.195, longitude=11.570, time_period=tp,
+    geometries={"my_design": design_mesh},        # analysed — this is the bill
+    context_geometry=neighbour_meshes,            # {id: mesh} — shades, never analysed
+    ground_geometry={"terrain": terrain_mesh},    # seats the scene, never analysed
+    terrain_alignment="auto-align",
+    analysis_surfaces="all", surface_grid_size=1.0,
+)
+result = client.run_area_and_wait(payload, polygon)   # geometries is in the payload: no buildings= kwarg
+```
+
+Measured (2026-09-02, 1 June 06:00–20:00, 1 m grid): 793 context triangles + 85 terrain triangles shading **one building → 1 664 sensors on 13 surfaces, 1 job, 2.4 s**. Result keys are your ids (`"my_design/<index>"`), so `result.surfaces` and `result.aggregates` map straight onto the element you submitted.
 
 Bring-your-own sensors instead of surface synthesis (mutually exclusive with `analysis_surfaces`). **Single-tile only** — submit via the job primitives, NOT `run_area_and_wait` (which rejects `sensor_points` with a `ValueError`):
 
@@ -65,16 +98,85 @@ payload = SvfModelRequest(
 
 A GeoTIFF DEM read with `rasterio` (`rasterio.open(path).read(1)`, then `rasterio.warp.reproject` onto the metre grid) is the usual source of `elevation`. **`rasterio` is not an SDK dependency** — install it yourself. Whatever the source, the array must be in metres on the frame above and must cover the whole polygon; objects beyond the terrain's extent are clamped to the edge height, not refused.
 
+**A BIM "Mesh" is a solid; `ground_geometry` wants a surface.** ArchiCAD's Mesh element (and most CAD terrain solids) export watertight: the TIN on top, a flat bottom cap, and a vertical skirt. Keep only the up-facing triangles — the bottom cap would drape sensors onto the underside, the skirt would become an occluder wall:
+
+```python
+def top_surface_only(coordinates, indices):
+    """Up-facing triangles (unit normal z > 0.5 — the server's own roof rule), re-indexed."""
+    v = np.asarray(coordinates, dtype=float).reshape(-1, 3)
+    f = np.asarray(indices, dtype=int).reshape(-1, 3)
+    n = np.cross(v[f[:, 1]] - v[f[:, 0]], v[f[:, 2]] - v[f[:, 0]])
+    keep = f[n[:, 2] / np.maximum(np.linalg.norm(n, axis=1), 1e-12) > 0.5]
+    used, new_f = np.unique(keep, return_inverse=True)
+    return {"coordinates": v[used].ravel().tolist(), "indices": new_f.ravel().tolist()}
+```
+
+Measured on the ArchiCAD sample: 300 triangles in the solid, 85 kept.
+
 ### `terrain_alignment` — how your geometry meets the ground
 
-| Mode | What the server does |
-|---|---|
-| `"auto-align"` (default) | **Seats the scene.** Every solid in `geometries`, `context_geometry` and `vegetation` is re-based to local grade before inference — each base vertex drops to the terrain beneath it, with a 0.5 m skirt so footprints stay sealed on a slope. The seated geometry is what the grid drape, the under-building mask, the occluder union and facade synthesis all read. |
-| `"assume-aligned"` | **Validates only, moves nothing.** Any object whose base falls outside a ±1 m band around the terrain is a **422 for the whole job**, naming the first five offenders with residuals. Use it when your geometry is already prepped against this exact DEM and you want a mismatch to be loud. |
+Three server modes, case-sensitive. **None of them moves the sensors** — with `ground_geometry` present the grid always drapes onto the terrain; the modes decide only what happens to the solids in `geometries`, `context_geometry` and `vegetation` (and therefore where footprints are masked).
 
-With no `ground_geometry` the setting is inert.
+| Mode | What the server does | Use when |
+|---|---|---|
+| `"auto-align"` (default) | **Seats the scene.** Every solid is re-based to local grade before inference — each base vertex drops to the terrain beneath it, with a 0.5 m skirt so footprints stay sealed on a slope. The seated geometry is what the under-building mask, the occluder union and facade synthesis all read. | Fetched buildings (based at z = 0) with a real DEM; a BIM export that is **not** consistently seated. |
+| `"assume-aligned"` | **Validates only — a validator, not a fixer.** Moves nothing. Any object whose base falls outside the seated band is a **422 for the whole job**, naming the offenders with residuals. Verbatim shape (ArchiCAD sample, 2026-09-02): *"terrain-alignment=assume-aligned but 10 object(s) are not seated on the terrain (seated band: terrain_z −1.5 m to +1.0 m) … object #4 base_z=0.316 terrain_z=−2.161 residual=2.977 m … use auto-align to seat them, or as-is to keep your geometry exactly as sent."* | You prepped geometry against this exact DEM and want a mismatch to be loud. |
+| `"as-is"` | **Trusts your geometry exactly.** No seating, no band check — a tower on its own podium 50 m up stays there. | BIM/CAD exports already placed on their terrain. **SDK 0.5.2+ only:** on 0.5.1 the Python `Literal` admits the first two modes only, so `"as-is"` fails client-side before any request leaves — unreachable from Python until you upgrade. |
+
+Rule of thumb from the ArchiCAD case: `assume-aligned` 422'd naming 10 objects floating 1.7–3.0 m above the terrain (buildings at z ≈ 0, terrain top at −1 … −2.4 m). A model like that is not seated → `auto-align`. A model that *is* seated → `as-is`.
+
+With no `ground_geometry` all three are inert — the worker never reads the field, so `"assume-aligned"` validates nothing, and a misspelt value (`"as_is"`) passes silently until the day you add a DEM and it becomes a 422.
 
 **Do not compare alignment modes by their means.** Buildings move vertically, so facades gain and lose exposure in roughly equal measure. On a measured facade run the mean delta was **+0.03 kWh/m²** while **44% of facades moved by more than 1 kWh/m²**, spanning −48.8 to +85.6. Compare per-surface distributions.
+
+## Results on the ground, with terrain
+
+The route for "sensors on the ground, on my terrain" is the **plain grid run** — no `analysis_surfaces`, no `sensor_points` — plus `ground_geometry`. Nothing to switch on: the 1 m grid drapes onto the relief automatically (`z = terrain_z + 1.5 m`), the terrain shades the sun, and building footprints are masked at local grade.
+
+```python
+payload = SolarModelRequest(
+    analysis_type=AnalysesName.direct_sun_hours,
+    latitude=48.195, longitude=11.570,
+    time_period=TimePeriod(start_month=6, start_day=1, start_hour=6,
+                           end_month=6, end_day=1, end_hour=20),   # daylight only — see 04-direct-sun-hours.md
+    ground_geometry={"terrain": terrain_mesh},
+    terrain_alignment="auto-align",
+)
+result = client.run_area_and_wait(payload, polygon, buildings=my_buildings)
+grid = result.merged_grid          # (ny, nx) float raster — NO per-cell z
+```
+
+Measured (ArchiCAD sample, 1 tile, prod, 2026-09-02): 123 024 cells analysed, mean 11.93 h, max 15.00 h (all 15 samples are daylight, so open ground legitimately reaches the ceiling), 3.4 s.
+
+**What comes back, and what does not:**
+
+- `merged_grid` is a flat raster. **It carries no z** — the terrain height under each cell is never serialised — so to draw it on the terrain in 3D you re-sample your own terrain at every cell centre. That is the one step the API leaves to you.
+- Row 0 = south, column 0 = west, 1 m pitch. Cell `(j, i)` is centred at `(i + 0.5, j + 0.5)` **in the frame you submitted** — the polygon's SW corner is submitted `(0, 0)`. Keep that corner at your model origin (or subtract it from every vertex before submitting) and no shift exists anywhere: [`../geospatial-crs.md#the-frame-rule`](../geospatial-crs.md#the-frame-rule).
+- **Footprint cells are `0.0`, not `NaN`,** on this path. `NaN` means outside the polygon or off the terrain — the drape ray goes straight down, so terrain narrower than the tile masks cells rather than flattening. Exclude the zeros from any "cells in shadow" statistic (measured: 11 168 footprint zeros among 123 024 cells moved a before/after mean from −1.38 h to −1.52 h).
+
+**Drape for display** — the server's own vertical ray, done client-side on your terrain triangles (linear interpolation on *your* triangulation, `NaN` where no triangle covers the cell):
+
+```python
+import numpy as np
+from matplotlib.tri import LinearTriInterpolator, Triangulation
+
+def drape_z(terrain_mesh, grid_shape, origin=(0.0, 0.0)):
+    """Terrain height at every cell centre of a merged grid, in your model metres.
+    `origin` = the model point you submitted as (0, 0); (0, 0) if the model origin was the corner."""
+    v = np.asarray(terrain_mesh["coordinates"], dtype=float).reshape(-1, 3)
+    f = np.asarray(terrain_mesh["indices"], dtype=int).reshape(-1, 3)
+    ny, nx = grid_shape
+    xs = origin[0] + np.arange(nx) + 0.5          # column 0 = west
+    ys = origin[1] + np.arange(ny) + 0.5          # row 0 = south
+    gx, gy = np.meshgrid(xs, ys)
+    z = LinearTriInterpolator(Triangulation(v[:, 0], v[:, 1], f), v[:, 2])(gx, gy)
+    return z.filled(np.nan)                       # (ny, nx); NaN off the terrain
+
+z = drape_z(terrain_mesh, result.merged_grid.shape)
+# one vertex per cell at (x, y, z + a small lift), coloured by merged_grid
+```
+
+`matplotlib.tri` interpolates on the triangles you pass (no re-triangulation); a vectorised numpy barycentric test is the dependency-free equivalent. Bucket by triangle for large inputs — an 84 050-triangle DTM × 1 048 576 cells draped in 2.6 s that way.
 
 ## Combining with weather-driven analyses (solar-radiation)
 
@@ -115,11 +217,12 @@ Verified live (2026-07-24) on a 6 km², 16.8k-building, 25-tile Vienna AOI at `s
 
 `sensor_points` responses are a third shape: a flat per-sensor list under `"output"` (plus `sensor-count` and legends), one value per sensor in input order.
 
-Terrain-only requests (no facade/sensor fields) still return the normal grid result.
+Terrain-only requests (no facade/sensor fields) return the normal grid result — see [*Results on the ground, with terrain*](#results-on-the-ground-with-terrain) for what it carries and what it does not.
 
 ## Pitfalls
 
 - `analysis_surfaces` and `sensor_points` are **mutually exclusive** — the SDK raises a `ValidationError` client-side before any network call.
+- **`context_geometry` is not accepted alone** — it needs `sensor_points`, `analysis_surfaces` or `ground_geometry` beside it. The flat-grid path does not trace context at all, so the SDK raises `ValueError` client-side and the server would 422. Give the occluders something to shade.
 - `sensor_points` through `run_area` / `run_area_and_wait` raises a `ValueError` — the flat per-sensor response can't be tile-merged; use the job primitives shown above.
 - `sensor_points` cap: 100,000 entries; `sensor_normals` must match its length, entries non-zero. `surface_grid_size >= 0.25`; `surface_offset >= 0`.
 - Facade fields on `thermal-comfort-index` / `thermal-comfort-statistics` are rejected by the server (and the SDK models don't expose them there).
@@ -161,7 +264,8 @@ Terrain-only requests (no facade/sensor fields) still return the normal grid res
   0.5.1 record nothing and are treated as unknown, so the guard never fires on old data.
 
 - **`run_area(..., max_sensors_per_job=...)`** lowers the per-job synthesized-sensor budget
-  that sizes facade sub-tile batches. A latency lever, not a correctness one, and it may
+  that sizes facade sub-tile batches. On cleanly modelled geometry a latency lever, not a
+  correctness one (but see the photogrammetric caveat below), and it may
   only make batches **smaller** — the ceiling is 90 % of the server's hard cap, because
   batch sizing is an estimate and the margin is what keeps it safe.
 
@@ -172,6 +276,16 @@ Terrain-only requests (no facade/sensor fields) still return the normal grid res
   Like the reach, the resolved cap is recorded on the schedule and a mismatched
   `retry_from` is refused: batch keys are positional (`{tile}#batch0`, `#batch1`, …), so a
   different cap **refills** them with different buildings rather than shifting them aside.
+
+  **On finely triangulated input it is a correctness lever.** The batch estimator is
+  `total_area / grid_size²`, but synthesis happens on each surface's own `nu × nv`
+  rectangle, so every small facet rounds up to at least one cell and pays for the masked
+  corners of its bounding rectangle. Measured (Hong Kong photogrammetric model, 461
+  buildings → 54 928 surfaces, one tile, SDK 0.5.1, 2026-09-02): estimate 455 079, server
+  synthesised **663 182 (×1.46)**, and the run **422'd on both batches** at the default
+  budget (`analysis-surfaces would synthesize more than 262144 sensors`). Halving
+  `max_sensors_per_job` gave 4 batches that completed (29 s). Raising `surface_grid_size`
+  is the server's own suggested alternative. → [`../byo-inputs.md`](../byo-inputs.md#dense-or-photogrammetric-models-the-sensor-estimator-under-counts)
 - **Client-side merge, not server compute, dominates wall-clock on large facade runs.** Verified on a real 6 km²/16.8k-building/39-batch run: server-side raytracing was 0.5-6.3s/job (flat regardless of a 1-day vs 1-year `TimePeriod`), but `merge_area_jobs()`/`merge_surface_area_jobs()` — downloading + JSON-decoding + reanchoring + typed-parsing every batch's result — was 55-80% of total time. Installing `infrared-sdk[fast]` (orjson) materially helps this stage. Budget your own timing expectations accordingly: annual vs. daily windows cost about the same; job/batch count is what scales cost, not simulated time span.
 
 ## See also
@@ -179,8 +293,10 @@ Terrain-only requests (no facade/sensor fields) still return the normal grid res
 - Rendering these results on your own model (texture route, exact `cell_tris` route) -> `../surface-results-integration.md`
 
 > **Note — response size.** `cell_tris` (the exact clipped per-cell geometry) is
-> the bulk of a facade response; measurements put it around 90% of the body. It
-> defaults OFF, so ask for it only when you are drawing crisp outlines, and use
+> the bulk of a facade response: measured **96 % of the body** on a 281-surface /
+> 8 786-sensor run — 0.2 MB → 4.9 MB, wall-clock 2.1 → 2.5 s (2026-09-02) — and
+> 93.7 % on a large facade run. It defaults OFF (`emit_cell_tris=False`), so ask for it per
+> selected building or for an export, never for the overview, and use
 > `cell_area` when you only need coverage. Work is under way to let clients
 > reproduce the same geometry locally, which will remove the trade entirely.
 - For polygon/buildings setup -> `02-geometry.md`

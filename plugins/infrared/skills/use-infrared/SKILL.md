@@ -28,6 +28,19 @@ license: Apache-2.0
 
 Do not skip step 2. The analysis file is the authoritative payload shape — not your training data.
 
+## Where do the sensors go — pick one
+
+Every request puts its sensors in exactly **one** place, chosen by which fields you set. The SDK rejects combinations client-side. Wanting the ground **and** the buildings is two requests.
+
+| You set | Sensors land on | Comes back as |
+|---|---|---|
+| nothing | **the ground** — 1 m grid; drapes onto `ground_geometry` when you pass one | `AreaResult.merged_grid`, a 2-D raster with **no z** |
+| `analysis_surfaces` | **the building shells** in `geometries` — facades / roofs. **The ground is not part of this mode.** | `SurfaceAnalysisResult`, per-surface UV grids |
+| `sensor_points` | exactly the points you give (single tile, job primitives only) | flat list under `"output"` |
+| `daylight-factor` model | **inside rooms** — its own contract, no polygon | per-floor point lists |
+
+Geometry reaches the run through three mesh channels that are **not** interchangeable: `geometries` / `buildings=` is **analysed**, `context_geometry` only **shades**, `ground_geometry` is the **terrain** (drape surface + occluder, never analysed). Terrain never goes in `geometries`. → [analyses/09-facade-terrain.md#the-five-geometry-channels](references/analyses/09-facade-terrain.md#the-five-geometry-channels)
+
 ## Silently wrong — read before you trust a number
 
 The section above is *which file to read*. This is *what will bite you anyway*. Everything below
@@ -40,8 +53,13 @@ and a reviewer reading your output cannot tell. One pass and you are immune.
 - **`min_legend` / `max_legend` are `None` on every area run** — so the usual `... if not None else np.nanmin(grid)` guard takes the fallback *every* time and auto-scales each render to its own data. Populated on **surface** results only. → [recipes/rendering-results-well.md](references/recipes/rendering-results-well.md)
 - **Masked cells are `None`, never `0`** — map to `NaN` before any mean. Separately, a surface at exactly `0.0` is real data (party walls, light wells) — 32% of facades on one Munich run. Two different things. → [surface-results-integration.md](references/surface-results-integration.md)
 - **No `ground_geometry` means a flat plane at z = 0** — not an error, and the result looks entirely normal. There is no terrain client; terrain is bring-your-own, every time. → [analyses/09-facade-terrain.md](references/analyses/09-facade-terrain.md)
+- **Terrain in `geometries` is accepted, billed, and returns a shattered mesh** — `geometries` means "put sensors on this", and surface synthesis clusters faces into flat regions (same normal within 5°, same plane within 2 cm), which a TIN fails on nearly every edge. Measured on three ArchiCAD terrains (2026-09-02): 242 / 85 / 47 up-facing triangles became **153 / 34 / 9 independent surfaces**, each gridded and clipped on its own — seams and holes everywhere, and the underside gridded too. Terrain goes in `ground_geometry`; the ground grid then drapes onto it by itself. → [analyses/09-facade-terrain.md#results-on-the-ground-with-terrain](references/analyses/09-facade-terrain.md#results-on-the-ground-with-terrain)
 - **Switching `terrain_alignment` barely moves the scene mean** while rewriting individual surfaces — measured: mean +0.03 kWh/m², 44% of facades moved by more than 1. A before/after on averages passes straight through it. → [analyses/09-facade-terrain.md](references/analyses/09-facade-terrain.md)
 - **Terrain is sliced per tile as of 0.5.1** — distant relief no longer shades unless you pass it as `context_geometry`. → [analyses/09-facade-terrain.md](references/analyses/09-facade-terrain.md)
+- **A `direct-sun-hours` grid window that includes night hours over-counts by exactly the number of night samples** — a below-horizon sun is clamped to a horizontal ray, which escapes any open site. Measured on prod (Munich, 48.2° N, 1 June, 2026-09-02): `start_hour=0, end_hour=23` → **24.0 h** on open ground; 5–21 → **17.0 h**. The smell: `grid.max()` reaches the window's sample count although the window includes hours before sunrise or after sunset. The over-count is uneven (cells beside buildings lose their "night hours" to the horizon). `daylight-availability` and facade/roof runs are immune. Keep the window inside sunrise–sunset for the latitude and month. → [analyses/04-direct-sun-hours.md#keep-the-window-inside-daylight](references/analyses/04-direct-sun-hours.md#keep-the-window-inside-daylight)
+- **Every result comes back in the frame you submitted, and the SDK reads your mesh coordinates as metres from the polygon's SW corner** — it never re-anchors your geometry. Pad the polygon to the south-west of submitted `(0, 0)` and every raster cell and every surface sits that far off the buildings. Measured (2026-09-02): a 10 m SW pad dropped the footprint-mask IoU from 0.55 to 0.38, and it looked plausible until overlaid. Put the polygon's SW corner at submitted `(0, 0)`; pad **NE only**. → [geospatial-crs.md#the-frame-rule](references/geospatial-crs.md#the-frame-rule)
+- **On a terrain-draped grid, cells under building footprints come back as `0.0`, not `NaN`** — `NaN` is outside-polygon or off-terrain only. A "cells in shadow" statistic that keeps the zeros is diluted: one before/after mean moved from −1.38 h to −1.52 h once footprints were excluded. → [interpretation/grid-conventions.md](references/interpretation/grid-conventions.md)
+- **`emit_cell_tris=True` is ~96 % of a facade response** — measured 0.2 MB → 4.9 MB on 281 surfaces / 8 786 sensors (2026-09-02). `values` and every aggregate are identical either way; turn it on per selected building or for an export, not for the overview. → [surface-results-integration.md](references/surface-results-integration.md)
 - **Interior entities are nested; `ground_geometry` and `vegetation` are flat** — the wrong shape is not a server error: the entity is skipped and you get a confident field over an empty occluder. → [analyses/10-interior-daylight-factor.md](references/analyses/10-interior-daylight-factor.md)
 - **Interior tier dispatch takes the first key present** (`sensor_points` → `sensor_surfaces` → `buildings` → `floors`) — the losers are dropped, not rejected: a one-storey request billed as every storey. → same file
 - **`openingFactor` is read by that exact spelling, no alias** — `opening_factor` is ignored and the window silently becomes clear glass. → same file
@@ -130,7 +148,7 @@ If you see either, you omitted weather data — add it via the snippet above and
 | Topic | Reference |
 |---|---|
 | Area API / tiling / AreaResult / cost preview | [05-area-api.md](references/05-area-api.md) |
-| Facade / roof / BYO-sensor analysis + terrain draping | [analyses/09-facade-terrain.md](references/analyses/09-facade-terrain.md) |
+| Facade / roof / BYO-sensor analysis, the five geometry channels (`geometries` / `context_geometry` / `ground_geometry`), `terrain_alignment` modes, results on the ground with terrain | [analyses/09-facade-terrain.md](references/analyses/09-facade-terrain.md) |
 | Interior geometry preparation (rooms, windows, per-window glazing, sensor grids) | [analyses/10-interior-daylight-factor.md](references/analyses/10-interior-daylight-factor.md) |
 | Async runs / `AreaSchedule` / single-tile primitives | [async-and-jobs.md](references/async-and-jobs.md) |
 | Webhooks / Standard Webhooks v1 / verification | [06-webhooks.md](references/06-webhooks.md) |
@@ -164,7 +182,7 @@ Use the `references/recipes/` folder for UI/app implementation recipes that comb
 - Single tile is **512 m × 512 m**. Cell pitch is **1 m × 1 m**. Polygon larger than that auto-tiles. Solar/UTCI/TCS tiles carry a **128 m context margin** per side for distant-shadow buildings.
 - `wind_speed` is a **`float`** in m/s, `0 ≤ v ≤ 100` (SDK 0.5.1+). Do **not** round an EPW mean to satisfy a type — truncating 3.9 to 3 shifts every cell by −23 %.
 - `wind_direction` is a **whole-degree `int`**, `0 ≤ d ≤ 360`. A fractional bearing (e.g. `22.5`) is rejected at construction — round it deliberately before passing.
-- Plotting bounds: distributions are heavy-tailed, so never scale to the grid's own min/max. Carry a fixed per-analysis domain — SVF/DA `[0,100]`, DSH `[0,12]`, solar `[0,1000]`, wind `[0,15]`, UTCI `[-40,46]` — and hold it constant across runs you compare. (`min_legend` / `max_legend` serve this on **surface** results only; see *Silently wrong* above.) Details: [recipes/rendering-results-well.md](references/recipes/rendering-results-well.md).
+- Plotting bounds: distributions are heavy-tailed, so never scale to the grid's own min/max. Carry a fixed per-analysis domain — SVF/DA `[0,100]`, DSH `[0,12]` (for a 9–17 window — the ceiling is the daylight sample count of *your* window), solar `[0,1000]`, wind `[0,15]`, UTCI `[-40,46]` — and hold it constant across runs you compare. (`min_legend` / `max_legend` serve this on **surface** results only; see *Silently wrong* above.) Details: [recipes/rendering-results-well.md](references/recipes/rendering-results-well.md).
 - Coordinate frames: WGS84 lon/lat in, polygon-bbox-SW metres for caller geometry, tile-local metres inside a tile, surface UV out. Full map: [geospatial-crs.md#the-frames-end-to-end](references/geospatial-crs.md#the-frames-end-to-end).
 - Use `result.bounds` (added 0.4.4) — not `polygon.bounds` — to place the bitmap in a map viewer. `result.bounds` reflects the real NE-padded grid extent.
 

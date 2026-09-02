@@ -6,7 +6,7 @@ How to take a `SurfaceAnalysisResult` (see `analyses/09-facade-terrain.md`) and 
 
 Every entry in `result.surfaces` is keyed `"{building-id}/{surface-index}"` — the building id is **your own key** from the `geometries` you submitted, so results map straight back onto your elements. Each `SurfaceSensorGrid` is a planar sensor grid in its own UV frame:
 
-- `origin` — 3D anchor of the grid (same coordinate frame as your submitted mesh, metres)
+- `origin` — 3D anchor of the grid, in **the frame you submitted the mesh in**, metres. No shift, provided the polygon's SW corner is submitted `(0, 0)` — see [`geospatial-crs.md#the-frame-rule`](geospatial-crs.md#the-frame-rule); on the corrected frame a building's `cell_tris` bbox matched its submitted mesh to within half a cell
 - `u_axis`, `v_axis` — unit vectors in the surface plane
 - `grid_size` — cell edge length (your `surface_grid_size`)
 - `nu`, `nv` — grid dimensions; `values` has `nu * nv` entries, **row-major in v** (`index = j * nu + i`)
@@ -14,8 +14,12 @@ Every entry in `result.surfaces` is keyed `"{building-id}/{surface-index}"` — 
 - `cell_area[k]` — the **fraction** of the cell inside the surface footprint, in `(0,1]` (dimensionless, *not* m²); multiply by `grid_size²` for the actual area. `cell_tris[k]` — the exact clipped triangle geometry (flat `[x,y,z, ...]`, 9 floats per triangle). Both keys are **absent** (not empty) when the server was asked not to emit them.
   That is controlled by **`emit_cell_tris`** on the request (SDK 0.5.1+), which **defaults
   to `False`** on every `analysis_surfaces` request — efficient by default, because on a
-  large facade run the triangle arrays dominate the download (measured 93.7% of the
-  payload), and the download is the phase that dominates wall-clock. Set it `True`
+  large facade run the triangle arrays dominate the download — measured **96 % of the
+  body** on a 281-surface / 8 786-sensor run (0.2 MB → 4.9 MB, 2026-09-02) and 93.7 %
+  on a large facade run — and the download is the phase that dominates wall-clock. The cheap
+  pattern is to draw the overview as unclipped cell quads from `origin` / `u_axis` /
+  `v_axis` / `grid_size` / `nu` / `nv` and turn the outlines on per selected building or
+  for an export. Set it `True`
   explicitly when you need the clipped geometry for Route 2; leave it alone for Route 1
   or analysis-only work. `values` and every aggregate are identical either way, so
   nothing analytical is lost — only the exact per-cell outlines used for *drawing*.

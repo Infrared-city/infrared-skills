@@ -118,6 +118,29 @@ result = client.run_area_and_wait(
 )
 ```
 
+## Other mesh channels: `context_geometry`, `ground_geometry`
+
+Occluders that are never analysed (`context_geometry`) and the terrain the grid drapes onto (`ground_geometry`) go into the **payload**, in the same polygon-bbox-SW metre frame as `buildings`. Terrain never goes in `buildings` / `geometries`. The five channels, side by side: [`analyses/09-facade-terrain.md#the-five-geometry-channels`](analyses/09-facade-terrain.md#the-five-geometry-channels).
+
+## BYO meshes from OBJ / glTF / BIM exporters — weld first
+
+Exporters write **triangle soup**: three vertices per triangle, nothing shared. Measured on a photogrammetric city model (Hong Kong, 2026-09-02): **2 826 564 vertices for 942 188 triangles**, exactly 3 per triangle; welding duplicates gave 562 910. JSON float *text* is the whole payload, so weld duplicate vertices and round coordinates to the centimetre before sending — together the `buildings` channel went from **83.9 MB to 22.4 MB** of JSON (5×), and the busiest tile from 76.8 MB to 24.2 MB.
+
+```python
+def weld(mesh, decimals=2):
+    """Merge duplicate vertices (after rounding to `decimals`) and re-index."""
+    v = np.round(np.asarray(mesh["coordinates"], dtype=float).reshape(-1, 3), decimals)
+    f = np.asarray(mesh["indices"], dtype=int).reshape(-1, 3)
+    uniq, inverse = np.unique(v, axis=0, return_inverse=True)
+    return {**mesh, "coordinates": uniq.ravel().tolist(), "indices": inverse.ravel()[f.ravel()].tolist()}
+```
+
+Why it matters beyond speed: a per-request body is capped at **64 MiB decompressed** (`413 REF_TOO_LARGE` — after you have already uploaded), and the presigned-upload handoff for large bodies is a transport, not a licence. Weld first.
+
+## Dense or photogrammetric models: the sensor estimator under-counts
+
+The SDK sizes facade batches with `total_area / grid_size²`; synthesis happens on each surface's own `nu × nv` rectangle, so on finely triangulated geometry every small facet rounds up to at least one cell and pays for its masked corners. Measured (461 photogrammetric buildings → 54 928 surfaces on one tile, SDK 0.5.1, 2026-09-02): estimate 455 079, server synthesised **663 182 (×1.46)**, and the run **422'd at the default budget**. On such input `max_sensors_per_job` is a correctness lever, not just a latency one — **halve it** (the run then completed as 4 batches), or raise `surface_grid_size`. Details: [`analyses/09-facade-terrain.md`](analyses/09-facade-terrain.md#pitfalls).
+
 ## Pitfalls
 
 - **`{}` = skip, not "use empty"** — passing an empty dict is the same as `None`.
