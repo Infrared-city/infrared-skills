@@ -26,7 +26,7 @@ For per-analysis class breaks (e.g. UTCI stress thresholds, PWC class semantics)
 | Cell pitch | **1 m × 1 m** (fixed; do not assume otherwise) |
 | Single-tile coverage | **512 m × 512 m** (auto-tiled if polygon larger) |
 | Outside polygon / off the terrain | `NaN` — "no data", distinct from "cold/dark/calm" |
-| Under a building footprint, **terrain-draped run** (`ground_geometry` passed) | **`0.0` — a real value, not `NaN`.** Measured 11 168 zeros among 123 024 cells on one ArchiCAD site (2026-09-02). Treat as masked, never as "no sun". Verified on the terrain path only — check `(grid == 0).sum()` against your footprint area before assuming the same for a flat run |
+| Under a building footprint, **terrain-draped run** (`ground_geometry` passed) | **`0.0` — a real value, not `NaN`.** Measured 11 168 zeros among 123 024 cells on one BIM site (2026-09-02). Treat as masked, never as "no sun". Verified on the terrain path only — check `(grid == 0).sum()` against your footprint area before assuming the same for a flat run |
 | Row 0 | South edge of polygon bbox |
 | Column 0 | West edge of polygon bbox |
 | Orientation | Plot with `origin="lower"` (matplotlib) or unflipped (Plotly) for north-up |

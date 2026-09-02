@@ -18,7 +18,7 @@ Sensors land in exactly one place per request — ground grid, `analysis_surface
 
 All three mesh channels take `{id: {"coordinates": [x, y, z, …], "indices": […]}}` in metres, origin at the polygon-bbox SW corner, `+x` east, `+y` north, `z` up. `run_area*` re-frames them per tile; you never do. Per analysis: the two wind models take `geometries` only (no terrain, no occluders, no surface mode); the four raytraced solar models take everything; UTCI/TCS take `ground_geometry` but **not** `context_geometry` or `analysis_surfaces`.
 
-**Terrain never goes in `geometries`.** It is accepted, billed, and returns a shattered mesh: surface synthesis clusters faces into flat regions (same normal within 5°, same plane within 2 cm), which a TIN fails on nearly every edge. Measured on three ArchiCAD terrains (2026-09-02): the top surfaces alone — 242 / 85 / 47 up-facing triangles — became **153 / 34 / 9 independent surfaces**; sent as the whole Mesh solid (bottom cap and skirt included, which is what the export gives you) they became **218 / 85 / 52**, with the underside gridded too. Each surface is gridded and clipped on its own — seams on every edge, holes where a region keeps no cell. Put it in `ground_geometry`: the ground grid drapes onto it automatically ([*Results on the ground, with terrain*](#results-on-the-ground-with-terrain)).
+**Terrain never goes in `geometries`.** It is accepted, billed, and returns a shattered mesh: surface synthesis clusters faces into flat regions (same normal within 5°, same plane within 2 cm), which a TIN fails on nearly every edge. Measured on three BIM terrain samples (2026-09-02): the top surfaces alone — 242 / 85 / 47 up-facing triangles — became **153 / 34 / 9 independent surfaces**; sent as the whole Mesh solid (bottom cap and skirt included, which is what the export gives you) they became **218 / 85 / 52**, with the underside gridded too. Each surface is gridded and clipped on its own — seams on every edge, holes where a region keeps no cell. Put it in `ground_geometry`: the ground grid drapes onto it automatically ([*Results on the ground, with terrain*](#results-on-the-ground-with-terrain)).
 
 ## Request
 
@@ -98,7 +98,7 @@ payload = SvfModelRequest(
 
 A GeoTIFF DEM read with `rasterio` (`rasterio.open(path).read(1)`, then `rasterio.warp.reproject` onto the metre grid) is the usual source of `elevation`. **`rasterio` is not an SDK dependency** — install it yourself. Whatever the source, the array must be in metres on the frame above and must cover the whole polygon; objects beyond the terrain's extent are clamped to the edge height, not refused.
 
-**A BIM "Mesh" is a solid; `ground_geometry` wants a surface.** ArchiCAD's Mesh element (and most CAD terrain solids) export watertight: the TIN on top, a flat bottom cap, and a vertical skirt. Keep only the up-facing triangles — the bottom cap would drape sensors onto the underside, the skirt would become an occluder wall:
+**A BIM "Mesh" is a solid; `ground_geometry` wants a surface.** A BIM Mesh/terrain solid (most CAD terrain exports) is watertight: the TIN on top, a flat bottom cap, and a vertical skirt. Keep only the up-facing triangles — the bottom cap would drape sensors onto the underside, the skirt would become an occluder wall:
 
 ```python
 def top_surface_only(coordinates, indices):
@@ -111,7 +111,7 @@ def top_surface_only(coordinates, indices):
     return {"coordinates": v[used].ravel().tolist(), "indices": new_f.ravel().tolist()}
 ```
 
-Measured on the ArchiCAD sample: 300 triangles in the solid, 85 kept.
+Measured on a BIM terrain sample: 300 triangles in the solid, 85 kept.
 
 ### `terrain_alignment` — how your geometry meets the ground
 
@@ -120,12 +120,12 @@ Three server modes, case-sensitive. **None of them moves the sensors** — with 
 | Mode | What the server does | Use when |
 |---|---|---|
 | `"auto-align"` (default) | **Seats the scene.** Every solid is re-based to local grade before inference — each base vertex drops to the terrain beneath it, with a 0.5 m skirt so footprints stay sealed on a slope. The seated geometry is what the under-building mask, the occluder union and facade synthesis all read. | Fetched buildings (based at z = 0) with a real DEM; a BIM export that is **not** consistently seated. |
-| `"assume-aligned"` | **Validates only — a validator, not a fixer.** Moves nothing. Any object whose base falls outside the accepted band — a **±1 m tolerance around a base seated 0.5 m below grade** (the skirt), i.e. **terrain_z −1.5 m to +1.0 m** — is a **422 for the whole job**, naming the offenders with residuals. Verbatim shape (ArchiCAD sample, 2026-09-02): *"terrain-alignment=assume-aligned but 10 object(s) are not seated on the terrain (seated band: terrain_z −1.5 m to +1.0 m …) … object #4 base_z=0.316 terrain_z=−2.161 residual=2.977 m … use auto-align to seat them, or as-is to keep your geometry exactly as sent."* | You prepped geometry against this exact DEM and want a mismatch to be loud. |
+| `"assume-aligned"` | **Validates only — a validator, not a fixer.** Moves nothing. Any object whose base falls outside the accepted band — a **±1 m tolerance around a base seated 0.5 m below grade** (the skirt), i.e. **terrain_z −1.5 m to +1.0 m** — is a **422 for the whole job**, naming the offenders with residuals. Verbatim shape (BIM sample, 2026-09-02): *"terrain-alignment=assume-aligned but 10 object(s) are not seated on the terrain (seated band: terrain_z −1.5 m to +1.0 m …) … object #4 base_z=0.316 terrain_z=−2.161 residual=2.977 m … use auto-align to seat them, or as-is to keep your geometry exactly as sent."* | You prepped geometry against this exact DEM and want a mismatch to be loud. |
 | `"as-is"` | **Trusts your geometry exactly.** No seating, no band check — a tower on its own podium 50 m up stays there. | BIM/CAD exports already placed on their terrain. **The server accepts `as-is`, but no released or staged Python SDK can send it yet** — passing it fails client-side in the pydantic `Literal`. A fix is pending; check your installed SDK's `Literal` before relying on it. |
 
 **Don't know whether your model is seated?** Submit once with `assume-aligned` — it validates only, costs one job, and either passes or 422s naming every offender with its residual. Then use `auto-align` (it failed) or keep your geometry (it passed — `assume-aligned` itself moves nothing, so leave it on; `as-is` does the same without the check once your SDK can send it).
 
-Rule of thumb from the ArchiCAD case: `assume-aligned` 422'd naming 10 objects floating 1.7–3.0 m above the terrain (buildings at z ≈ 0, terrain top at −1 … −2.4 m). A model like that is not seated → `auto-align`. A model that *is* seated → `as-is` (once your SDK can send it).
+Rule of thumb from a measured case: `assume-aligned` 422'd naming 10 objects floating 1.7–3.0 m above the terrain (buildings at z ≈ 0, terrain top at −1 … −2.4 m). A model like that is not seated → `auto-align`. A model that *is* seated → `as-is` (once your SDK can send it).
 
 With no `ground_geometry` all three are inert — the worker never reads the field, so `"assume-aligned"` validates nothing, and a misspelt value (`"as_is"`) passes silently until the day you add a DEM and it becomes a 422.
 
@@ -148,7 +148,7 @@ result = client.run_area_and_wait(payload, polygon, buildings=my_buildings)
 grid = result.merged_grid          # (ny, nx) float raster — NO per-cell z
 ```
 
-Measured (ArchiCAD sample, 1 tile, prod, 2026-09-02): 123 024 cells analysed, mean 11.93 h, max 15.00 h (all 15 samples are daylight, so open ground legitimately reaches the ceiling), 3.4 s.
+Measured (BIM sample, 1 tile, prod, 2026-09-02): 123 024 cells analysed, mean 11.93 h, max 15.00 h (all 15 samples are daylight, so open ground legitimately reaches the ceiling), 3.4 s.
 
 **What comes back, and what does not:**
 
