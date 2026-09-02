@@ -88,7 +88,10 @@ Two traps in one call:
 #    Construct in one call anyway -- B6 publishes UTCI's seven weather field
 #    names so that is actually possible for it too, not just advice.)
 # 2. terrain_alignment MUST be "auto-align". "assume-aligned" moves nothing
-#    but 422s the WHOLE job for any base outside ±1 m of terrain. On
+#    but 422s the WHOLE job for any base outside ±1 m of terrain (the ±1 m
+#    tolerance is applied around a base seated 0.5 m below grade, so the
+#    accepted band is terrain_z -1.5 m to +1.0 m; see the terrain_alignment
+#    table in ../analyses/09-facade-terrain.md). On
 #    separately-sourced buildings + DTM only ~18% of objects qualify, and
 #    ~22% AFTER the stack merge in A3 -- so even having fixed the stacking,
 #    this mode is still not usable. The residual is DTM sampling: a footprint

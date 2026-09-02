@@ -6,7 +6,7 @@ Facade/BYO-sensor fields work on the 4 raytraced solar-family models ONLY: `sky-
 
 ## The five geometry channels
 
-Sensors land in exactly one place per request — ground grid, `analysis_surfaces`, `sensor_points`, or the interior `daylight-factor` model; see *Where do the sensors go* in [`SKILL.md`](../../SKILL.md). Geometry gets there through five channels, and the three mesh channels are **not** interchangeable:
+Sensors land in exactly one place per request — ground grid, `analysis_surfaces`, `sensor_points`, or the interior `daylight-factor` model; which fields you set decides (table in [`SKILL.md`](../../SKILL.md)). The SDK rejects combinations client-side, and wanting the ground **and** the buildings is two requests. Geometry gets there through five channels, and the three mesh channels are **not** interchangeable — `geometries` / `buildings=` is analysed, `context_geometry` only shades, `ground_geometry` is the terrain:
 
 | Channel | Role | Put here |
 |---|---|---|
@@ -49,7 +49,7 @@ payload = SolarModelRequest(
 result = client.run_area_and_wait(payload, polygon)   # geometries is in the payload: no buildings= kwarg
 ```
 
-Measured (2026-09-02, 1 June 06:00–20:00, 1 m grid): 793 context triangles + 85 terrain triangles shading **one building → 1 664 sensors on 13 surfaces, 1 job, 2.4 s**. Result keys are your ids (`"my_design/<index>"`), so `result.surfaces` and `result.aggregates` map straight onto the element you submitted.
+Measured (2026-09-02, 1 June 06:00–20:00, 1 m grid): 793 context triangles + 85 terrain triangles shading **one building → 1 664 sensors on 13 surfaces, 1 job, ~2–3 s**. Result keys are your ids (`"my_design/<index>"`), so `result.surfaces` and `result.aggregates` map straight onto the element you submitted.
 
 Bring-your-own sensors instead of surface synthesis (mutually exclusive with `analysis_surfaces`). **Single-tile only** — submit via the job primitives, NOT `run_area_and_wait` (which rejects `sensor_points` with a `ValueError`):
 
@@ -120,10 +120,12 @@ Three server modes, case-sensitive. **None of them moves the sensors** — with 
 | Mode | What the server does | Use when |
 |---|---|---|
 | `"auto-align"` (default) | **Seats the scene.** Every solid is re-based to local grade before inference — each base vertex drops to the terrain beneath it, with a 0.5 m skirt so footprints stay sealed on a slope. The seated geometry is what the under-building mask, the occluder union and facade synthesis all read. | Fetched buildings (based at z = 0) with a real DEM; a BIM export that is **not** consistently seated. |
-| `"assume-aligned"` | **Validates only — a validator, not a fixer.** Moves nothing. Any object whose base falls outside the seated band is a **422 for the whole job**, naming the offenders with residuals. Verbatim shape (ArchiCAD sample, 2026-09-02): *"terrain-alignment=assume-aligned but 10 object(s) are not seated on the terrain (seated band: terrain_z −1.5 m to +1.0 m) … object #4 base_z=0.316 terrain_z=−2.161 residual=2.977 m … use auto-align to seat them, or as-is to keep your geometry exactly as sent."* | You prepped geometry against this exact DEM and want a mismatch to be loud. |
-| `"as-is"` | **Trusts your geometry exactly.** No seating, no band check — a tower on its own podium 50 m up stays there. | BIM/CAD exports already placed on their terrain. **SDK 0.5.2+ only:** on 0.5.1 the Python `Literal` admits the first two modes only, so `"as-is"` fails client-side before any request leaves — unreachable from Python until you upgrade. |
+| `"assume-aligned"` | **Validates only — a validator, not a fixer.** Moves nothing. Any object whose base falls outside the accepted band — a **±1 m tolerance around a base seated 0.5 m below grade** (the skirt), i.e. **terrain_z −1.5 m to +1.0 m** — is a **422 for the whole job**, naming the offenders with residuals. Verbatim shape (ArchiCAD sample, 2026-09-02): *"terrain-alignment=assume-aligned but 10 object(s) are not seated on the terrain (seated band: terrain_z −1.5 m to +1.0 m …) … object #4 base_z=0.316 terrain_z=−2.161 residual=2.977 m … use auto-align to seat them, or as-is to keep your geometry exactly as sent."* | You prepped geometry against this exact DEM and want a mismatch to be loud. |
+| `"as-is"` | **Trusts your geometry exactly.** No seating, no band check — a tower on its own podium 50 m up stays there. | BIM/CAD exports already placed on their terrain. **The server accepts `as-is`, but no released or staged Python SDK can send it yet** — passing it fails client-side in the pydantic `Literal`. A fix is pending; check your installed SDK's `Literal` before relying on it. |
 
-Rule of thumb from the ArchiCAD case: `assume-aligned` 422'd naming 10 objects floating 1.7–3.0 m above the terrain (buildings at z ≈ 0, terrain top at −1 … −2.4 m). A model like that is not seated → `auto-align`. A model that *is* seated → `as-is`.
+**Don't know whether your model is seated?** Submit once with `assume-aligned` — it validates only, costs one job, and either passes or 422s naming every offender with its residual. Then use `auto-align` (it failed) or keep your geometry (it passed — `assume-aligned` itself moves nothing, so leave it on; `as-is` does the same without the check once your SDK can send it).
+
+Rule of thumb from the ArchiCAD case: `assume-aligned` 422'd naming 10 objects floating 1.7–3.0 m above the terrain (buildings at z ≈ 0, terrain top at −1 … −2.4 m). A model like that is not seated → `auto-align`. A model that *is* seated → `as-is` (once your SDK can send it).
 
 With no `ground_geometry` all three are inert — the worker never reads the field, so `"assume-aligned"` validates nothing, and a misspelt value (`"as_is"`) passes silently until the day you add a DEM and it becomes a 422.
 
@@ -151,7 +153,7 @@ Measured (ArchiCAD sample, 1 tile, prod, 2026-09-02): 123 024 cells analysed, me
 **What comes back, and what does not:**
 
 - `merged_grid` is a flat raster. **It carries no z** — the terrain height under each cell is never serialised — so to draw it on the terrain in 3D you re-sample your own terrain at every cell centre. That is the one step the API leaves to you.
-- Row 0 = south, column 0 = west, 1 m pitch. Cell `(j, i)` is centred at `(i + 0.5, j + 0.5)` **in the frame you submitted** — the polygon's SW corner is submitted `(0, 0)`. Keep that corner at your model origin (or subtract it from every vertex before submitting) and no shift exists anywhere: [`../geospatial-crs.md#the-frame-rule`](../geospatial-crs.md#the-frame-rule).
+- Row 0 = south, column 0 = west, 1 m pitch. **Grid cell `(j, i)` is the sensor at `(corner_x + i, corner_y + j)` metres** — integer metres, `z = terrain_z + 1.5 m` — **in the frame you submitted**; a cell drawn around it spans ±0.5 m. The polygon's SW corner is submitted `(0, 0)`; keep that corner at your model origin (or subtract it from every vertex before submitting) and no shift exists anywhere: [`../geospatial-crs.md#the-frame-rule`](../geospatial-crs.md#the-frame-rule). Measured: footprint IoU rose from 0.73 to 0.80 when a half-cell (+0.5 m) offset was removed, and the same 1 m south-west peak showed on all four Hong Kong tiles.
 - **Footprint cells are `0.0`, not `NaN`,** on this path. `NaN` means outside the polygon or off the terrain — the drape ray goes straight down, so terrain narrower than the tile masks cells rather than flattening. Exclude the zeros from any "cells in shadow" statistic (measured: 11 168 footprint zeros among 123 024 cells moved a before/after mean from −1.38 h to −1.52 h).
 
 **Drape for display** — the server's own vertical ray, done client-side on your terrain triangles (linear interpolation on *your* triangulation, `NaN` where no triangle covers the cell):
@@ -161,19 +163,20 @@ import numpy as np
 from matplotlib.tri import LinearTriInterpolator, Triangulation
 
 def drape_z(terrain_mesh, grid_shape, origin=(0.0, 0.0)):
-    """Terrain height at every cell centre of a merged grid, in your model metres.
+    """Terrain height under every sensor of a merged grid, in your model metres.
+    Sensors sit at integer metres: cell (j, i) -> (origin_x + i, origin_y + j).
     `origin` = the model point you submitted as (0, 0); (0, 0) if the model origin was the corner."""
     v = np.asarray(terrain_mesh["coordinates"], dtype=float).reshape(-1, 3)
     f = np.asarray(terrain_mesh["indices"], dtype=int).reshape(-1, 3)
     ny, nx = grid_shape
-    xs = origin[0] + np.arange(nx) + 0.5          # column 0 = west
-    ys = origin[1] + np.arange(ny) + 0.5          # row 0 = south
+    xs = origin[0] + np.arange(nx)                # column 0 = west
+    ys = origin[1] + np.arange(ny)                # row 0 = south
     gx, gy = np.meshgrid(xs, ys)
     z = LinearTriInterpolator(Triangulation(v[:, 0], v[:, 1], f), v[:, 2])(gx, gy)
     return z.filled(np.nan)                       # (ny, nx); NaN off the terrain
 
 z = drape_z(terrain_mesh, result.merged_grid.shape)
-# one vertex per cell at (x, y, z + a small lift), coloured by merged_grid
+# one quad per cell spanning (x ± 0.5, y ± 0.5) at z + a small lift, coloured by merged_grid
 ```
 
 `matplotlib.tri` interpolates on the triangles you pass (no re-triangulation); a vectorised numpy barycentric test is the dependency-free equivalent. Bucket by triangle for large inputs — an 84 050-triangle DTM × 1 048 576 cells draped in 2.6 s that way.

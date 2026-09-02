@@ -82,6 +82,12 @@ This is a complete production approach: ~15 shader lines + one packing loop, no 
 | Exact printable/exportable geometry, crisp edges | 2 (`cell_tris`) |
 | Best of both | 1 for the overview, 2 on demand for selected elements |
 
+**Overview, then click** — the pattern that keeps the payload small:
+
+1. Run the whole scene with `emit_cell_tris=False` (the default) and draw every surface as Route 1 quads from `origin` / `u_axis` / `v_axis` / `grid_size` / `nu` / `nv`.
+2. On selection, re-run with `geometries={id: buildings[id]}`, the rest of the scene as `context_geometry`, and `emit_cell_tris=True` — one building, one job (measured 1 664 sensors / 13 surfaces, ~2–3 s), Route 2 outlines for exactly the element on screen.
+3. Cache by building id. Colours come from run 1, outlines from run 2; `values` and aggregates are present with either setting.
+
 ## Orientation — which way a surface faces
 
 `origin` / `u_axis` / `v_axis` are a **right-handed** frame. The outward normal is

@@ -46,7 +46,7 @@ import matplotlib.pyplot as plt
 DOMAIN = {                       # fixed per analysis, never per run
     "sky-view-factors": (0, 100),          # %
     "daylight-availability": (0, 100),     # %
-    "direct-sun-hours": (0, 12),           # hours
+    "direct-sun-hours": (0, 12),           # hours — for a 9–17 window; ceiling = daylight samples in YOUR window
     "solar-radiation": (0, 1000),          # kWh/m2
     "wind-speed": (0, 15),                 # m/s, top bin OPEN
     "thermal-comfort-index": (-40, 46),    # degC
@@ -67,7 +67,7 @@ registry, and is where the `DOMAIN` values above come from.
 |---|---|---|
 | `wind-speed` | `[0, 15]` (top bin **open**: "> 15") | m/s |
 | `sky-view-factors` | `[0, 100]` | % |
-| `direct-sun-hours` | `[0, 12]` | hours |
+| `direct-sun-hours` | `[0, 12]` (for a 9–17 window — the ceiling is the daylight sample count of *your* window; night hours in the window count as sun, see [`../analyses/04-direct-sun-hours.md`](../analyses/04-direct-sun-hours.md#keep-the-window-inside-daylight)) | hours |
 | `daylight-availability` | `[0, 100]` | % |
 | `solar-radiation` | `[0, 1000]` | kWh/m² |
 | `thermal-comfort-index` | `[-40, 46]` | °C |
