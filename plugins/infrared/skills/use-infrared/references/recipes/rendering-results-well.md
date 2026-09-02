@@ -67,7 +67,7 @@ registry, and is where the `DOMAIN` values above come from.
 |---|---|---|
 | `wind-speed` | `[0, 15]` (top bin **open**: "> 15") | m/s |
 | `sky-view-factors` | `[0, 100]` | % |
-| `direct-sun-hours` | `[0, 12]` (for a 9–17 window — the ceiling is the daylight sample count of *your* window; night hours in the window count as sun, see [`../analyses/04-direct-sun-hours.md`](../analyses/04-direct-sun-hours.md#keep-the-window-inside-daylight)) | hours |
+| `direct-sun-hours` | `[0, 12]` (a 9–17 window; the ceiling is your window's daylight sample count — see [`../analyses/04-direct-sun-hours.md`](../analyses/04-direct-sun-hours.md#keep-the-window-inside-daylight)) | hours |
 | `daylight-availability` | `[0, 100]` | % |
 | `solar-radiation` | `[0, 1000]` | kWh/m² |
 | `thermal-comfort-index` | `[-40, 46]` | °C |
@@ -335,6 +335,41 @@ open("result.png", "wb").write(png)
 `grid_to_list` converts `NaN -> None`. Pass `criteria` / `subtype` for PWC and thermal
 comfort so the categorical mapping matches §5. Details:
 [`../07-images.md`](../07-images.md).
+
+---
+
+## 9. Drawing a terrain-draped grid in 3D
+
+A ground-grid run with `ground_geometry` is draped onto the terrain server-side, but the
+raster comes back with **no z**. To draw it on the relief, re-sample your own terrain at
+each sensor position: grid cell `(j, i)` is the sensor at `(corner_x + i, corner_y + j)`
+metres in the frame you submitted
+([`../geospatial-crs.md#the-frame-rule`](../geospatial-crs.md#the-frame-rule)); draw the
+cell ±0.5 m around it, lifted slightly above the surface.
+
+```python
+import numpy as np
+from matplotlib.tri import LinearTriInterpolator, Triangulation
+
+def drape_z(terrain_mesh, grid_shape, corner=(0.0, 0.0)):
+    """Terrain height under every sensor of a merged grid; NaN where no triangle covers it.
+    `corner` = the model point you submitted as (0, 0)."""
+    v = np.asarray(terrain_mesh["coordinates"], dtype=float).reshape(-1, 3)
+    f = np.asarray(terrain_mesh["indices"], dtype=int).reshape(-1, 3)
+    ny, nx = grid_shape
+    xs = corner[0] + np.arange(nx)          # column 0 = west
+    ys = corner[1] + np.arange(ny)          # row 0 = south
+    gx, gy = np.meshgrid(xs, ys)
+    z = LinearTriInterpolator(Triangulation(v[:, 0], v[:, 1], f), v[:, 2])(gx, gy)
+    return z.filled(np.nan)                 # (ny, nx)
+
+z = drape_z(terrain_mesh, result.merged_grid.shape)
+```
+
+`matplotlib.tri` interpolates on the triangles you pass (no re-triangulation); a vectorised
+numpy barycentric test is the dependency-free equivalent. Bucket by triangle for large
+inputs. Footprint cells come back as `0.0` on this path — mask them with your own
+footprints (§2 covers masked cells).
 
 ---
 

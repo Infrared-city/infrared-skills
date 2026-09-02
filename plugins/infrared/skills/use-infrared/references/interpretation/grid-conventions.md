@@ -26,7 +26,7 @@ For per-analysis class breaks (e.g. UTCI stress thresholds, PWC class semantics)
 | Cell pitch | **1 m × 1 m** (fixed; do not assume otherwise) |
 | Single-tile coverage | **512 m × 512 m** (auto-tiled if polygon larger) |
 | Outside polygon / off the terrain | `NaN` — "no data", distinct from "cold/dark/calm" |
-| Under a building footprint, **terrain-draped run** (`ground_geometry` passed) | **`0.0` — a real value, not `NaN`.** Measured 11 168 zeros among 123 024 cells on one BIM site (2026-09-02). Treat as masked, never as "no sun". Verified on the terrain path only — check `(grid == 0).sum()` against your footprint area before assuming the same for a flat run |
+| Under a building footprint, **terrain-draped run** (`ground_geometry` passed) | **`0.0` — a real value, not `NaN`.** Treat as masked, never as "no sun". Verified on the terrain path only — check `(grid == 0).sum()` against your footprint area before assuming the same for a flat run |
 | Row 0 | South edge of polygon bbox |
 | Column 0 | West edge of polygon bbox |
 | Orientation | Plot with `origin="lower"` (matplotlib) or unflipped (Plotly) for north-up |
@@ -40,7 +40,7 @@ mean_value = valid.mean()
 area_share_above_threshold = (valid > THRESHOLD).mean()
 ```
 
-On a terrain-draped run also exclude the footprint cells before a shadow statistic — they are `0.0`, and a cell with no sun cannot lose any. Keeping them moved one before/after mean from −1.38 h to −1.52 h and the "changed" share from 78.6 % to 86.4 %. Prefer a mask built from your own footprints; masking `grid == 0` also drops genuinely sunless open-ground cells.
+On a terrain-draped run also exclude the footprint cells before a shadow statistic — they are `0.0`, and a cell with no sun cannot lose any. Prefer a mask built from your own footprints; masking `grid == 0` also drops genuinely sunless open-ground cells.
 
 ## Geo-referencing overlays — always use `AreaResult.bounds`
 

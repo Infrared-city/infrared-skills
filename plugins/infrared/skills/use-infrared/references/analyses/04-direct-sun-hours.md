@@ -42,12 +42,11 @@ For cross-run comparison always normalise first — never compare absolute hour 
 
 On the **grid** path, `direct-sun-hours` counts every hourly sample in the window whose sun ray is not blocked — and a below-horizon sun is clamped to a **horizontal** ray, which escapes any open site. Night samples therefore count as sun.
 
-Measured on prod (Munich, 48.2° N, 1 June, three 1-tile runs, 2026-09-02): `start_hour=0, end_hour=23` → **24.0 h** on open ground; `5–21` → **17.0 h** (17 samples, one of them before sunrise). The maximum equals the number of hourly samples in the window, not the daylight in it. The over-count is **not** a constant offset: cells beside buildings lose their "night hours" to the horizon, so the error is spatially uneven and survives normalisation.
+A 24-hour window reads **24.0 h** on open ground: the maximum equals the window's sample count, not the daylight in it. The error is uneven and survives normalisation.
 
 - Keep `start_hour` / `end_hour` inside sunrise–sunset **for the latitude and the month**. Central Europe in June: 06–20 is safe (15 samples, max 15.0 h); in December, roughly 09–15.
-- **The smell:** `grid.max()` reaches the number of hourly samples in the window although the window includes hours before sunrise or after sunset. Inside daylight, open ground legitimately reaches the ceiling — 15.0 h for 06–20 on the same site.
-- `daylight-availability` is immune (it filters night out server-side). Facade/roof runs (`analysis_surfaces`) are largely immune because their incidence test rejects a horizontal ray — a flat roof read 14 of 15 samples on the same site.
-- A server-side fix is tracked; until it lands, the window is your guard.
+- **The smell:** `grid.max()` reaches the number of hourly samples in the window although the window includes hours before sunrise or after sunset. Inside daylight, open ground legitimately reaches the ceiling (15.0 h for 06–20).
+- `daylight-availability` is immune (it filters night out server-side); facade/roof runs are largely immune (their incidence test rejects a horizontal ray).
 
 ## Pitfalls
 

@@ -53,7 +53,7 @@ Example: `TimePeriod(start_month=6, start_day=1, start_hour=9, end_month=8, end_
 
 - Pass the **same** `TimePeriod` to `filter_weather_data()` and the analysis payload — mismatched windows desync weather arrays from the simulation.
 - `end_*` fields are inclusive on each cascade level.
-- **`direct-sun-hours` grid runs: keep `start_hour`–`end_hour` inside daylight for the latitude and month.** Night samples are counted as sun (measured on prod 2026-09-02: 0–23 → 24.0 h on open ground; 5–21 → 17.0 h). `daylight-availability` filters night out itself; DSH does not. See [`analyses/04-direct-sun-hours.md`](analyses/04-direct-sun-hours.md#keep-the-window-inside-daylight).
+- **`direct-sun-hours` grid runs: keep `start_hour`–`end_hour` inside daylight for the latitude and month.** Night samples are counted as sun (a 24-hour window reads 24.0 h on open ground). `daylight-availability` filters night out itself; DSH does not. See [`analyses/04-direct-sun-hours.md`](analyses/04-direct-sun-hours.md#keep-the-window-inside-daylight).
 - `TimePeriod` is frozen (Pydantic `frozen=True`); construct a new one to change values.
 - Impossible calendar dates (April 31, June 31, September 31, November 31, February 30), zero-length windows, and `end < start` raise `ValidationError` at construction. February 29 is accepted (no year context). Year-wrap windows (e.g. Nov→Feb) are not supported — split into two periods.
 - `daylight-availability` and `direct-sun-hours` support multi-month and annual windows as of 2026-06-24 (Rust worker cutover). Submit a single job for the full season window.

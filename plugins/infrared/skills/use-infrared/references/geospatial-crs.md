@@ -35,9 +35,9 @@ tile's position within the polygon, and both the request and the result look com
 
 The SDK reads every mesh coordinate you pass to `run_area*` as **metres from the polygon's bbox SW corner** — it never re-anchors your geometry to the polygon — and every result, the merged grid raster **and** `SurfaceAnalysisResult` surfaces alike, comes back **in the frame you submitted**. So the polygon and the geometry must agree on one point: **the polygon's SW corner is submitted `(0, 0)`.**
 
-- **Choose the corner, then express every vertex relative to it.** The natural choice is the geometry's min (x, y): build the polygon there and submit `vertex − (x_min, y_min)`. If your model origin already *is* that corner (the BIM exports measured here had their terrain min at exactly `(0, 0)`), submit as-is.
-- **Pad only to the north-east.** The NE edge is free (the grid is NE-padded anyway); the SW corner is not. A pad to the **south-west** of submitted `(0, 0)` moves the whole scene geographically by that pad while your model does not — measured on a single-tile BIM site (2026-09-02, two independent checks): a 10 m SW pad dropped the footprint-mask IoU from **0.55 to 0.38** and the terrain-disc IoU from **0.992 to 0.921**. It looked entirely plausible until overlaid on the buildings.
-- With the corner right, grid cell `(j, i)` is the **sensor at `(i, j)` metres** — integer metres, plus the corner if you subtracted one; a cell drawn around it spans ±0.5 m (footprint IoU rose from 0.73 to 0.78 when a half-cell offset was removed) — and surface `origin` / `cell_tris` need no shift at all — on the corrected frame the `cell_tris` bbox of a building matched its submitted mesh to within half a cell.
+- **Choose the corner, then express every vertex relative to it.** The natural choice is the geometry's min (x, y): build the polygon there and submit `vertex − (x_min, y_min)`. If your model origin already *is* that corner, submit as-is.
+- **Pad only to the north-east.** The NE edge is free (the grid is NE-padded anyway); the SW corner is not. A SW pad moves the whole scene by that pad, and the result still looks plausible.
+- With the corner right, grid cell `(j, i)` is the sensor at `(i, j)` metres (plus the corner if you subtracted one); the cell spans ±0.5 m. Surface `origin` / `cell_tris` need no shift.
 - **Verify before you measure anything.** Overlay the result on the submitted footprints. A uniform offset is invisible in the numbers.
 
 Recipe D below builds the polygon this way.
@@ -65,8 +65,8 @@ metres in most of Europe. That is what `terrain_alignment` is for:
 | Mode | Behaviour |
 |---|---|
 | `"auto-align"` (default) | Re-bases every solid in `geometries` / `context_geometry` / `vegetation` onto the terrain below it before inference, with a 0.5 m skirt. Absorbs the mismatch silently — which is why fetched buildings plus an absolute DEM "just work". |
-| `"assume-aligned"` | Moves nothing — a validator, not a fixer. Any base outside the accepted band (a ±1 m tolerance around a base seated 0.5 m below grade, i.e. terrain_z −1.5 m to +1.0 m) is a **422 for the whole job**, naming the offenders with residuals. Use it when you have prepped geometry against this exact DEM and want a mismatch to be loud. |
-| `"as-is"` | Trusts your geometry exactly: no seating, no check. For BIM/CAD exports already placed on their terrain. The server accepts it, but no released or staged Python SDK can send it yet — it fails client-side in the pydantic `Literal`; a fix is pending, check your installed SDK's `Literal`. |
+| `"assume-aligned"` | Moves nothing — a validator, not a fixer. Any base outside the seating band (09's `terrain_alignment` table) is a **422 for the whole job**, naming the offenders with residuals. Use it when you have prepped geometry against this exact DEM and want a mismatch to be loud. |
+| `"as-is"` | Trusts your geometry exactly: no seating, no check. Not sendable from any released Python SDK yet — see the `terrain_alignment` table in [`analyses/09-facade-terrain.md`](analyses/09-facade-terrain.md#terrain_alignment--how-your-geometry-meets-the-ground). |
 
 None of the three moves the sensor grid — it always drapes onto `ground_geometry`. With no `ground_geometry` the setting is inert and you get a **flat plane at z = 0** — not an error,
 and a result that looks entirely normal. Full treatment: [`analyses/09-facade-terrain.md`](analyses/09-facade-terrain.md#terrain_alignment--how-your-geometry-meets-the-ground).
@@ -230,7 +230,7 @@ polygon, corner = polygon_around_model(every_vertex_you_will_submit, ANCHOR_LON,
 buildings = {k: shift(m, corner) for k, m in model_buildings.items()}   # same for context / terrain
 ```
 
-Feed `polygon_around_model` **every** vertex you will submit (buildings, terrain, occluders), so nothing lies south or west of the corner; if the corner comes out at `(0, 0)`, `shift` is a no-op and you can submit as-is. The **buildings** payload then stays in metres — the SDK reads DotBim coordinates as polygon-bbox-SW (X = east, Y = north, Z = up), see [`byo-inputs.md`](byo-inputs.md) — and `corner` is the only number you need to map results back: grid cell `(j, i)` → the sensor at `corner + (i, j)` (integer metres; draw the cell ±0.5 m around it); surface `origin` / `cell_tris` → `+ corner`. Good to ~50 km spans; not for |lat| > 70°.
+Feed `polygon_around_model` **every** vertex you will submit (buildings, terrain, occluders), so nothing lies south or west of the corner; if the corner comes out at `(0, 0)`, `shift` is a no-op and you can submit as-is. `corner` is the only number you need to map results back. Good to ~50 km spans; not for |lat| > 70°.
 
 ## Sanity checks before running
 

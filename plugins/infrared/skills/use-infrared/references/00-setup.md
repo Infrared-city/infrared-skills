@@ -13,7 +13,7 @@ pip install "infrared-sdk[fast]"
 # or: uv add "infrared-sdk[fast]"
 ```
 
-Check which version you have — several fields in this skill are gated on exact versions (`emit_cell_tris` and per-tile terrain slicing need 0.5.1+, `result.bounds` 0.4.4+, `terrain_alignment="as-is"` is not sendable from any released SDK yet):
+Check which version you have — several fields in this skill are gated on the SDK version:
 
 ```bash
 python -c "import infrared_sdk; print(infrared_sdk.__version__)"   # or: pip show infrared-sdk

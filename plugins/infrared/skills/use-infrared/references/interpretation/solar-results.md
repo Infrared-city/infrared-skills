@@ -36,7 +36,7 @@ Annual horizontal totals: ~1,000–1,200 kWh/m² (Central Europe), ~1,500–1,80
 
 > **Multi-month supported (2026-06-24).** `direct-sun-hours` accepts multi-month and annual `TimePeriod` windows. Submit a single seasonal job directly.
 
-Cumulative hours of direct (un-occluded) sunlight per pixel, **summed across the filtered hour set in `TimePeriod`** (cross-product of days × hours-of-day, NOT a continuous range — see `../03-time-period.md`). So `(month=6, day=1..30, hour=11..14)` sums ~120 hours per cell, not ~700. Keep the hour window inside daylight: on the grid path a night sample counts as sun (measured on prod 2026-09-02: `hour=0..23` on 1 June reads 24.0 h on open ground, `5..21` reads 17.0 h). Within a single month a 06–20 window reaches 15 h × days at fully sunlit pixels. Not a per-day average. Always normalise before classifying — divide by the filtered hour count (`days_in_window × hours_per_day`) for a universal `hrs/day` reading.
+Cumulative hours of direct (un-occluded) sunlight per pixel, **summed across the filtered hour set in `TimePeriod`** (cross-product of days × hours-of-day, NOT a continuous range — see `../03-time-period.md`). So `(month=6, day=1..30, hour=11..14)` sums ~120 hours per cell, not ~700. Keep the hour window inside daylight: on the grid path a night sample counts as sun (a 24-hour window reads 24.0 h on open ground). Within a single month a 06–20 window reaches 15 h × days at fully sunlit pixels. Not a per-day average. Always normalise before classifying — divide by the filtered hour count (`days_in_window × hours_per_day`) for a universal `hrs/day` reading.
 
 | hrs/day (cell_hours / days_in_window) | Class |
 |---|---|
