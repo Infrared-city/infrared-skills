@@ -31,6 +31,17 @@ primitives and you speak tile-local.** The failure is mixing the two — buildin
 from `area.buildings` and posting it through `analyses.execute()` offsets the entire scene by the
 tile's position within the polygon, and both the request and the result look completely normal.
 
+### The frame rule
+
+The SDK reads every mesh coordinate you pass to `run_area*` as **metres from the polygon's bbox SW corner** — it never re-anchors your geometry to the polygon — and every result, the merged grid raster **and** `SurfaceAnalysisResult` surfaces alike, comes back **in the frame you submitted**. So the polygon and the geometry must agree on one point: **the polygon's SW corner is submitted `(0, 0)`.**
+
+- **Choose the corner, then express every vertex relative to it.** The natural choice is the geometry's min (x, y): build the polygon there and submit `vertex − (x_min, y_min)`. If your model origin already *is* that corner, submit as-is.
+- **Pad only to the north-east.** The NE edge is free (the grid is NE-padded anyway); the SW corner is not. A SW pad moves the whole scene by that pad, and the result still looks plausible.
+- With the corner right, grid cell `(j, i)` is the sensor at `(i, j)` metres (plus the corner if you subtracted one); the cell spans ±0.5 m. Surface `origin` / `cell_tris` need no shift.
+- **Verify before you measure anything.** Overlay the result on the submitted footprints. A uniform offset is invisible in the numbers.
+
+Recipe D below builds the polygon this way.
+
 ### Negative coordinates are correct — do not filter them
 
 In **both** metre frames, negative x/y is normal and load-bearing:
@@ -54,10 +65,11 @@ metres in most of Europe. That is what `terrain_alignment` is for:
 | Mode | Behaviour |
 |---|---|
 | `"auto-align"` (default) | Re-bases every solid in `geometries` / `context_geometry` / `vegetation` onto the terrain below it before inference, with a 0.5 m skirt. Absorbs the mismatch silently — which is why fetched buildings plus an absolute DEM "just work". |
-| `"assume-aligned"` | Moves nothing; any base outside a ±1 m band around the terrain is a **422 for the whole job**, naming the first five offenders. Use it when you have prepped geometry against this exact DEM and want a mismatch to be loud. |
+| `"assume-aligned"` | Moves nothing — a validator, not a fixer. Any base outside the seating band (09's `terrain_alignment` table) is a **422 for the whole job**, naming the offenders with residuals. Use it when you have prepped geometry against this exact DEM and want a mismatch to be loud. |
+| `"as-is"` | Trusts your geometry exactly: no seating, no check. Not sendable from any released Python SDK yet — see the `terrain_alignment` table in [`analyses/09-facade-terrain.md`](analyses/09-facade-terrain.md#terrain_alignment--how-your-geometry-meets-the-ground). |
 
-With no `ground_geometry` the setting is inert and you get a **flat plane at z = 0** — not an error,
-and a result that looks entirely normal. Full treatment: [`analyses/09-facade-terrain.md`](analyses/09-facade-terrain.md).
+None of the three moves the sensor grid — it always drapes onto `ground_geometry`. With no `ground_geometry` the setting is inert and you get a **flat plane at z = 0** — not an error,
+and a result that looks entirely normal. Full treatment: [`analyses/09-facade-terrain.md`](analyses/09-facade-terrain.md#terrain_alignment--how-your-geometry-meets-the-ground).
 
 ### Surface UV frames (results)
 
@@ -90,6 +102,7 @@ Nothing below raises. Work down the table.
 | Trees or ground materials nowhere near the site | Metre vertices passed where lon/lat was expected. |
 | Site is unexpectedly bright; distant blocks cast no shadow | Negative-coordinate buildings filtered out, or a >128 m occluder that is simply out of tile context. |
 | Buildings float above or sink into the terrain | `ground_geometry` on an absolute vertical datum against `z = 0` buildings — see above. |
+| Grid **and** surfaces sit a constant few metres off the buildings, uniformly | Polygon SW corner is not at submitted `(0, 0)` — padded SW of the geometry, or geometry not re-expressed relative to the corner. See *The frame rule*. |
 | Terrain shading vanished after upgrading to 0.5.1 | Terrain is now sliced per tile; pass distant relief as `context_geometry`. |
 | Heatmap overlay is squashed toward the SW | Placed with `polygon.bounds` instead of `result.bounds` (which is NE-padded to the grid). |
 | Exported GeoTIFF is upside down | SDK row 0 is south, GeoTIFF row 0 is north — `np.flipud`. |
@@ -186,30 +199,38 @@ polygon = mapping(box(w, s, e, n))
 
 ## Recipe D — Rhino / Revit / IFC model → SDK polygon
 
-BIM models live in a local meter frame anchored to some site origin. The model itself is in meters relative to its own origin; geo-anchoring is one extra constant.
+BIM models live in a local metre frame anchored to some site origin. Derive the polygon **from the model's own extent** — the frame rule above — so that the polygon's SW corner lands on the geometry's min (x, y), pad NE only, and submit every vertex relative to that corner. One WGS84 anchor for the model's `(0, 0)` is the only constant.
 
 ```python
-# Site anchor in WGS84 (read from your model's "true north / site location" metadata)
-ANCHOR_LON, ANCHOR_LAT = 11.5755, 48.1975   # Munich Marienplatz
-
-# Model footprint in local meters relative to the anchor
-import numpy as np
-model_xy_m = np.array([[ -50, -50], [50, -50], [50, 50], [-50, 50]])
-
-# Inverse of the SDK's local tangent plane
 import math
-m_per_deg_lat = 111_320.0
-m_per_deg_lon = 111_320.0 * math.cos(math.radians(ANCHOR_LAT))
+import numpy as np
 
-ring = [
-    [ANCHOR_LON + dx / m_per_deg_lon, ANCHOR_LAT + dy / m_per_deg_lat]
-    for dx, dy in model_xy_m
-]
-ring.append(ring[0])    # close
-polygon = {"type": "Polygon", "coordinates": [ring]}
+# Site anchor in WGS84 (from the model's "true north / site location" metadata): the model's (0, 0)
+ANCHOR_LON, ANCHOR_LAT = 11.5755, 48.1975
+
+def polygon_around_model(all_xyz, anchor_lon, anchor_lat, ne_margin_m=10.0):
+    """Polygon whose bbox SW corner == the geometry's min (x, y). Pads NE only.
+    Returns (polygon, corner); submit every mesh as vertex - corner."""
+    v = np.asarray(all_xyz, dtype=float).reshape(-1, 3)
+    x0, y0 = v[:, 0].min(), v[:, 1].min()                  # SW pinned — no pad here
+    x1, y1 = v[:, 0].max() + ne_margin_m, v[:, 1].max() + ne_margin_m
+    m_per_deg_lat = 111_320.0                              # inverse of the SDK's tangent plane
+    m_per_deg_lon = 111_320.0 * math.cos(math.radians(anchor_lat))
+    ll = lambda x, y: [anchor_lon + x / m_per_deg_lon, anchor_lat + y / m_per_deg_lat]
+    ring = [ll(x0, y0), ll(x1, y0), ll(x1, y1), ll(x0, y1), ll(x0, y0)]
+    return {"type": "Polygon", "coordinates": [ring]}, (float(x0), float(y0))
+
+def shift(mesh, corner):
+    """Re-express one {coordinates, indices} mesh relative to the polygon corner."""
+    v = np.asarray(mesh["coordinates"], dtype=float).reshape(-1, 3)
+    v[:, 0] -= corner[0]; v[:, 1] -= corner[1]
+    return {**mesh, "coordinates": v.ravel().tolist()}
+
+polygon, corner = polygon_around_model(every_vertex_you_will_submit, ANCHOR_LON, ANCHOR_LAT)
+buildings = {k: shift(m, corner) for k, m in model_buildings.items()}   # same for context / terrain
 ```
 
-For the **buildings** payload itself, you can stay in local meters — the SDK accepts DotBim coordinates in polygon-bbox-SW meter frame (X=east, Y=north, Z=up). See [`byo-inputs.md`](byo-inputs.md). The frame origin is the SW corner of the *polygon* bbox, not the model anchor — translate accordingly.
+Feed `polygon_around_model` **every** vertex you will submit (buildings, terrain, occluders), so nothing lies south or west of the corner; if the corner comes out at `(0, 0)`, `shift` is a no-op and you can submit as-is. `corner` is the only number you need to map results back. Good to ~50 km spans; not for |lat| > 70°.
 
 ## Sanity checks before running
 

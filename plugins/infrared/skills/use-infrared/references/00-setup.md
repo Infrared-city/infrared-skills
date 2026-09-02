@@ -13,6 +13,12 @@ pip install "infrared-sdk[fast]"
 # or: uv add "infrared-sdk[fast]"
 ```
 
+Check which version you have — several fields in this skill are gated on the SDK version:
+
+```bash
+python -c "import infrared_sdk; print(infrared_sdk.__version__)"   # or: pip show infrared-sdk
+```
+
 `.env` (loaded automatically via `python-dotenv` at module import):
 
 ```dotenv

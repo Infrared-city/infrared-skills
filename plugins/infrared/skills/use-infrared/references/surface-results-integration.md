@@ -6,7 +6,7 @@ How to take a `SurfaceAnalysisResult` (see `analyses/09-facade-terrain.md`) and 
 
 Every entry in `result.surfaces` is keyed `"{building-id}/{surface-index}"` — the building id is **your own key** from the `geometries` you submitted, so results map straight back onto your elements. Each `SurfaceSensorGrid` is a planar sensor grid in its own UV frame:
 
-- `origin` — 3D anchor of the grid (same coordinate frame as your submitted mesh, metres)
+- `origin` — 3D anchor of the grid, in **the frame you submitted the mesh in**, metres. No shift, provided the polygon's SW corner is submitted `(0, 0)` — see [`geospatial-crs.md#the-frame-rule`](geospatial-crs.md#the-frame-rule)
 - `u_axis`, `v_axis` — unit vectors in the surface plane
 - `grid_size` — cell edge length (your `surface_grid_size`)
 - `nu`, `nv` — grid dimensions; `values` has `nu * nv` entries, **row-major in v** (`index = j * nu + i`)
@@ -14,8 +14,11 @@ Every entry in `result.surfaces` is keyed `"{building-id}/{surface-index}"` — 
 - `cell_area[k]` — the **fraction** of the cell inside the surface footprint, in `(0,1]` (dimensionless, *not* m²); multiply by `grid_size²` for the actual area. `cell_tris[k]` — the exact clipped triangle geometry (flat `[x,y,z, ...]`, 9 floats per triangle). Both keys are **absent** (not empty) when the server was asked not to emit them.
   That is controlled by **`emit_cell_tris`** on the request (SDK 0.5.1+), which **defaults
   to `False`** on every `analysis_surfaces` request — efficient by default, because on a
-  large facade run the triangle arrays dominate the download (measured 93.7% of the
-  payload), and the download is the phase that dominates wall-clock. Set it `True`
+  large facade run the triangle arrays dominate the download (~96 % of the body), and
+  the download is the phase that dominates wall-clock. The cheap
+  pattern is to draw the overview as unclipped cell quads from `origin` / `u_axis` /
+  `v_axis` / `grid_size` / `nu` / `nv` and turn the outlines on per selected building or
+  for an export. Set it `True`
   explicitly when you need the clipped geometry for Route 2; leave it alone for Route 1
   or analysis-only work. `values` and every aggregate are identical either way, so
   nothing analytical is lost — only the exact per-cell outlines used for *drawing*.
@@ -45,7 +48,7 @@ To detect fully-covered cells, compare with an epsilon — `cell_area` is emitte
 
 ## Route 1 — texture mapping (fast, smooth, simplest)
 
-Build a small texture per surface (or pack all surfaces into one atlas) and map it onto the surface quad `origin -> origin + u*nu*gs -> ... -> origin + v*nv*gs`. Smooth gradients come free from GPU bilinear filtering; a "raw cells" view is the same texture with nearest filtering.
+Build a small texture per surface (or pack all surfaces into one atlas) and map it onto the surface quad whose **corner is `origin − (u + v)·gs/2`** — `origin` is the centre of cell (0, 0), not a corner — running to `origin + u·(nu − 0.5)·gs + v·(nv − 0.5)·gs`. A quad started at `origin` itself puts every surface half a cell out. Smooth gradients come free from GPU bilinear filtering; a "raw cells" view is the same texture with nearest filtering.
 
 Handle masked cells with **premultiplied masking** so bilinear edges stay clean — two channels per texel:
 
@@ -77,6 +80,12 @@ This is a complete production approach: ~15 shader lines + one packing loop, no 
 | Interactive city-scale view, smooth gradients | 1 (texture) |
 | Exact printable/exportable geometry, crisp edges | 2 (`cell_tris`) |
 | Best of both | 1 for the overview, 2 on demand for selected elements |
+
+**Overview, then click** — the pattern that keeps the payload small:
+
+1. Run the whole scene with `emit_cell_tris=False` (the default) and draw every surface as Route 1 quads from `origin` / `u_axis` / `v_axis` / `grid_size` / `nu` / `nv`.
+2. On selection, re-run with `geometries={id: buildings[id]}`, the rest of the scene as `context_geometry`, and `emit_cell_tris=True` — one building, one job, Route 2 outlines for exactly the element on screen.
+3. Cache by building id. Colours come from run 1, outlines from run 2; `values` and aggregates are present with either setting.
 
 ## Orientation — which way a surface faces
 

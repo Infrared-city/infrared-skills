@@ -171,7 +171,7 @@ nothing."
 | **100,000** sensors/floor | `MAX_SENSORS_PER_FLOOR` | a large plate at 0.5 m can exceed it |
 | **2,000,000** triangles | `MAX_OCCLUDER_TRIANGLES` | interior occluder ceiling |
 | **20%** area ratio | the server drops any storey cluster under 20% of the batch's largest floor | 422 *and* silent index shift; apply the same rule client-side |
-| **±1 m** | `assume-aligned` tolerance | 422 for the whole job; only ~18% of real objects qualify, ~22% after merging stacks |
+| **±1 m** | `assume-aligned` tolerance | 422 for the whole job; only ~18% of real objects qualify, ~22% after merging stacks. The tolerance is applied around a base seated 0.5 m below grade (the skirt), so the accepted band is terrain_z −1.5 m to +1.0 m — see the `terrain_alignment` table in [`../analyses/09-facade-terrain.md`](../analyses/09-facade-terrain.md#terrain_alignment--how-your-geometry-meets-the-ground) |
 | **512 m** tile, **1 m** cell | area tiling | ~78% of a tile is NaN outside the AOI |
 | **300 s** | SDK default job timeout | not enough for 15 floors at 0.5 m; the job keeps running **and billing** after the client gives up |
 | **0.53°** | angular width of the sun disc — *general astronomy, not measured here* | a horizon error below it cannot change a shading result. Useful for sizing far-terrain pitch: 20 m at 1.5 km subtends ≈0.76°, i.e. already at the limit of what matters |
