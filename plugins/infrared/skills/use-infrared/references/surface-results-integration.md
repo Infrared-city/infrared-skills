@@ -49,7 +49,7 @@ To detect fully-covered cells, compare with an epsilon — `cell_area` is emitte
 
 ## Route 1 — texture mapping (fast, smooth, simplest)
 
-Build a small texture per surface (or pack all surfaces into one atlas) and map it onto the surface quad `origin -> origin + u*nu*gs -> ... -> origin + v*nv*gs`. Smooth gradients come free from GPU bilinear filtering; a "raw cells" view is the same texture with nearest filtering.
+Build a small texture per surface (or pack all surfaces into one atlas) and map it onto the surface quad whose **corner is `origin − (u + v)·gs/2`** — `origin` is the centre of cell (0, 0), not a corner — running to `origin + u·(nu − 0.5)·gs + v·(nv − 0.5)·gs`. A quad started at `origin` itself puts every surface half a cell out. Verified on a 663 182-sensor facade scene (2026-09-02): `centre(i, j) = origin + u·(i·gs) + v·(j·gs)` with corners `± (gs/2)·u ± (gs/2)·v` matched the submitted meshes. Smooth gradients come free from GPU bilinear filtering; a "raw cells" view is the same texture with nearest filtering.
 
 Handle masked cells with **premultiplied masking** so bilinear edges stay clean — two channels per texel:
 
