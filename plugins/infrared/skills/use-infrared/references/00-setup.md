@@ -24,7 +24,7 @@ python -c "import infrared_sdk; print(infrared_sdk.__version__)"   # or: pip sho
 ```dotenv
 INFRARED_API_KEY=your-key-here
 # Optional tuning
-# INFRARED_BASE_URL=https://api.infrared.city/v2   # override base URL (must include /v2)
+# INFRARED_BASE_URL=https://api.infrared.city/v2   # prod only — see Stages below; do NOT set for prod
 # INFRARED_BIG_PAYLOADS_ENABLED=true                # default true — auto-switch >5 MiB POSTs to $ref envelope
 # INFRARED_BIG_PAYLOADS_THRESHOLD_BYTES=5242880     # override the auto-switch threshold
 # INFRARED_QUIET=1                                  # silence the startup banner + agent-discoverability log line
@@ -41,8 +41,28 @@ with InfraredClient() as client:
 
 # Or explicit
 client = InfraredClient(api_key="your-key")
-# Override base URL via INFRARED_BASE_URL env var — must include /v2 if set manually.
+```
 
+## Stages — the `/v2` suffix is a PROD-only rule
+
+```python
+InfraredClient(api_key=key)                                            # prod
+InfraredClient(api_key=key, base_url="https://api-test.infrared.city") # staging — NO /v2
+```
+
+| Stage | base_url |
+|---|---|
+| prod | **SDK default — do not override.** (`https://api.infrared.city/v2`) |
+| staging | `https://api-test.infrared.city` — **no `/v2`** |
+
+Staging mounts the API at the **root**. Appending `/v2` there 404s every route. Getting
+this wrong does not produce a "wrong stage" error — it surfaces as auth or connection
+noise, so it is easy to misread as a credential problem.
+
+For prod, overriding `base_url` at all is wrong (`STAGE_BASE_URL['prod'] = None` in
+`lambda-models/docs/deployment.md`); let the default stand.
+
+```python
 # Localhost / host-only gateways (0.4.10+): pass base_url directly; /v2 is NOT required.
 client = InfraredClient(api_key="your-key", base_url="http://localhost:8000/api")
 ```
