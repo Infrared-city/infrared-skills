@@ -192,6 +192,30 @@ All schedules share a single `max_workers` (default 20) thread pool. Webhook eve
 - **Multi-payload bursts.** A `run_area([p1, p2, ...], polygon, ...)` call delivers `payloads × tiles` webhook events in a tight window. See `06-webhooks.md` for the buffer-ingestion pattern.
 - **402 fail-fast is account-global and non-retryable (0.4.10+).** When the account has insufficient credits, the first tile submission returns HTTP 402 and the SDK aborts the whole schedule immediately — no tiles submitted; `schedule.submission_abort_status == 402`. Distinct from `failed_submissions` (transport errors, retryable via `retry_from=`).
 
+## Polling the HTTP endpoints directly (no SDK)
+
+For CI smoke scripts, non-Python clients and debugging. Paths from `analyses/jobs.py`:
+
+| | |
+|---|---|
+| submit | `POST {base}/async/{analysis_type}` → `202 {jobId}` |
+| poll | `GET {base}/async/jobs/{jobId}` — **not** `/jobs/{jobId}`, which 404s |
+| results | `GET {base}/async/jobs/{jobId}/results` |
+| balance | `GET {base}/billing/balance` → `AItokens` |
+
+⚠️ **The status field is `jobStatus`, not `status`** (`Succeeded` / `Failed` /
+`Cancelled` — and the server has historically also returned the misspelling
+`Succeded`). A poll loop keyed on `status` never terminates; it spins until timeout.
+
+Worked TypeScript loop handling both spellings:
+[recipes/typescript-direct-api.md](recipes/typescript-direct-api.md).
+
+⚠️ **A direct POST over ~30 MB returns 413.** API Gateway's request-body limit sits
+well below the 64 MiB accept-path cap named in the backend docs, so large geometry must
+go through the `$ref` big-payload envelope — the SDK does this automatically above
+`INFRARED_BIG_PAYLOADS_THRESHOLD_BYTES` (default 5 MiB). Building a payload for a direct
+POST on the strength of the 64 MiB figure produces something unsubmittable.
+
 ## See also
 
 - `05-area-api.md` — sync `run_area_and_wait` deep-dive, tiling geometry, `AreaResult` fields

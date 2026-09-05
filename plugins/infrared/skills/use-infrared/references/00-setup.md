@@ -24,7 +24,7 @@ python -c "import infrared_sdk; print(infrared_sdk.__version__)"   # or: pip sho
 ```dotenv
 INFRARED_API_KEY=your-key-here
 # Optional tuning
-# INFRARED_BASE_URL=https://api.infrared.city/v2   # override base URL (must include /v2)
+# INFRARED_BASE_URL=https://api.infrared.city/v2   # prod only — see Stages below; do NOT set for prod
 # INFRARED_BIG_PAYLOADS_ENABLED=true                # default true — auto-switch >5 MiB POSTs to $ref envelope
 # INFRARED_BIG_PAYLOADS_THRESHOLD_BYTES=5242880     # override the auto-switch threshold
 # INFRARED_QUIET=1                                  # silence the startup banner + agent-discoverability log line
@@ -41,8 +41,23 @@ with InfraredClient() as client:
 
 # Or explicit
 client = InfraredClient(api_key="your-key")
-# Override base URL via INFRARED_BASE_URL env var — must include /v2 if set manually.
+```
 
+## Base URL — leave it alone unless you are self-hosting
+
+```python
+InfraredClient(api_key=key)   # correct for the public cloud API
+```
+
+The default is `https://api.infrared.city/v2` and **the `/v2` suffix belongs to that
+host**. Do not set `INFRARED_BASE_URL` to point at the public API — there is nothing to
+gain and an incorrect value does not fail cleanly, it surfaces as auth or connection
+noise rather than "wrong endpoint".
+
+Set `base_url` only for a gateway you are actually running yourself (below). Other
+Infrared City deployment stages are internal and are not reachable with a public API key.
+
+```python
 # Localhost / host-only gateways (0.4.10+): pass base_url directly; /v2 is NOT required.
 client = InfraredClient(api_key="your-key", base_url="http://localhost:8000/api")
 ```
