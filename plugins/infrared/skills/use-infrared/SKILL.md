@@ -39,11 +39,10 @@ Do not skip step 2. The analysis file is the authoritative payload shape — not
 
 One of four per request; ground **and** buildings = two requests. Channels, terrain and the shatter trap → [analyses/09-facade-terrain.md#the-five-geometry-channels](references/analyses/09-facade-terrain.md#the-five-geometry-channels)
 
-**Two interior models are deployed, and this skill covers one.** `daylight-factor` is
-documented in [analyses/10-interior-daylight-factor.md](references/analyses/10-interior-daylight-factor.md)
-and ships in the released SDK (`DaylightFactor*` present in 0.5.1). **`energy-balance`
-is deployed but has no SDK class on any branch** — reach it over the raw async HTTP
-endpoints ([async-and-jobs.md](references/async-and-jobs.md)), not through the client.
+**Two interior models are deployed; this skill covers one.** `daylight-factor` ships in
+0.5.1 — [analyses/10-interior-daylight-factor.md](references/analyses/10-interior-daylight-factor.md).
+**`energy-balance` is deployed but has no SDK class on any branch** — reach it over the
+raw async endpoints ([async-and-jobs.md](references/async-and-jobs.md)).
 
 ## Silently wrong — read before you trust a number
 
@@ -54,7 +53,7 @@ and a reviewer reading your output cannot tell. One pass and you are immune.
 - **Fetched context buildings are not one dataset, and the response never says which you got** — omit `buildings` and the platform fills context from whatever covers that polygon. A few cities are served from curated survey data with *measured* heights; everywhere else falls back to a global footprint set whose heights are largely inferred from `building:levels` guesses, and missing storey tags become a default height. Same call, same 200, materially different geometry — so a shadow, wind or UTCI result is only as good as a source you did not choose and cannot see. Comparing two cities this way compares two data classes. **Pass your own `buildings` whenever you have them.** → [byo-inputs.md](references/byo-inputs.md)
 - **Polygon CRS is never validated** — a projected or `[lat, lon]` polygon that still lands inside `[-180,180]×[-90,90]` runs, on the wrong patch of the planet. → [geospatial-crs.md](references/geospatial-crs.md)
 - **Two metre frames, and no error between them** — `buildings` / `context_geometry` / `ground_geometry` you pass to `run_area*` are **polygon-bbox-SW**; per-tile payloads and `sensor_points` are **tile-local**. Mix them and the geometry lands a tile away, silently. → [geospatial-crs.md#the-frames-end-to-end](references/geospatial-crs.md#the-frames-end-to-end)
-- **`min_legend` / `max_legend` are `None` on every area run** — so the usual `... if not None else np.nanmin(grid)` guard takes the fallback *every* time and auto-scales each render to its own data. Populated on **surface** results only. **This is an SDK bug, not a server limitation** — the worker does send the bounds, as kebab-case `min-legend` / `max-legend`, and the merge path read camelCase. Fixed in `infrared-api-sdk` #260/#261, which lands in **0.5.2**; the latest release on PyPI is **0.5.1**, so on any released version this still applies. Once you are on 0.5.2+, area results carry real bounds and the workaround below becomes optional. → [recipes/rendering-results-well.md](references/recipes/rendering-results-well.md)
+- **`min_legend` / `max_legend` are `None` on every area run** — so the usual `... if not None else np.nanmin(grid)` guard takes the fallback *every* time and auto-scales each render to its own data. Populated on **surface** results only. **An SDK bug, not a server limit**: the worker sends kebab-case `min-legend`/`max-legend` and the merge path read camelCase. Fixed in #260/#261, landing in **0.5.2** — PyPI latest is **0.5.1**, so this still applies on every released version; on 0.5.2+ the workaround becomes optional. → [recipes/rendering-results-well.md](references/recipes/rendering-results-well.md)
 - **Masked cells are `None`, never `0`** — map to `NaN` before any mean. Separately, a surface at exactly `0.0` is real data (party walls, light wells) — 32% of facades on one Munich run. Two different things. → [surface-results-integration.md](references/surface-results-integration.md)
 - **No `ground_geometry` means a flat plane at z = 0** — not an error, and the result looks entirely normal. There is no terrain client; terrain is bring-your-own, every time. → [analyses/09-facade-terrain.md](references/analyses/09-facade-terrain.md)
 - **Terrain in `geometries` is accepted, billed, and returns a shattered mesh** — surface synthesis clusters faces into flat regions (same normal within 5°, same plane within 2 cm), which a TIN fails on nearly every edge: seams and holes. Terrain goes in `ground_geometry`; the ground grid drapes onto it by itself. → [analyses/09-facade-terrain.md#results-on-the-ground-with-terrain](references/analyses/09-facade-terrain.md#results-on-the-ground-with-terrain)
