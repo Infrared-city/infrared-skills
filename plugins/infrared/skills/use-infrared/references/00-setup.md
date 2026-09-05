@@ -43,24 +43,19 @@ with InfraredClient() as client:
 client = InfraredClient(api_key="your-key")
 ```
 
-## Stages — the `/v2` suffix is a PROD-only rule
+## Base URL — leave it alone unless you are self-hosting
 
 ```python
-InfraredClient(api_key=key)                                            # prod
-InfraredClient(api_key=key, base_url="https://api-test.infrared.city") # staging — NO /v2
+InfraredClient(api_key=key)   # correct for the public cloud API
 ```
 
-| Stage | base_url |
-|---|---|
-| prod | **SDK default — do not override.** (`https://api.infrared.city/v2`) |
-| staging | `https://api-test.infrared.city` — **no `/v2`** |
+The default is `https://api.infrared.city/v2` and **the `/v2` suffix belongs to that
+host**. Do not set `INFRARED_BASE_URL` to point at the public API — there is nothing to
+gain and an incorrect value does not fail cleanly, it surfaces as auth or connection
+noise rather than "wrong endpoint".
 
-Staging mounts the API at the **root**. Appending `/v2` there 404s every route. Getting
-this wrong does not produce a "wrong stage" error — it surfaces as auth or connection
-noise, so it is easy to misread as a credential problem.
-
-For prod, overriding `base_url` at all is wrong (`STAGE_BASE_URL['prod'] = None` in
-`lambda-models/docs/deployment.md`); let the default stand.
+Set `base_url` only for a gateway you are actually running yourself (below). Other
+Infrared City deployment stages are internal and are not reachable with a public API key.
 
 ```python
 # Localhost / host-only gateways (0.4.10+): pass base_url directly; /v2 is NOT required.
