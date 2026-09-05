@@ -49,13 +49,10 @@ client = InfraredClient(api_key="your-key")
 InfraredClient(api_key=key)   # correct for the public cloud API
 ```
 
-The default is `https://api.infrared.city/v2` and **the `/v2` suffix belongs to that
-host**. Do not set `INFRARED_BASE_URL` to point at the public API — there is nothing to
-gain and an incorrect value does not fail cleanly, it surfaces as auth or connection
-noise rather than "wrong endpoint".
-
-Set `base_url` only for a gateway you are actually running yourself (below). Other
-Infrared City deployment stages are internal and are not reachable with a public API key.
+Default is `https://api.infrared.city/v2`, and **the `/v2` belongs to that host**. Do not
+point `INFRARED_BASE_URL` at the public API — a wrong value surfaces as auth/connection
+noise, not "wrong endpoint". Set `base_url` only for a gateway you run yourself (below);
+other deployment stages are internal and need an internal key.
 
 ```python
 # Localhost / host-only gateways (0.4.10+): pass base_url directly; /v2 is NOT required.
