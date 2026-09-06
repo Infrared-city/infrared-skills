@@ -307,7 +307,7 @@ Pattern: one builder per analysis, each `(centroid: tuple[float, float], params:
 
 | analysis_type | SDK class | Required kwargs | Needs weather? |
 |---|---|---|---|
-| `wind-speed` | `WindModelRequest` | `analysis_type=AnalysesName.wind_speed`, `wind_speed: int`, `wind_direction: int` | No |
+| `wind-speed` | `WindModelRequest` | `analysis_type=AnalysesName.wind_speed`, `wind_speed: float`, `wind_direction: int` | No |
 | `pedestrian-wind-comfort` | `PwcModelRequest` | `analysis_type`, `criteria: PwcCriteria("kebab-string")`, `**extract_weather_fields(data, ["windSpeed", "windDirection"])` | Yes |
 | `daylight-availability` | `SolarModelRequest` | `analysis_type=AnalysesName.daylight_availability`, `latitude`, `longitude`, `time_period: TimePeriod` | No |
 | `direct-sun-hours` | `SolarModelRequest` | same as above with `AnalysesName.direct_sun_hours` | No |
@@ -1035,7 +1035,7 @@ The component computes `pct = ((value - min) / (max - min)) * 100` and clamps to
 9. **`area.buildings` is a `dict`, not a list.** Iterate `.values()` when projecting to GeoJSON; pass the dict itself to `run_area_and_wait(buildings=...)`.
 10. **`vegetation` and `ground_materials` are opt-in.** Pass `{}` or omit to skip. Thermal and solar runs are materially more accurate with both; wind and SVF generally don't need them.
 11. **PWC needs `extract_weather_fields(...)`** and `**wind_fields` splat. UTCI / TCS / solar-radiation use `from_weatherfile_payload(...)` instead — it extracts internally.
-12. **`wind_speed: int 1–100`** — Pydantic rejects floats; cast before constructing the request.
+12. **`wind_speed` is a `float`, `0 ≤ v ≤ 100`** (SDK 0.5.1+) — pass an EPW-derived mean as-is. Do **not** cast: truncating `3.9` to `3` shifts every cell by −23 %. `wind_direction` is a whole-degree `int` `0–360`.
 13. **Heatmap circle clip uses the polygon centroid + `half_side_m`**, not the grid bounds centre. Grid extent ≠ polygon extent.
 14. **`pickable: true` on the heatmap `BitmapLayer`** — without it `info.bitmap.pixel` is `undefined` in `onHover` and the histogram cursor never lights up.
 15. **Histogram cursor position** uses the `edges[0]..edges[-1]` range, not `resolveColorRange`. For daylight, the dynamic ceiling can differ from the bar edges — keep the two formulas separate.
