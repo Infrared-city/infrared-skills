@@ -25,7 +25,7 @@
 
 - **SDK 1.0, Python and TypeScript.** The skill and every example use `infrared-sdk` 1.0 and `@infrared-city/infrared-sdk-ts` 1.0. The notebooks, scripts and apps ran against the live API.
 - **Start from your goal.** A router sends you to the right path: Grasshopper, notebook, web app, app for many users, or backend.
-- **Nine case-study notebooks.** Real sites, basemaps, 3D facades, design variants. Your own model first, public data as the fallback.
+- **Ten case-study notebooks.** Real sites, basemaps, 3D facades, design variants. Your own model first, public data as the fallback.
 - **Web apps in minutes.** A map with a Run button, a 3D facade viewer, and a Cloudflare Worker that keeps your API key secret. Plus a FastAPI backend.
 - **Fast by design.** One page on how to get the most speed: upload once, let the SDK poll, preview first, threads and workers, what one account can do.
 - **Grasshopper, rewritten.** A non-blocking component, fast mesh drawing and facade textures.
@@ -107,7 +107,11 @@ Each notebook uses your own model first. Public data (Overture) is the fallback.
 | [![Web app: result grid on a map](docs/assets/cookbook/app-map-grid.jpg)](cookbook/apps/map-grid) | [![Web app: facades in 3D with three.js](docs/assets/cookbook/app-facades-3d.jpg)](cookbook/apps/facades-3d) |
 | **apps/map-grid**: draw an area, press Run, see the map | **apps/facades-3d**: facades and roofs in 3D in the browser |
 
-- [`cookbook/notebooks/`](cookbook/notebooks/): nine case studies, 00 to 08.
+[![Eight analyses on 1.5 km by 1.5 km of central Amsterdam](docs/assets/cookbook/all-analyses.jpg)](cookbook/notebooks/09_all_analyses.ipynb)
+
+**09 all analyses**: eight area analyses on 1.5 km × 1.5 km of Amsterdam, sent in one call
+
+- [`cookbook/notebooks/`](cookbook/notebooks/): ten case studies, 00 to 09.
 - [`cookbook/scripts/`](cookbook/scripts/): three short Python scripts.
 - [`cookbook/apps/`](cookbook/apps/): runnable web apps and a Python backend.
 - [`cookbook/sample-data/`](cookbook/sample-data/): GeoJSON models for the examples.
