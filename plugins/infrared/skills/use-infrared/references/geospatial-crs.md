@@ -1,355 +1,250 @@
-# Geospatial / CRS recipes
+# Coordinates: frames, CRS and reprojection
 
-The SDK takes **WGS84 lon/lat in degrees** (GeoJSON RFC 7946). It does not negotiate CRS, does not reproject, does not warn on plausibility — if you hand it coordinates in another CRS or in `[lat, lon]` order, it runs anyway, on the wrong patch of the planet.
+The SDK takes **WGS84 longitude/latitude in degrees, `[lon, lat]`** (GeoJSON, RFC 7946).
+It does not reproject and it does not check plausibility. Coordinates in another CRS, or in
+`[lat, lon]` order, run without an error on the wrong part of the planet.
 
-This file is the conversion + sanity layer for anyone arriving with real GIS data: shapefiles, GeoPackages, KML, PostGIS, rasterio bbox, Rhino/IFC models, QGIS layers. It is also the **authoritative map of every frame the SDK uses** — degrees in, two metre frames in the middle, a surface UV frame out.
+Use this page for real GIS or CAD data (Shapefile, GeoPackage, GeoTIFF, Rhino, IFC). Guide chapter "Coordinates": <https://infrared.city/docs/sdk/1.0/sdk.md>.
 
-## The frames, end to end
+## The frames
 
-Four frames. Nothing in the API errors when you supply the wrong one — geometry simply lands somewhere else and the run succeeds.
-
-| Frame | Units / origin | What is in it |
+| Frame | Units and origin | What is in it |
 |---|---|---|
-| **WGS84 lon/lat** | degrees, `[lon, lat]` (RFC 7946) | the `polygon` argument; `vegetation` and `ground_materials` features |
-| **Polygon-bbox-SW metres** | SW corner of the *polygon's bounding box* = `(0, 0)`; `+x` east, `+y` north, `z` up | `buildings`, `context_geometry`, `ground_geometry` as passed to `run_area()` / `run_area_and_wait()`; what `client.buildings.get_area()` returns |
-| **Tile-local metres** | SW corner of that tile's **inference** square = `(0, 0)`; same axes | `payload.geometries` on a single-tile `client.analyses.execute()`; `sensor_points` / `sensor_normals`; interior-model geometry |
-| **Surface UV** | per-surface `origin` + `u_axis` / `v_axis`, in tile metres | `SurfaceAnalysisResult.surfaces[...]` — results, never inputs |
+| WGS84 lon/lat | degrees, `[lon, lat]` | the run `polygon`; `vegetation` and `ground_materials` features |
+| Run frame | metres; `(0, 0)` = south-west corner of the polygon's bounding box; x east, y north, z up | `buildings`, `context_geometry`, `ground_geometry` |
+| Surface UV | per surface `origin`, `u_axis`, `v_axis` | facade and roof results only |
 
-**Two things in one payload are in degrees, not metres.** `vegetation` and `ground_materials` stay
-WGS84 lon/lat while `buildings` alongside them is in metres. Verified on a live fetch: a tree comes
-back as `{"geometry": {"type": "Point", "coordinates": [11.575942, 48.199694]}}`. Passing metre
-vertices to `vegetation` puts every tree off the coast of Africa without complaint.
+- **Trees and ground materials stay in lon/lat** while the buildings next to them are in metres.
+  Metre values in `vegetation` put every tree near (0, 0) degrees, in the sea off West Africa.
+- `run_area*` moves the run-frame geometry into each tile for you. You never write that step.
+- Own sensor points and interior geometry use their own local frame. See
+  [python/surfaces-and-sensors.md](python/surfaces-and-sensors.md) and [python/interior.md](python/interior.md).
 
-### Who converts, and when
+### The SDK projection
 
-- `client.buildings.get_area(polygon)` fetches per tile, deduplicates, and hands everything back in **polygon-bbox-SW** — one frame for the whole area, whichever tile a building came from.
-- `run_area()` / `run_area_and_wait()` do the **polygon-bbox-SW → tile-local** step for you, per tile: they subtract that tile's inference SW offset from `buildings`, `context_geometry` and `ground_geometry`. You never write this transform.
-- `client.analyses.execute()` does **not**. It is a single-tile primitive, so whatever you put in `payload.geometries` and `sensor_points` is already read as tile-local.
+The run frame is an equirectangular projection on a sphere with R = 6,371,000 m. The cosine
+is taken at the south-west corner. Use the same formula, and your meshes line up with the
+result grid:
 
-That is the whole split: **go through `run_area*` and you speak polygon-bbox-SW; drop to the job
-primitives and you speak tile-local.** The failure is mixing the two — building a payload by hand
-from `area.buildings` and posting it through `analyses.execute()` offsets the entire scene by the
-tile's position within the polygon, and both the request and the result look completely normal.
+```python
+import math
+
+R = 6_371_000.0                                     # sphere of the SDK local frame
+
+def to_local(lon: float, lat: float, polygon: dict) -> tuple[float, float]:
+    """lon/lat -> metres in the run frame (origin = SW corner of the polygon bbox)."""
+    ring = polygon["coordinates"][0]
+    lon0, lat0 = min(p[0] for p in ring), min(p[1] for p in ring)
+    x = math.radians(lon - lon0) * R * math.cos(math.radians(lat0))
+    y = math.radians(lat - lat0) * R
+    return x, y
+
+def to_lonlat(x: float, y: float, polygon: dict) -> tuple[float, float]:
+    """The inverse: run-frame metres -> lon/lat."""
+    ring = polygon["coordinates"][0]
+    lon0, lat0 = min(p[0] for p in ring), min(p[1] for p in ring)
+    return (lon0 + math.degrees(x / (R * math.cos(math.radians(lat0)))),
+            lat0 + math.degrees(y / R))
+```
 
 ### The frame rule
 
-The SDK reads every mesh coordinate you pass to `run_area*` as **metres from the polygon's bbox SW corner** — it never re-anchors your geometry to the polygon — and every result, the merged grid raster **and** `SurfaceAnalysisResult` surfaces alike, comes back **in the frame you submitted**. So the polygon and the geometry must agree on one point: **the polygon's SW corner is submitted `(0, 0)`.**
+The SDK reads a plain buildings map as metres from the polygon's south-west bbox corner.
+It does not move your geometry. Results come back in the same frame. So:
 
-- **Choose the corner, then express every vertex relative to it.** The natural choice is the geometry's min (x, y): build the polygon there and submit `vertex − (x_min, y_min)`. If your model origin already *is* that corner, submit as-is.
-- **Pad only to the north-east.** The NE edge is free (the grid is NE-padded anyway); the SW corner is not. A SW pad moves the whole scene by that pad, and the result still looks plausible.
-- With the corner right, grid cell `(j, i)` is the sensor at `(i, j)` metres (plus the corner if you subtracted one); the cell spans ±0.5 m. Surface `origin` / `cell_tris` need no shift.
-- **Verify before you measure anything.** Overlay the result on the submitted footprints. A uniform offset is invisible in the numbers.
+- **Pick the corner, then express every vertex relative to it.** The normal choice is the
+  model's min (x, y). Build the polygon there (Recipe D) and submit `vertex - corner`.
+- **Pad only to the north and east.** A pad to the south or west moves the whole scene by
+  the pad. The result still looks plausible.
+- Grid cell `(row j, column i)` is the sensor at `(i, j)` metres from the corner (± 0.5 m).
+- The `AreaBuildings` object from `client.buildings.get_area(...)` keeps its own frame.
+  Pass the object itself, not `.buildings`: the SDK then places it correctly, also for a
+  smaller run polygon.
+- **Check before you measure.** Draw the result over your footprints. A constant offset does
+  not show in the numbers.
 
-Recipe D below builds the polygon this way.
+### Negative coordinates are correct
 
-### Negative coordinates are correct — do not filter them
+Buildings south or west of the corner have negative x or y. Public buildings come from a
+margin around the polygon, so many are negative. They cast shade into your site.
+Do not filter them out: the result gets brighter and still looks plausible.
 
-In **both** metre frames, negative x/y is normal and load-bearing:
+### Height and terrain
 
-- Out of `get_area`, buildings are collected from tiles covering a margin around the polygon, so ones south or west of the bbox corner have negative coordinates. Measured on a 200 m Munich polygon: 505 buildings spanning `x ∈ [-133.1, 394.1]`, `y ∈ [-174.3, 390.0]`.
-- Per tile, a building pulled in by the 128 m solar context margin sits outside the 0–512 m inference range by construction.
+`z` is metres up and relative. The SDK uses no vertical datum. Only the agreement between
+your terrain and your buildings counts. Public buildings carry a height, not a ground elevation.
 
-A tidy-up pass that drops negatives deletes exactly the neighbours that were there to cast shadow
-into your site. The result stays plausible and gets brighter.
+**Always set `terrain_alignment` yourself.** Do not rely on the default.
 
-### Vertical datum
+| Analysis | Values | Use |
+|---|---|---|
+| SVF, solar radiation, direct sun hours, daylight availability, UTCI, TCS | `"as-is"`, `"auto-align"`, `"assume-aligned"` | `"auto-align"`: buildings at z = 0 on a real terrain. `"as-is"`: your model already sits on its terrain. `"assume-aligned"`: a mismatch must fail (422). |
+| Wind speed, pedestrian wind comfort | `"to-ground"`, `"as-is"` | `"to-ground"` when the scene sits on terrain. Wind takes no `ground_geometry`, and it reads the mesh z as the height above ground. |
 
-`z` is metres up, and it is **relative** — the SDK asserts no geoid, no ellipsoid, no vertical EPSG.
-Only the internal agreement between your terrain and your buildings matters.
-
-`client.buildings.get_area()` returns every building **based at exactly `z = 0`** (verified: 505 of
-505 on a live fetch). They carry height, not elevation. So if you pair fetched buildings with a DEM
-in real orthometric or ellipsoidal heights, the two disagree by the site elevation — a few hundred
-metres in most of Europe. That is what `terrain_alignment` is for:
-
-| Mode | Behaviour |
-|---|---|
-| `"auto-align"` | Re-bases every solid in `geometries` / `context_geometry` / `vegetation` onto the terrain below it before inference, with a 0.5 m skirt. Absorbs the mismatch silently — which is why fetched buildings plus an absolute DEM "just work". |
-| `"assume-aligned"` | Moves nothing — a validator, not a fixer. Any base outside the seating band (09's `terrain_alignment` table) is a **422 for the whole job**, naming the offenders with residuals. Use it when you have prepped geometry against this exact DEM and want a mismatch to be loud. |
-| `"as-is"` | Trusts your geometry exactly: no seating, no check. Not sendable from any released Python SDK yet — see the `terrain_alignment` table in [`analyses/09-facade-terrain.md`](analyses/09-facade-terrain.md#terrain_alignment--how-your-geometry-meets-the-ground). |
-
-None of the three moves the sensor grid — it always drapes onto `ground_geometry`. With no `ground_geometry` the setting is inert and you get a **flat plane at z = 0** — not an error,
-and a result that looks entirely normal. Full treatment: [`analyses/09-facade-terrain.md`](analyses/09-facade-terrain.md#terrain_alignment--how-your-geometry-meets-the-ground).
+No mode moves the sensor grid. Without `ground_geometry` the ground is a flat plane at z = 0.
+Details: [analyses/11-terrain-and-context.md](analyses/11-terrain-and-context.md).
 
 ### Surface UV frames (results)
 
-Each `SurfaceSensorGrid` carries `origin`, `u_axis`, `v_axis` in tile metres. The frame is
-**right-handed: the outward normal is `u_axis × v_axis`, in that order** — the server builds it as
-`u = ẑ × n`, `v = n × u`, so outward-wound shells (everything `client.buildings` returns) give
-outward normals. Because `+x` is east and `+y` north, the compass bearing is
-`degrees(atan2(n[0], n[1])) % 360`.
+Each facade or roof surface has `origin`, `u_axis` and `v_axis` in metres. The outward normal
+is `u_axis x v_axis`. With x east and y north, the compass bearing of a facade is
+`degrees(atan2(n[0], n[1])) % 360`. Cell centres, textures and `cell_tris`:
+[surface-results-integration.md](surface-results-integration.md).
 
-Cross-checked on a live 21 June direct-sun-hours run over a 200 m Munich block: the cross product
-points away from its own building on **1,526 of 1,538** vertical facades, and area-weighted mean sun
-hours by bearing came out **S 7.73 h, E 6.11 h, W 5.64 h, N 4.78 h** — an ordering only produced if
-the normal points outward and the bearing is measured this way. `s.is_vertical` agreed with
-`|n_z| ≤ 0.5` on all 1,538.
+## "My geometry is in the wrong place"
 
-Cell-centre maths, texture mapping and `cell_tris` live in
-[`surface-results-integration.md`](surface-results-integration.md), which is canonical for the UV
-frame — don't re-derive it here.
+Nothing below raises an error. Work down the table.
 
-## Diagnostic — "my geometry is in the wrong place"
-
-Nothing below raises. Work down the table.
-
-| Symptom | Likely frame error |
+| Symptom | Likely cause |
 |---|---|
-| Result is over open water, farmland, or another country | Polygon is not WGS84, or is `[lat, lon]`. Run the preflight below. |
-| Everything mirrored about the diagonal | `[lat, lon]` swap specifically — or `pyproj` without `always_xy=True`. |
-| Buildings offset by a whole multiple of 512 m (or 256 m on wind) | Polygon-bbox-SW geometry posted straight to `analyses.execute()`, which expects tile-local. |
-| Only the SW tile looks right; other tiles are bare | Same cause, seen across a multi-tile run. |
-| Trees or ground materials nowhere near the site | Metre vertices passed where lon/lat was expected. |
-| Site is unexpectedly bright; distant blocks cast no shadow | Negative-coordinate buildings filtered out, or a >128 m occluder that is simply out of tile context. |
-| Buildings float above or sink into the terrain | `ground_geometry` on an absolute vertical datum against `z = 0` buildings — see above. |
-| Grid **and** surfaces sit a constant few metres off the buildings, uniformly | Polygon SW corner is not at submitted `(0, 0)` — padded SW of the geometry, or geometry not re-expressed relative to the corner. See *The frame rule*. |
-| Terrain shading vanished after upgrading to 0.5.1 | Terrain is now sliced per tile; pass distant relief as `context_geometry`. |
-| Heatmap overlay is squashed toward the SW | Placed with `polygon.bounds` instead of `result.bounds` (which is NE-padded to the grid). |
-| Exported GeoTIFF is upside down | SDK row 0 is south, GeoTIFF row 0 is north — `np.flipud`. |
+| Result over water, farmland or another country | Polygon not in WGS84, or `[lat, lon]`. Run the preflight below. |
+| Everything mirrored about the diagonal | `[lat, lon]` swap, or `pyproj` without `always_xy=True` |
+| Trees or ground materials far from the site | Metre values given where lon/lat is expected |
+| Grid and surfaces a constant few metres off the buildings | Polygon corner is not your `(0, 0)`. See the frame rule. |
+| Site too bright; far blocks cast no shade | Negative-coordinate buildings filtered out, or an occluder more than 128 m past the tile |
+| Buildings float above or sink into terrain | Terrain in absolute heights, buildings at z = 0, no `terrain_alignment` |
+| Overlay squashed toward the south-west | Placed with the polygon bounds, not `result.bounds` |
+| Exported GeoTIFF upside down | Row 0 of the grid is south; row 0 of a GeoTIFF is north: `np.flipud` |
 
-## What the SDK accepts and validates
+## What the SDK checks
 
-`validate_polygon()` in `infrared_sdk.tiling.validation` (importable; raises `PolygonValidationError`) checks **only**:
-
-1. dict with `type` + `coordinates`
-2. `type == "Polygon"` (no MultiPolygon)
-3. Single ring (no holes)
-4. ≥4 positions in the ring
-5. Ring closed (`first == last`)
-6. `-180 ≤ lon ≤ 180`, `-90 ≤ lat ≤ 90`
-7. No self-intersection (O(n²) edge-pair scan)
-8. Auto-normalises CW → CCW (silent)
+`validate_polygon` (in `infrared_sdk.tiling.validation`, raises `PolygonValidationError`)
+checks only the shape: a GeoJSON `Polygon`, one ring, closed, at least 4 positions,
+`-180 <= lon <= 180`, `-90 <= lat <= 90`, no self-intersection. It turns a clockwise ring
+counter-clockwise.
 
 It does **not** check:
 
-- **CRS** — coordinates outside WGS84 that still happen to fall in `[-180, 180] × [-90, 90]` are accepted silently. UTM eastings of `4_500_000` get rejected by range; UTM eastings of `400_000` will be interpreted as a polygon in West Africa.
-- **Plausibility** — `[0, 0]` (Gulf of Guinea, "Null Island") is a valid SDK polygon.
-- **Antimeridian crossing** — ring going from `lon=179` to `lon=-179` is accepted and produces garbage tiling (`tiles.py` explicitly: "out of scope for v1").
-- **Polar latitudes** — `|lat| > 70°` is accepted but the local-tangent-plane projection (`x = (lon - sw_lon) * 111_320 * cos(radians(lat))`, `transforms.py`) distorts noticeably. SDK is calibrated for **city-scale polygons under ~50 km span**.
+- **The CRS.** A UTM easting of 400,000 is refused, but small projected values that fall
+  inside the degree range are accepted.
+- **Plausibility.** `[0, 0]` is a valid polygon.
+- **The antimeridian.** A ring from 179 to -179 gives wrong tiles.
+- **Polar sites.** Above about 70 degrees latitude the local projection distorts. The SDK is
+  made for city-scale polygons below about 50 km.
 
-## Getting to WGS84 — recipes A–D
+## Getting to WGS84
 
-Recipes A–D below are the canonical reprojection recipes for the SDK; other references link here
-rather than repeating them.
-
-## Recipe A — shapely / GeoPandas → SDK polygon
-
-The 90% case. You have a `shapely.Polygon` or a `GeoDataFrame` row in some projected CRS (UTM, ETRS89/LAEA, Web Mercator, BNG, CH1903+, Gauss-Krüger, …) and need WGS84 GeoJSON.
+### A: GeoPandas or shapely, any projected CRS
 
 ```python
 import geopandas as gpd
+import shapely
 from shapely.geometry import mapping
 
-# Read whatever format — shapefile, GeoPackage, KML, FlatGeobuf, PostGIS
-gdf = gpd.read_file("aoi.gpkg", layer="study_area")
-
-# Reproject to WGS84 — this is the one line most users forget
-gdf_4326 = gdf.to_crs("EPSG:4326")
-
-# Single feature, single polygon
-geom = gdf_4326.geometry.iloc[0]
-if geom.geom_type == "MultiPolygon":
-    # SDK takes single Polygon only — pick the largest ring or dissolve upstream
+gdf = gpd.read_file("aoi.gpkg", layer="study_area").to_crs("EPSG:4326")   # the step people forget
+geom = shapely.force_2d(gdf.geometry.iloc[0])
+if geom.geom_type == "MultiPolygon":                # the SDK takes one Polygon
     geom = max(geom.geoms, key=lambda p: p.area)
-
-polygon = mapping(geom)   # GeoJSON dict — RFC 7946 [lon, lat] order
+polygon = mapping(geom)                             # [lon, lat], closed ring
 ```
 
-`mapping()` produces a dict with closed CCW exterior — SDK-ready. If your source was CW, SDK auto-flips; no action needed.
-
-## Recipe B — bbox / extent → SDK polygon
-
-When the AOI is a rectangle (rasterio dataset bounds, OS map sheet, manually typed corners):
+### B: a bounding box, or C: GeoTIFF bounds
 
 ```python
-from shapely.geometry import box, mapping
 from pyproj import Transformer
-
-# Inputs in source CRS (here: ETRS89 / UTM zone 32N, EPSG:25832)
-west, south, east, north = 500_000, 5_400_000, 500_500, 5_400_500
-src_crs = "EPSG:25832"
-
-# Project corners to WGS84 (always_xy=True keeps (lon, lat) order)
-to_4326 = Transformer.from_crs(src_crs, "EPSG:4326", always_xy=True)
-w, s = to_4326.transform(west, south)
-e, n = to_4326.transform(east, north)
-
-polygon = mapping(box(w, s, e, n))
-```
-
-Use `always_xy=True` on the Transformer. Without it, pyproj returns `(lat, lon)` for some CRSs (EPSG:4326 is one of them) — that bug ends up in production every six months.
-
-## Recipe C — raster (GeoTIFF) bounds → SDK polygon
-
-```python
-import rasterio
 from shapely.geometry import box, mapping
-from pyproj import Transformer
 
-with rasterio.open("dsm.tif") as src:
-    src_bounds = src.bounds                  # in dataset CRS
-    src_crs = src.crs.to_string()            # e.g. "EPSG:25833"
+def bbox_polygon(west: float, south: float, east: float, north: float, crs: str) -> dict:
+    to_wgs = Transformer.from_crs(crs, "EPSG:4326", always_xy=True)   # always_xy keeps (lon, lat)
+    w, s = to_wgs.transform(west, south)
+    e, n = to_wgs.transform(east, north)
+    return mapping(box(w, s, e, n))
 
-to_4326 = Transformer.from_crs(src_crs, "EPSG:4326", always_xy=True)
-w, s = to_4326.transform(src_bounds.left, src_bounds.bottom)
-e, n = to_4326.transform(src_bounds.right, src_bounds.top)
+polygon = bbox_polygon(500_000, 5_400_000, 500_500, 5_400_500, "EPSG:25832")
 
-polygon = mapping(box(w, s, e, n))
+# GeoTIFF: with rasterio.open("dsm.tif") as src:
+#     polygon = bbox_polygon(*src.bounds, src.crs.to_string())
 ```
 
-## Recipe D — Rhino / Revit / IFC model → SDK polygon
+### D: a CAD or BIM model in local metres
 
-BIM models live in a local metre frame anchored to some site origin. Derive the polygon **from the model's own extent** — the frame rule above — so that the polygon's SW corner lands on the geometry's min (x, y), pad NE only, and submit every vertex relative to that corner. One WGS84 anchor for the model's `(0, 0)` is the only constant.
+The model has a local origin and one known WGS84 anchor for it (site location or survey
+point). Make the polygon from the model's own extent, so its south-west corner is the
+model's min (x, y). Rotate the model to true north first, if it is not.
 
 ```python
-import math
 import numpy as np
 
-# Site anchor in WGS84 (from the model's "true north / site location" metadata): the model's (0, 0)
-ANCHOR_LON, ANCHOR_LAT = 11.5755, 48.1975
-
-def polygon_around_model(all_xyz, anchor_lon, anchor_lat, ne_margin_m=10.0):
-    """Polygon whose bbox SW corner == the geometry's min (x, y). Pads NE only.
-    Returns (polygon, corner); submit every mesh as vertex - corner."""
+def polygon_around_model(all_xyz, anchor_lon: float, anchor_lat: float,
+                         ne_margin_m: float = 10.0) -> tuple[dict, tuple[float, float]]:
+    """Polygon whose bbox SW corner is the geometry's min (x, y). Pads north-east only.
+    Returns (polygon, corner). Submit every mesh as vertex - corner."""
     v = np.asarray(all_xyz, dtype=float).reshape(-1, 3)
-    x0, y0 = v[:, 0].min(), v[:, 1].min()                  # SW pinned — no pad here
+    x0, y0 = v[:, 0].min(), v[:, 1].min()                    # SW corner, no pad
     x1, y1 = v[:, 0].max() + ne_margin_m, v[:, 1].max() + ne_margin_m
-    m_per_deg_lat = 111_320.0                              # inverse of the SDK's tangent plane
-    m_per_deg_lon = 111_320.0 * math.cos(math.radians(anchor_lat))
-    ll = lambda x, y: [anchor_lon + x / m_per_deg_lon, anchor_lat + y / m_per_deg_lat]
+    k = 6_371_000.0 * np.pi / 180                            # metres per degree on the SDK sphere
+    lat0 = anchor_lat + y0 / k                               # cosine at the SW corner, as the SDK does
+    ll = lambda x, y: [anchor_lon + x / (k * np.cos(np.radians(lat0))), anchor_lat + y / k]
     ring = [ll(x0, y0), ll(x1, y0), ll(x1, y1), ll(x0, y1), ll(x0, y0)]
     return {"type": "Polygon", "coordinates": [ring]}, (float(x0), float(y0))
 
-def shift(mesh, corner):
-    """Re-express one {coordinates, indices} mesh relative to the polygon corner."""
+def shift(mesh: dict, corner: tuple[float, float]) -> dict:
+    """One {coordinates, indices} mesh, relative to the polygon corner."""
     v = np.asarray(mesh["coordinates"], dtype=float).reshape(-1, 3)
-    v[:, 0] -= corner[0]; v[:, 1] -= corner[1]
+    v[:, 0] -= corner[0]
+    v[:, 1] -= corner[1]
     return {**mesh, "coordinates": v.ravel().tolist()}
 
-polygon, corner = polygon_around_model(every_vertex_you_will_submit, ANCHOR_LON, ANCHOR_LAT)
-buildings = {k: shift(m, corner) for k, m in model_buildings.items()}   # same for context / terrain
+polygon, corner = polygon_around_model(every_vertex_you_submit, 16.3725, 48.2083)
+buildings = {k: shift(m, corner) for k, m in model_buildings.items()}   # same for context, terrain
 ```
 
-Feed `polygon_around_model` **every** vertex you will submit (buildings, terrain, occluders), so nothing lies south or west of the corner; if the corner comes out at `(0, 0)`, `shift` is a no-op and you can submit as-is. `corner` is the only number you need to map results back. Good to ~50 km spans; not for |lat| > 70°.
+Give `polygon_around_model` every vertex that you submit (buildings, terrain, occluders).
+Keep `corner`: it maps the results back into your model.
 
-## Sanity checks before running
-
-A 10-line pre-flight catches every CRS bug I've seen:
+## Preflight before a run
 
 ```python
-from infrared_sdk.tiling.validation import validate_polygon, PolygonValidationError
 from shapely.geometry import shape
+from infrared_sdk.tiling.validation import validate_polygon
 
-def preflight(polygon: dict, expected_country_iso: str | None = None) -> None:
-    p = validate_polygon(polygon)                     # raises on structural issues
-    geom = shape(p)
+def preflight(polygon: dict) -> None:
+    validate_polygon(polygon)                       # shape errors raise here
+    geom = shape(polygon)
     cx, cy = geom.centroid.x, geom.centroid.y
-
-    # 1. Plausibility: centroid is on land somewhere believable
     if abs(cx) < 1 and abs(cy) < 1:
-        raise ValueError(f"Centroid {cx:.4f},{cy:.4f} is Null Island — likely lat/lon swap")
-
-    # 2. Size: SDK is calibrated for <50 km span (~0.5° at 50° lat)
+        raise ValueError("centroid near (0, 0): wrong CRS or lat/lon swap")
     minx, miny, maxx, maxy = geom.bounds
-    if (maxx - minx) > 0.5 or (maxy - miny) > 0.5:
-        raise ValueError(f"Polygon span > 0.5° — out of city-scale envelope")
-
-    # 3. Polar / antimeridian guard
+    if maxx - minx > 0.5 or maxy - miny > 0.5:
+        raise ValueError("polygon spans more than 0.5 degrees: not city scale")
     if abs(cy) > 70:
-        raise ValueError(f"Centroid lat {cy:.1f}° — local tangent plane distorts at >70°")
-    if (maxx - minx) > 180:
-        raise ValueError("Polygon appears to cross the antimeridian — not supported")
-
-    # 4. Optional: ISO country check (requires shapely + naturalearth)
-    if expected_country_iso:
-        ...
+        raise ValueError("above 70 degrees latitude: the local frame distorts")
 ```
 
-The **lat/lon swap** check (centroid not near `[0, 0]`) and the **size** check together catch ~all real-world mistakes. Wire this into your client wrapper and you'll never debug a "polygon is in the wrong country" again.
+For a known site, also check that the centroid is in the expected city.
 
-## Picking a metric CRS for your own work (UTM auto-select)
-
-When you need to *also* work in meters alongside the SDK (e.g. computing buffer distances, snapping vertices, comparing to a cadastral layer), pick the UTM zone for the polygon centroid. Same pattern the Infrared QGIS plugin uses:
+## Export a result as GeoTIFF
 
 ```python
-import math
-from pyproj import CRS, Transformer
-
-def utm_crs_for(lon: float, lat: float) -> CRS:
-    """WGS84 / UTM zone for a (lon, lat) in degrees."""
-    # `% 60` guards the lon=180 (antimeridian) edge — without it the formula yields zone 61.
-    zone = int((lon + 180) / 6) % 60 + 1
-    epsg = (32600 if lat >= 0 else 32700) + zone
-    return CRS.from_epsg(epsg)
-
-# Example: project an SDK-ready WGS84 polygon to local meters for buffering
-from shapely.geometry import shape
-from shapely.ops import transform
-
-geom_4326 = shape(polygon)
-cx, cy = geom_4326.centroid.x, geom_4326.centroid.y
-
-utm = utm_crs_for(cx, cy)
-to_utm = Transformer.from_crs("EPSG:4326", utm, always_xy=True).transform
-geom_m = transform(to_utm, geom_4326)
-
-# Now you can do metric ops:
-buffered_m = geom_m.buffer(50)   # 50-metre buffer
-```
-
-Don't use this UTM frame *inside* SDK payloads — the SDK does its own internal projection. Use it for your own pre/post-processing only.
-
-## Outputs: GeoTIFF in WGS84 and in UTM
-
-The default GeoTIFF export from `grid-conventions.md` writes `EPSG:4326`, which displays correctly in any GIS but has non-square pixels in meters away from the equator. For most architectural deliverables, a metric raster is friendlier:
-
-```python
-import numpy as np, rasterio
+import numpy as np
+import rasterio
 from rasterio.transform import from_bounds
-from shapely.geometry import shape
-from shapely.ops import transform
-from pyproj import Transformer
 
-grid = result.merged_grid                    # row 0 = south, row -1 = north
-west_4326, south_4326, east_4326, north_4326 = shape(result.polygon).bounds
-
-# Reproject the bbox corners to UTM for a metric raster
-utm = utm_crs_for((west_4326 + east_4326) / 2, (south_4326 + north_4326) / 2)
-fwd = Transformer.from_crs("EPSG:4326", utm, always_xy=True).transform
-west_m, south_m = fwd(west_4326, south_4326)
-east_m, north_m = fwd(east_4326, north_4326)
-
+grid = result.physical_grid().astype("float32")    # real values, NaN = no value
+west, south, east, north = result.bounds            # bounds of the GRID, not of the polygon
 h, w = grid.shape
-transform_m = from_bounds(west_m, south_m, east_m, north_m, w, h)
-
-with rasterio.open(
-    "result_utm.tif", "w",
-    driver="GTiff", height=h, width=w, count=1,
-    dtype=grid.dtype, crs=utm.to_string(), transform=transform_m,
-    nodata=np.nan,
-) as dst:
-    dst.write(np.flipud(grid), 1)            # SDK row 0 = south; GeoTIFF row 0 = north
+with rasterio.open("result.tif", "w", driver="GTiff", height=h, width=w, count=1,
+                   dtype="float32", crs="EPSG:4326", nodata=np.nan,
+                   transform=from_bounds(west, south, east, north, w, h)) as dst:
+    dst.write(np.flipud(grid), 1)                   # grid row 0 = south; GeoTIFF row 0 = north
 ```
 
-Don't skip the `np.flipud` — see `interpretation/grid-conventions.md`.
+For a metric raster, reproject the file (`gdalwarp -t_srs EPSG:326xx`).
 
 ## Pitfalls
 
-- **CRS-not-WGS84** silently runs in the wrong country. Always `gdf.to_crs("EPSG:4326")` before `mapping()`.
-- **`[lat, lon]` instead of `[lon, lat]`** — most common SDK bug. The preflight `Null Island` check catches the worst case.
-- **`pyproj.Transformer.from_crs(..., always_xy=False)`** (default) returns `(lat, lon)` for EPSG:4326 and a handful of others. Always pass `always_xy=True`.
-- **MultiPolygon input** — SDK takes single Polygon only. Dissolve upstream or pick the largest ring.
-- **Z values on polygon** — `POLYGON Z` is fine in shapely but `mapping()` keeps the Z. SDK validation tolerates it (range check only reads `pos[0]`, `pos[1]`), but be explicit: `geom = shapely.force_2d(geom)`.
-- **Polygons crossing the antimeridian or `|lat| > 70°`** — not supported. Split or relocate.
-- **>50 km span** — local tangent plane distortion + 100-tile cap. Tile by hand if you must.
-- **UTM zone boundary** — a polygon straddling two UTM zones (~6° lon apart) projects into one zone with growing distortion at the far edge. At city scale this is invisible; for >20 km E-W you may want LAEA (EPSG:3035 for Europe) instead. The SDK never sees this — it's only for your own metric workspace.
+- A CRS other than WGS84 runs in the wrong country. Always `to_crs("EPSG:4326")` first.
+- `pyproj` without `always_xy=True` gives `(lat, lon)` for EPSG:4326.
+- MultiPolygon: the SDK takes one Polygon. Dissolve it or take the largest part.
+- `POLYGON Z`: drop the z with `shapely.force_2d`.
+- Buffers or snapping in metres: do them in the UTM zone of the site, then go back to WGS84.
+  Never put UTM values into an SDK call.
+- Polygons over the antimeridian or above 70 degrees latitude: not supported.
+- More than 100 non-empty tiles: refused until you pass `max_tiles_override`. Check the
+  price first ([throughput-and-limits.md](throughput-and-limits.md)).
 
 ## See also
 
-- [geospatial-crs.md](geospatial-crs.md) — polygon format, SDK validation chain
-- [byo-inputs.md](byo-inputs.md) — building local-meter frame vs vegetation/ground lon/lat
-- [python/quickstart.md](python/quickstart.md) — the per-tile transform step by step, context margin, `AreaResult.bounds`
-- [surface-results-integration.md](surface-results-integration.md) — **canonical** for the surface UV frame: cell centres, `cell_tris`, texture mapping
-- [analyses/09-facade-terrain.md](analyses/09-facade-terrain.md) — `ground_geometry`, `terrain_alignment`, per-tile terrain slicing
-- [interpretation/grid-conventions.md](interpretation/grid-conventions.md) — GeoTIFF export, row 0 = south
-- [Infrared-QGIS plugin](https://github.com/Infrared-city/Infrared-QGIS) — production reference implementation of the QGIS → UTM → SDK conversion chain
+- [byo-inputs.md](byo-inputs.md): your buildings, trees and ground as SDK inputs.
+- [interpretation/grid-conventions.md](interpretation/grid-conventions.md): grid layout, row 0 = south.
+- [analyses/09-facade-terrain.md](analyses/09-facade-terrain.md): facade and roof requests.
