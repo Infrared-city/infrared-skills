@@ -54,8 +54,12 @@ Each notebook uses your own model first. Public data (Overture) is the fallback.
 
 | | |
 |---|---|
-| [![Sky view factor on a map](cookbook/apps/map-grid/screenshot.png)](cookbook/apps/map-grid) | [![Solar radiation on facades in 3D](cookbook/apps/facades-3d/screenshot.png)](cookbook/apps/facades-3d) |
-| **map-grid**: a result grid on a basemap, in the browser | **facades-3d**: sun on facades and roofs, in 3D |
+| [![Sky view factor in HafenCity, Hamburg](docs/assets/cookbook/hafencity-svf.jpg)](cookbook/notebooks/00_quickstart.ipynb) | [![Four design variants compared on thermal comfort, Vienna](docs/assets/cookbook/vienna-variants-utci.jpg)](cookbook/notebooks/01_design_variants.ipynb) |
+| **00 quickstart**: sky view factor on a basemap | **01 design variants**: four scenarios compared on thermal comfort |
+| [![Pedestrian wind comfort in Midtown Manhattan](docs/assets/cookbook/midtown-wind-comfort.jpg)](cookbook/notebooks/03_wind_comfort.ipynb) | [![Summer sun on facades in 3D, Vienna](docs/assets/cookbook/karlsplatz-facades-3d.jpg)](cookbook/notebooks/04_solar_facades_3d.ipynb) |
+| **03 wind comfort**: Lawson classes for a dense area | **04 solar facades 3D**: summer sun on every wall |
+| [![Web app: result grid on a map](docs/assets/cookbook/app-map-grid.jpg)](cookbook/apps/map-grid) | [![Web app: facades in 3D with three.js](docs/assets/cookbook/app-facades-3d.jpg)](cookbook/apps/facades-3d) |
+| **apps/map-grid**: draw an area, press Run, see the map | **apps/facades-3d**: facades and roofs in 3D in the browser |
 
 - [`cookbook/notebooks/`](cookbook/notebooks/): nine case studies, 00 to 08.
 - [`cookbook/scripts/`](cookbook/scripts/): three short Python scripts.
