@@ -1,94 +1,75 @@
 # Making results look good on geometry
 
 Read this before your first render. Every trap below produces a picture that *looks* like a
-result — plausible enough to screenshot, wrong enough to mislead — and the usual reaction is
-"the model is bad" rather than "the render is bad". None of them are model problems.
+result: plausible enough to screenshot, wrong enough to mislead. None of them are model problems.
 
-The Infrared platform (ForgeKit) renders exactly the same API payloads. What follows is what
-it does differently, verified against SDK 0.5.1 and ForgeKit's own
-`@infrared/analysis-colors` package.
+The Infrared platform renders the same results. This page shows what it does differently.
+Grid rules: [../interpretation/grid-conventions.md](../interpretation/grid-conventions.md).
+The cookbook notebooks use `cookbook/notebooks/ir_plot.py`; the TypeScript apps use the same rules.
+
+## 0. Read values with the helper, never the raw array
+
+The stored type of a result can differ by analysis and can change. A raw read gives wrong
+numbers or raw bits. Always decode with the helper first:
+
+| Result | Python | TypeScript |
+|---|---|---|
+| Ground grid | `result.physical_grid()` (NaN = no value) | `areaGridValuesF32(result)` |
+| Facades and roofs | `result.columns.physical_values()`, `result.columns.render_buffers()` | `surfaceRenderBuffers(columns)` |
+| Legend range | `legend_range(result)`, `shared_legend_range([...])`, `registry_fixed_range(type)` | `legendRange`, `sharedLegendRange`, `registryFixedRange` |
+
+Decode one time and cache the array. Do not decode on each mouse move.
 
 ---
 
 ## 1. Auto-scaling to the grid's own min/max
 
-**The failure:** you normalise each render to `grid.min()` / `grid.max()`. Two runs of the
-same analysis now use two different scales, so the same physical value is a different colour
-in each — a baseline and a redesign become impossible to compare, and a flat, uneventful
-grid gets stretched until sensor noise looks like structure. This is the single most common
-cause of an ugly or misleading image.
+**The failure:** each render is normalised to its own min and max. Two runs of the same analysis
+get two scales, so the same value gets two colours. A baseline and a redesign cannot be compared,
+and a flat grid is stretched until noise looks like structure.
 
-**The rule:** the colour scale must be fixed by the *analysis*, never by the run. Where that
-fixed scale comes from depends on which result you are holding.
+**The rule:** the *analysis* sets the colour map and the scale, not the run. For the scale, choose one of:
 
-**Surface results** (`SurfaceAnalysisResult`, from `analysis_surfaces`) populate the bounds —
-use them:
-
-```python
-norm = plt.Normalize(vmin=result.min_legend, vmax=result.max_legend)
-```
-
-**Area results** (`AreaResult`, the grid path) declare `min_legend` / `max_legend` but
-**return `None` for both**. Verified on a live SVF area run whose grid spanned −0.00 to
-96.56: both fields came back `None`. So the familiar guard —
-
-```python
-vmin = result.min_legend if result.min_legend is not None else float(np.nanmin(...))   # WRONG on area results
-```
-
-— takes its fallback branch *every single time*, which is exactly the auto-scaling this
-section exists to prevent, wearing a guard that makes it look handled. Choose the domain
-yourself and keep it constant across every run you intend to compare:
+- the fixed range from the public colour registry: `registry_fixed_range(analysis_type)`.
+  It has a range for UTCI (-40 to 46 degrees C) and wind speed (0 to 20 m/s);
+- a fixed domain of your own for the other analyses (table below), the same for all runs that you compare;
+- one pooled range over all results that you compare: `shared_legend_range([a, b])`;
+- for one result alone, `result.min_legend` and `result.max_legend` (its exact range).
 
 ```python
 import matplotlib.pyplot as plt
+from infrared_sdk import registry_fixed_range, shared_legend_range
 
-DOMAIN = {                       # fixed per analysis, never per run
-    "sky-view-factors": (0, 100),          # %
-    "daylight-availability": (0, 100),     # %
-    "direct-sun-hours": (0, 12),           # hours — for a 9–17 window; ceiling = daylight samples in YOUR window
-    "solar-radiation": (0, 1000),          # kWh/m2
-    "wind-speed": (0, 15),                 # m/s, top bin OPEN
-    "thermal-comfort-index": (-40, 46),    # degC
+STYLE = {                                  # colour map and unit for each analysis (as ir_plot.py)
+    "sky-view-factors": ("viridis", "%", (0, 100)),
+    "daylight-availability": ("cividis", "%", (0, 100)),
+    "direct-sun-hours": ("magma", "h", None),          # 0 to the sun hours in YOUR window
+    "solar-radiation": ("inferno", "kWh/m2", None),    # depends on the window: fix it per study
+    "thermal-comfort-statistics": ("YlOrRd", "% of hours", (0, 100)),
+    "thermal-comfort-index": ("RdYlBu_r", "degC", None),   # registry: -40 to 46
+    "wind-speed": ("YlGnBu", "m/s", None),                 # registry: 0 to 20, top bin open
 }
-
-vmin, vmax = DOMAIN[result.analysis_type]
-plt.imshow(result.merged_grid, origin="lower", cmap="viridis", vmin=vmin, vmax=vmax)
+cmap, unit, domain = STYLE[result.analysis_type]
+vmin, vmax = domain or registry_fixed_range(result.analysis_type) or (result.min_legend, result.max_legend)
+plt.imshow(result.physical_grid(), origin="lower", cmap=cmap, vmin=vmin, vmax=vmax)
+plt.colorbar(label=unit)
+# Two scenarios on one scale: vmin, vmax = shared_legend_range([baseline, proposed])
 ```
 
-Never fall back to the data range without saying so in the caption, and never fall back
-*per tile*.
+Wind has an **open** top bound: values above the top take the last colour, and the legend
+says "> 20". Clamp out-of-range values to the end colours. Never leave them without colour.
+Pedestrian wind comfort is categorical: see section 5.
 
-ForgeKit hardcodes the same idea one level up: every analysis type in its registry carries a
-fixed `steps: [min, max]` domain that never depends on the run — the table below is that
-registry, and is where the `DOMAIN` values above come from.
-
-| Analysis | ForgeKit domain | Unit |
-|---|---|---|
-| `wind-speed` | `[0, 15]` (top bin **open**: "> 15") | m/s |
-| `sky-view-factors` | `[0, 100]` | % |
-| `direct-sun-hours` | `[0, 12]` (a 9–17 window; the ceiling is your window's daylight sample count — see [`../analyses/04-direct-sun-hours.md`](../analyses/04-direct-sun-hours.md#keep-the-window-inside-daylight)) | hours |
-| `daylight-availability` | `[0, 100]` | % |
-| `solar-radiation` | `[0, 1000]` | kWh/m² |
-| `thermal-comfort-index` | `[-40, 46]` | °C |
-
-Note the **open** top bound on wind: values above 15 m/s clamp to the last colour and the
-legend says "> 15" rather than pretending 15 is the maximum. Clamp out-of-domain values to
-the end colours; don't leave them uncoloured.
-
-**Exception — difference plots.** `min_legend`/`max_legend` are absolute-scale bounds and
-deltas go negative. See §6.
+**Exception: difference plots.** Deltas go negative. See section 6.
 
 ---
 
 ## 2. Masked cells rendered as zero
 
-**The failure:** you map `None` (surface grids) or `NaN` (area grids) to `0`. Building
-footprints and everything outside the polygon are now painted as the *worst* value on the
-scale — a solid dark blob that reads as a real result. Summary statistics silently shift the
-same way.
+**The failure:** NaN (no value) is mapped to 0. Building footprints and everything outside the polygon
+are painted as the worst value: a solid blob that reads as a result. Statistics shift the same way.
 
-**The rule:** masked means *no data*, not *zero*. Map to `NaN` and render transparent.
+**The rule:** no value means no data, not zero. Keep NaN. Render it transparent.
 
 ```python
 import numpy as np
@@ -96,129 +77,79 @@ import matplotlib.pyplot as plt
 
 cmap = plt.get_cmap("viridis").copy()
 cmap.set_bad(alpha=0.0)                      # NaN -> fully transparent
-
-plt.imshow(np.ma.masked_invalid(result.merged_grid), cmap=cmap,
+plt.imshow(np.ma.masked_invalid(result.physical_grid()), cmap=cmap,
            origin="lower", vmin=vmin, vmax=vmax)
 ```
 
-For surface results the SDK does the conversion for you — `surface.grid()` returns a
-`(nv, nu)` float64 array with masked cells already `NaN` (plain `np.array(surface.values)`
-chokes on the `None` entries):
-
-```python
-grid = surface.grid()                        # masked cells are NaN, not 0
-mean = np.nanmean(grid)                      # np.mean() would be wrong even if you never plot
-```
-
-In a GPU pipeline, discard rather than blend — see the premultiplied-mask shader in
-[`../surface-results-integration.md`](../surface-results-integration.md), which keeps bilinear
-edges clean instead of bleeding masked cells into their neighbours.
+For facade results, `columns.physical_values()` already gives NaN for masked cells. Use `np.nanmean`.
+In a GPU pipeline, discard the cell. Test the validity bit of the render buffers
+([../surface-results-integration.md](../surface-results-integration.md)).
 
 ### The mirror image: real zeros treated as missing
 
-The inverse mistake costs just as much. A surface can legitimately come back with
-`mean = peak = 0.0` and every cell present and finite — party walls, light wells, elevations
-a neighbour blocks entirely. That is the answer, not a gap, and it is a different thing from
-the `None` masked cells above.
-
-They are common enough to move any headline number. A June `direct-sun-hours` run over a
-300-building Munich block returned **555 of 1,730 facades at exactly zero (32%)**; the scene
-mean was 3.62 h including them and 5.33 h excluding them.
-
-Nothing in the response flags a surface as degenerate, so decide explicitly and label which
-you chose:
+A surface can come back with `mean = peak = 0.0` and every cell present: a party wall, a light well,
+an elevation that a neighbour blocks. That is the answer. On a dense scene, a large share of facades can be exact
+zeros, and the scene mean changes a lot with or without them. Decide which you report, and say so:
 
 ```python
-vals = [s.mean for s in result.surfaces.values()]
-lit = [v for v in vals if v > 0.0]
-# "mean over all analysed facades"       -> statistics.mean(vals)
-# "mean over facades that see any sun"   -> statistics.mean(lit)
+means = result.columns.mean
+lit = means[means > 0.0]
+# "mean over all analysed facades"       -> means.mean()
+# "mean over facades that see any sun"   -> lit.mean()
 ```
 
-Zeros also matter for the render: on a `[0, max]` scale they take the bottom colour, which is
-correct and is *not* the same as the transparent masked cells. Keep them visible — a wall in
-permanent shade is a finding.
+Keep zeros visible on the scale. A wall in permanent shade is a finding.
 
 ---
 
 ## 3. Giving facades their own scale
 
-**The failure:** a facade-only run looks washed out on the shared scale, so you rescale it to
-the facade percentiles. The facade now shows dramatic contrast that isn't there, and two
-surfaces on the same building are no longer comparable.
+**The failure:** a facade-only run looks washed out on the shared scale, so you rescale it to the
+facade percentiles. The facade now shows contrast that is not there, and two surfaces of one building
+are no longer comparable.
 
-**The rule:** roofs and facades share **one** scale. Roofs sit high (open sky), facades low
-(obstructed) — *that contrast is the reading*, not a defect to normalise away.
+**The rule:** roofs and facades share **one** scale. Roofs sit high (open sky), facades low.
+That contrast is the reading.
 
 ```python
-norm = plt.Normalize(vmin=result.min_legend, vmax=result.max_legend)   # ONE scale, whole scene
-
-for key, surface in result.surfaces.items():
-    draw(surface, norm)                       # surface.is_vertical tells you facade vs roof
+vmin, vmax = result.min_legend, result.max_legend      # one scale for the whole scene
 ```
 
-`surface.is_vertical` uses the server's own facade rule (`|n_z| <= 0.5` for
-`n = u_axis x v_axis`) — prefer it to eyeballing `v_axis[2]` yourself.
-
-A facade-only rescale is a legitimate *deliberate, labelled* exception ("facades only,
-5th–95th percentile"). It is never the default, and never silent.
+A facade-only rescale is allowed as a deliberate and labelled exception ("facades only, 5th to 95th
+percentile"). Never silent.
 
 ---
 
 ## 4. Picking a rendering route (and paying for the wrong one)
 
-Two routes, one job. They read the same `SurfaceAnalysisResult`.
+Two routes read the same result: render buffers or textures (light, smooth gradients, stepped edges)
+and exact cell triangles (crisp edges, about 96 % of the download).
 
-| | Route 1 — texture the UV grid | Route 2 — mesh from `cell_tris` |
-|---|---|---|
-| Looks like | smooth gradients, stepped footprint edges | crisp exact boundaries, no stepping |
-| Cost | one small texture per surface | several triangles per cell |
-| Needs `cell_tris` | no | **yes** |
-| Best for | interactive city-scale views | export, print, selected elements |
-
-**The failure:** `emit_cell_tris` **defaults to `False`** on any `analysis_surfaces` request
-in SDK 0.5.1 — Route 2 code written against an older assumption gets `None` and either
-crashes or renders an empty mesh. Per-cell geometry measured **93.7% of a facade payload**
-(12.0 MB → 0.76 MB, 15.9x), which is why it is off by default. `values` and every aggregate
-are identical either way, so nothing analytical is lost — only the per-cell outlines used for
-*drawing*. (`cell_area` may go with them; treat it as optional too.)
+**The failure:** asking for cell triangles on every run. `emit_cell_tris` is off by default for a
+reason. `values` and every aggregate are identical either way. Only the exact outlines change.
 
 ```python
-from infrared_sdk.analyses.types import AnalysesName, SvfModelRequest
+from infrared_sdk import SvfModelRequest
+from infrared_sdk.analyses.types import AnalysesName
 
-# Route 1 / analysis only — the default, ~15x smaller download.
-payload = SvfModelRequest(analysis_type=AnalysesName.sky_view_factors,
-                          analysis_surfaces="all", surface_grid_size=1.0)
+# Overview or analysis: the default. Small download.
+overview = SvfModelRequest(analysis_type=AnalysesName.sky_view_factors,
+                           analysis_surfaces="all", surface_grid_size=1.0)
 
-# Route 2 — you must ask for the geometry back.
-payload = SvfModelRequest(analysis_type=AnalysesName.sky_view_factors,
-                          analysis_surfaces="all", surface_grid_size=1.0,
-                          emit_cell_tris=True)
+# One selected building or an export: ask for the exact outlines.
+detail = SvfModelRequest(analysis_type=AnalysesName.sky_view_factors,
+                         analysis_surfaces="all", surface_grid_size=1.0, emit_cell_tris=True)
 ```
 
-Branch on presence rather than assuming — `cell_tris` is also absent on the centre-test /
-BYO-sensor path:
-
-```python
-if surface.has_cell_geometry:
-    for value, (a, b, c) in surface.triangles():   # exact clipped cells
-        emit_triangle(a, b, c, color=cmap(norm(value)))
-else:
-    draw_texture(surface.grid())                   # Route 1 fallback
-```
-
-`triangles()` raises `ValueError` when the geometry is absent instead of yielding nothing —
-an empty mesh is a silent failure, an exception is not. It also skips masked cells for you.
-
-`emit_cell_tris` participates in `config_hash()`, so a resume can't merge tris-present tiles
-from one run with tris-absent tiles from another.
+Draw the overview from render buffers. Ask for triangles for the building that the user selects.
+Details: [../surface-results-integration.md](../surface-results-integration.md).
 
 ---
 
 ## 5. A continuous colormap on categorical output
 
-**The failure:** `pedestrian-wind-comfort` returns comfort **class indices** (Lawson LDDC:
-`0`=A … `4`=E), not a measurement. Run a continuous ramp over them and you get colours
+**The failure:** `pedestrian-wind-comfort` returns comfort **class indices** (for Lawson LDDC
+`0`=A … `4`=E; other criteria have other classes, listed in `result.legend`), not a measurement. Run a continuous ramp over them and you get colours
 *between* classes, which mean nothing — class B blends into class C, and a viewer reads a
 smooth gradient where the standard defines five hard bins.
 
@@ -227,18 +158,21 @@ smooth gradient where the standard defines five hard bins.
 ```python
 import matplotlib.colors as mcolors
 import matplotlib.patches as mpatches
+import matplotlib.pyplot as plt
 
 LAWSON_LDDC = ["A sitting long", "B sitting short", "C standing/strolling",
                "D walking", "E business walking"]
-COLORS = ["#384672", "#38aead", "#69ad38", "#dee269", "#f00000"]   # ForgeKit wind-comfort palette
+labels = result.legend or LAWSON_LDDC       # the classes of the criteria that you ran
+PLATFORM = ["#384672", "#38aead", "#69ad38", "#dee269", "#f00000"]  # platform palette, 5 classes
+COLORS = PLATFORM if len(labels) == 5 else list(plt.get_cmap("RdYlGn_r", len(labels))(range(len(labels))))
 
 cmap = mcolors.ListedColormap(COLORS)
 cmap.set_bad(alpha=0.0)
 norm = mcolors.BoundaryNorm(np.arange(-0.5, len(COLORS)), cmap.N)   # one bin per class index
 
-ax.imshow(np.ma.masked_invalid(result.merged_grid), cmap=cmap, norm=norm,
+ax.imshow(np.ma.masked_invalid(result.physical_grid()), cmap=cmap, norm=norm,
           origin="lower", interpolation="nearest")
-ax.legend(handles=[mpatches.Patch(color=c, label=l) for c, l in zip(COLORS, LAWSON_LDDC)],
+ax.legend(handles=[mpatches.Patch(color=c, label=l) for c, l in zip(COLORS, labels)],
           loc="center left", bbox_to_anchor=(1, 0.5), frameon=False)
 ```
 
@@ -248,13 +182,13 @@ C. Report the area share per class, or the mode. Mask *before* comparing — `Na
 in the denominator and under-reports the hotspot share:
 
 ```python
-valid = result.merged_grid[~np.isnan(result.merged_grid)]
+grid = result.physical_grid()
+valid = grid[~np.isnan(grid)]
 class_e_share = (valid == 4).mean()          # NOT np.nanmean(grid == 4)
 ```
 
-ForgeKit's `wind-comfort` entry is `colorInterpolation: "binned"` with one colour per class
-and `legendType: "equal_ranges"` — a stepped ramp, never a gradient. `wind-speed` is the
-only common config it renders `linear`.
+Draw wind comfort as discrete classes: one colour per class, a stepped legend, never a
+gradient. Wind speed is continuous and gets a gradient.
 
 ---
 
@@ -276,19 +210,17 @@ and for red-green colour blindness.
   lands on a non-zero value and half the map lies about its sign.
 
 ```python
-delta = proposed.merged_grid - baseline.merged_grid
+delta = proposed.physical_grid() - baseline.physical_grid()
 lim = float(np.nanmax(np.abs(delta)))                      # symmetric about zero
 plt.imshow(delta, cmap="RdBu_r", origin="lower",
            norm=mcolors.TwoSlopeNorm(vmin=-lim, vcenter=0.0, vmax=lim))
 ```
 
-Do **not** reuse `min_legend`/`max_legend` here — those are absolute-scale bounds and deltas
+Do **not** reuse `min_legend`/`max_legend` here: they are the range of absolute values, and deltas
 go negative.
 
-**ForgeKit's palette trick:** it extends each base palette by interpolation, with a *finer*
-factor for the mesh than for the legend (`resultSubdivisionFactor` vs
-`legendSubdivisionFactor`) — UTCI's 7 base colours become 21 mesh colours but only 14 legend
-swatches. The surface reads smooth; the legend stays countable. When a user filters by value
+**A palette trick:** interpolate the base palette more finely for the mesh than for the
+legend. The surface reads smooth; the legend stays countable. When a user filters by value
 range it sets **alpha 0** on the excluded cells rather than recolouring them, so the
 remaining colours keep their meaning.
 
@@ -307,8 +239,9 @@ Infrared grids are **row 0 = south, column 0 = west**. Different consumers disag
 | Plotly | unflipped |
 | folium / leaflet `ImageOverlay` | `np.flipud(grid)` — its first row is drawn at the **north** edge |
 | GeoTIFF | `np.flipud(grid)` — GeoTIFF row 0 is north |
+| Canvas, deck.gl `BitmapLayer`, MapLibre image source | flip the rows of `areaGridValuesF32(result)`; image row 0 is north |
 
-For placement, use `result.bounds` — the SDK-computed `(min_lng, min_lat, max_lng, max_lat)`
+For placement, use `result.bounds` (`[west, south, east, north]`, the same in TypeScript) — the SDK-computed extent
 of the *actual* merged grid. Reconstructing the extent from tile counts × step size drifts by
 up to a tile, because the merged grid is padded past the polygon when the sides aren't an
 integer multiple of the tile step. And **don't crop** the image to the polygon: `bounds`
@@ -316,25 +249,20 @@ describes the full grid, so the image must match it cell-for-cell — the `NaN` 
 the polygon give the overlay its true shape for free (§2).
 
 ---
+## 8. The shortcut: let the SDK draw it
 
-## 8. The shortcut: let the server draw it
-
-If you just need a correct PNG and don't need interactivity, skip all of the above — the
-weather service renders with Infrared's canonical palette and legend:
+If you need only a correct PNG, the SDK draws it on your machine with the official colours
+(from the public colour registry; no job, no key):
 
 ```python
-from infrared_sdk.tiling.merger import grid_to_list
-
-png = client.weather.gen_grid_image(
-    grid=grid_to_list(result.merged_grid),     # NOT .tolist() — that leaves NaN, which is not JSON
-    analysis_type="wind-speed",                # without this you get a generic palette
-)
+rows = result.to_list()[::-1]                              # NaN -> None; row 0 is south, the PNG top is north
+png = client.weather.gen_grid_image(grid=rows, analysis_type=result.analysis_type)
 open("result.png", "wb").write(png)
 ```
 
-`grid_to_list` converts `NaN -> None`. Pass `criteria` / `subtype` for PWC and thermal
-comfort so the categorical mapping matches §5. Details:
-[`../07-images.md`](../07-images.md).
+Pass `criteria` or `subtype` for pedestrian wind comfort and thermal comfort so the class
+mapping matches section 5. One pixel for each cell, up to 960 px on the long side. No-data
+cells are transparent. TypeScript: `renderGridPng(rows, { analysisType })`.
 
 ---
 
@@ -363,7 +291,7 @@ def drape_z(terrain_mesh, grid_shape, corner=(0.0, 0.0)):
     z = LinearTriInterpolator(Triangulation(v[:, 0], v[:, 1], f), v[:, 2])(gx, gy)
     return z.filled(np.nan)                 # (ny, nx)
 
-z = drape_z(terrain_mesh, result.merged_grid.shape)
+z = drape_z(terrain_mesh, result.physical_grid().shape)
 ```
 
 `matplotlib.tri` interpolates on the triangles you pass (no re-triangulation); a vectorised
@@ -375,10 +303,10 @@ footprints (§2 covers masked cells).
 
 ## Checklist before you ship a render
 
-- [ ] Colour bounds come from `min_legend` / `max_legend` (or a fixed per-analysis domain), never per-run min/max
+- [ ] Colour bounds come from a fixed per-analysis domain or a shared range for runs that you compare
 - [ ] Masked cells are `NaN` and transparent — never `0`
 - [ ] Roofs and facades on one scale; any exception is labelled on the image
-- [ ] `emit_cell_tris=True` if and only if you draw exact cells; branch on `has_cell_geometry`
+- [ ] `emit_cell_tris=True` only for the building or export that needs exact cells
 - [ ] Categorical analyses get a discrete colormap + a class legend, and no averaged indices
 - [ ] Perceptually uniform colormap; diverging only where zero is a real midpoint, and centred
 - [ ] North is up, and the overlay uses `result.bounds` uncropped
@@ -386,8 +314,7 @@ footprints (§2 covers masked cells).
 
 ## See also
 
-- [`../surface-results-integration.md`](../surface-results-integration.md) — the UV-grid contract, both routes in depth, the masking shader
+- [`../surface-results-integration.md`](../surface-results-integration.md) — the columns contract, render buffers, the masking shader
 - [`../interpretation/grid-conventions.md`](../interpretation/grid-conventions.md) — grid layout, scenario diffs, GeoTIFF export
-- [`../07-images.md`](../07-images.md) — server-rendered PNGs
 - [`../analyses/09-facade-terrain.md`](../analyses/09-facade-terrain.md) — facade/roof request fields and response shape
-- Notebooks: `12_surface_results_rendering.ipynb` (both routes, whole-tile shared scale), `10_real_world_map_overlay.ipynb` (folium overlay)
+- Cookbook notebooks: [../../../../../../cookbook/](../../../../../../cookbook/README.md)

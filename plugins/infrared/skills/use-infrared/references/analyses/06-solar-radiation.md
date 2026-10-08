@@ -1,53 +1,38 @@
-# Solar Radiation (solar-radiation)
+# Solar radiation (`solar-radiation`)
 
-Cumulative solar energy per ground cell over the selected `TimePeriod`, in kWh/m². Uses both direct-normal and diffuse-horizontal components from the weather file.
-
-## Request
+The solar energy that reaches each cell over the time window, in kWh/m2.
+It uses direct and diffuse radiation from a weather file.
 
 ```python
-from infrared_sdk import InfraredClient
-from infrared_sdk.analyses.types import (
-    SolarRadiationModelRequest, BaseAnalysisPayload, AnalysesName,
-)
-from infrared_sdk.models import TimePeriod, Location
+from infrared_sdk import SolarRadiationModelRequest
+from infrared_sdk.analyses.types import AnalysesName, BaseAnalysisPayload
+from infrared_sdk.models import Location, TimePeriod
 
-tp = TimePeriod(
-    start_month=6, start_day=1, start_hour=9,
-    end_month=6, end_day=30, end_hour=17,
-)
+tp = TimePeriod(start_month=6, start_day=1, start_hour=9,
+                end_month=6, end_day=30, end_hour=17)
+rows = client.weather.filter_weather_data(identifier=station_uuid, time_period=tp)
 
-weather_data = client.weather.filter_weather_data(
-    identifier="your-weather-file-id",
-    time_period=tp,
+request = SolarRadiationModelRequest.from_weatherfile_payload(
+    payload=BaseAnalysisPayload(analysis_type=AnalysesName.solar_radiation),
+    location=Location(latitude=48.208, longitude=16.371),
+    time_period=tp, weather_data=rows,
 )
-
-payload = SolarRadiationModelRequest.from_weatherfile_payload(
-    payload=BaseAnalysisPayload(
-        analysis_type=AnalysesName.solar_radiation,
-    ),
-    location=Location(latitude=48.1983, longitude=11.575),
-    time_period=tp,
-    weather_data=weather_data,
-)
-result = client.run_area_and_wait(payload, polygon, buildings=area.buildings)
+result = client.run_area_and_wait(request, polygon, buildings=buildings)
+energy = result.physical_grid()         # kWh/m2 over the window
 ```
 
-## Response
-
-`result.merged_grid` is a 2D `float` array of solar radiation per cell aggregated over the window. `min_legend` / `max_legend` give the canonical color-scale bounds.
+Weather setup: [../python/weather-and-time.md](../python/weather-and-time.md).
 
 ## Pitfalls
 
-- Required weather arrays: `direct_normal_radiation` and `diffuse_horizontal_radiation`. The `from_weatherfile_payload` classmethod extracts both for you — don't pass them manually.
-- Pass the SAME `TimePeriod` to `filter_weather_data` AND `from_weatherfile_payload`. Misalignment silently produces wrong results — the model assumes the arrays match the simulation window 1:1.
-- If you bring your own weather arrays, their length MUST equal what `filter_weather_data` returns for the same window.
-- `Location` is required — drives sun position.
-- This is cumulative ENERGY (kWh/m² over the `TimePeriod`), not direct-sun DURATION. For hours sunlit use Direct Sun Hours.
-- **Low sun angles on multi-tile polygons can show seam artefacts** — buildings outside a tile's 128 m context margin don't occlude across tile boundaries, so long shadows clip at tile edges. Use `estimate_sun_context_loss(polygon, latitude, longitude, time_period)` from `infrared_sdk.preflight` to score the risk before submitting; avoid framing analyses around early-morning / late-afternoon hours and winter months when the polygon spans multiple tiles.
+- Use the same `TimePeriod` for the weather and the request.
+- It is energy (kWh/m2), not power (W/m2) and not hours of sun.
+- The season matters: 60 kWh/m2 in January is normal. In July it signals shade.
+- Facades and roofs: set `analysis_surfaces`. The class builder has no pass-through for it,
+  so build the request directly with `extract_weather_fields(rows, ["diffuseHorizontalRadiation", "directNormalRadiation"])`
+  and the facade fields together
+  ([../python/surfaces-and-sensors.md](../python/surfaces-and-sensors.md)).
+- Shade from objects farther than 128 m past a tile is missing in 1.0. See direct sun hours.
+- Leaf-off trees: from November to March (north of 23.5 N) the trees let more sun through.
 
-## See also
-
-- For result interpretation -> `interpretation/solar-results.md`
-- For direct sun hours -> `04-direct-sun-hours.md`
-- For weather file fetch -> `04-weather-data.md`
-- For time periods -> `03-time-period.md`
+Read the result: [../interpretation/solar-results.md](../interpretation/solar-results.md)

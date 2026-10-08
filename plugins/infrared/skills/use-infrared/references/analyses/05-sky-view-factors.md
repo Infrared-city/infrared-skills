@@ -1,34 +1,29 @@
-# Sky View Factors (sky-view-factors)
+# Sky view factor (`sky-view-factors`)
 
-Fraction of the upper hemisphere visible from each ground cell, blocked only by buildings (and vegetation if injected). Pure geometry — no time period, no weather, no sun position.
-
-## Request
+How much open sky each cell sees, in % (100 = open, 0 = closed). It is pure geometry:
+no time period, no weather, no sun.
 
 ```python
-from infrared_sdk import InfraredClient
-from infrared_sdk.analyses.types import SvfModelRequest, AnalysesName
+from infrared_sdk import SvfModelRequest
+from infrared_sdk.analyses.types import AnalysesName
 
-payload = SvfModelRequest(
-    analysis_type=AnalysesName.sky_view_factors,
-    latitude=48.1983,    # optional - only needed if you inject vegetation
-    longitude=11.575,    # optional - only needed if you inject vegetation
-)
-result = client.run_area_and_wait(payload, polygon, buildings=area.buildings)
+request = SvfModelRequest(analysis_type=AnalysesName.sky_view_factors)
+result = client.run_area_and_wait(request, polygon, buildings=buildings)
+svf = result.physical_grid()            # 0 to 100, NaN = no value
 ```
 
-## Response
+## Parameters
 
-`result.merged_grid` is a 2D `float` array of SVF in **[0, 100]** — 100 = fully open sky, 0 = fully obstructed. `min_legend` / `max_legend` are the canonical color-scale bounds.
+- No other field is needed. Requests refuse unknown fields (`time_period`, weather).
+- `latitude` and `longitude` are optional.
+- Trees count as obstacles when you give `vegetation`. SVF always uses the leaf-on value.
+- Facades, roofs, own sensor points and `context_geometry` work
+  ([../python/surfaces-and-sensors.md](../python/surfaces-and-sensors.md)).
 
 ## Pitfalls
 
-- Geometry-only: do NOT pass `time_period` or weather arrays — payloads use `extra="forbid"`, so unknown fields are rejected by the Pydantic validator with a `ValidationError`.
-- `latitude` / `longitude` are OPTIONAL. SVF inference itself ignores them; they exist so the vegetation validator can build a reference point. Set them only if you inject vegetation.
-- SVF is a static building-shadowing metric — it does not change with season or weather. One run covers all conditions.
-- A common downstream input to other thermal/comfort post-processing — but the SDK analysis itself returns only SVF.
+- If every cell reads 100, you forgot to pass `buildings`.
+- It does not change with season or weather. One run covers all.
+- It is not shade. A high SVF point can be in shade for hours.
 
-## See also
-
-- For result interpretation -> `interpretation/solar-results.md` (SVF section)
-- For polygon/buildings setup -> `02-geometry.md`
-- For vegetation injection -> `../byo-inputs.md`
+Read the result: [../interpretation/solar-results.md](../interpretation/solar-results.md)

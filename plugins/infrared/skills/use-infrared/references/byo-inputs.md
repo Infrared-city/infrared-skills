@@ -1,152 +1,119 @@
-# Bring-your-own buildings, vegetation, ground materials
+# Bring your own buildings, trees and ground
 
-**This is the default workflow.** Most SDK users — architects, urban planners, sustainability consultants — start from data they already have (BIM/Rhino/IFC models, GeoJSON footprints from a planning department, proposed-scenario landscape designs) and want to run microclimate analyses against *that*. The fetch-from-API path (`client.buildings.get_area(...)`) is for quick prototyping over an unknown city block, not for real project work.
+Your own model is the main input. Ask first what the user has: BIM, Rhino, IFC, GeoJSON footprints,
+a proposed landscape. Use public data only when there is nothing else, and say so.
+Code: [python/own-data.md](python/own-data.md). To put files into the platform, see
+[platform-byo-upload.md](platform-byo-upload.md).
 
-When advising a user, always ask first whether they have their own buildings / trees / ground-material data. Default to BYO; fall back to fetched data only when nothing is provided.
-
-## How to pass them
-
-```python
-result = client.run_area_and_wait(
-    request,
-    polygon,
-    buildings=my_buildings,         # dict[str, DotBimMesh]
-    vegetation=my_vegetation,       # dict[str, GeoJSON Feature]
-    ground_materials=my_layers,     # dict[material_name, GeoJSON FeatureCollection]
-)
-```
-
-All three are **opt-in**: `None` (default) or `{}` means "skip — no data of this type injected". A non-empty dict means "use this".
-
-## Buildings (`AreaBuildings`)
-
-Format: `dict[str, DotBimMesh]` — keyed by stable building id; each mesh has flat XYZ coordinates and face-triplet indices.
-
-**Coordinate frame:** local meter-space, polygon-bbox-SW corner = origin. X = east, Y = north, Z = height. The SDK transforms each building from this frame to the per-tile frame internally — you don't need to do it.
-
-The fetch path returns this shape directly:
+## Shapes
 
 ```python
-area = client.buildings.get_area(polygon)
-my_buildings = area.buildings   # ready to pass through
-```
-
-`area.buildings` is a **`dict[str, DotBimMesh]`** keyed by building id — not GeoJSON. A
-FeatureCollection-shaped read (`area.buildings.get("features")`) silently yields nothing;
-count buildings with `len(area.buildings)`.
-
-For true BYO from a BIM model (Rhino/Revit/IFC → DotBim), you build the same dict yourself. The DotBim format is documented at <https://github.com/paireks/dotbim>; each entry needs `coordinates: list[float]` (flat XYZ, length = 3 × N vertices), `indices: list[int]` (flat triangulation, length = 3 × N faces), and a few metadata fields.
-
-## Vegetation (`AreaVegetation`)
-
-Format: `dict[str, GeoJSON Feature]` — keyed by dedup id (e.g. OSM tree id); each Feature is a Point with `geometry.coordinates = [lon, lat]` and `properties` carrying tree attributes.
-
-**Tree size is read ONLY from these property keys** — anything else (e.g. `crown_radius`, `treeHeight`) is silently ignored and the tree simulates at the server's default size instead of yours (today: 6 m tall, 4 m crown). No error is raised anywhere. The SDK warns (`UserWarning`) when a property key both *looks* size-like (`height`/`crown`/`diameter`) **and** holds a value that parses as a dimension — so a metadata field like `height_confidence: "low"` is not flagged, but `crown_radius: 4.5` is:
-
-| Dimension | Keys (first parseable wins) |
-|---|---|
-| Height (m) | `height`, `height_m` |
-| Crown **diameter** (m) | `crownDiameter`, `diameter_crown`, `diameter_m`, `crown_m` |
-
-Values may be numbers or OSM-style strings (`"12 m"`, `"5,5"`). All crown keys are the **diameter**, not the radius — a radius under these keys makes every tree half as wide as intended. Trees with no size keys at all deliberately get the defaults.
-
-```python
-area_veg = client.vegetation.get_area(polygon)
-my_trees = area_veg.features
-# or: my_trees = {"my_tree_1": {"type": "Feature", "geometry": {...}, "properties": {...}}}
-```
-
-**Coordinate frame:** lon/lat (EPSG:4326). Projection is handled server-side.
-
-Note (changed 2026-04): vegetation features used to be converted to DotBim meshes before submission; that's now handled at the inference layer. Pass GeoJSON Points, not meshes.
-
-**`AreaVegetation.failed_tiles` (0.4.10+):** `client.vegetation.get_area(polygon)` now surfaces tiles where vegetation fetch failed in `area_veg.failed_tiles` (list of tile IDs). Previously these failures were silently dropped. Check it and decide whether to retry, proceed with partial data, or abort. Empty list = all tiles succeeded.
-
-## Ground materials (`AreaGroundMaterials`)
-
-Format: `dict[str, GeoJSON FeatureCollection]` — keyed by **material name**, each value a FeatureCollection of polygons in lon/lat.
-
-SDK ≥ 0.4.7 validates keys at call time: UUID-shaped keys raise `ValueError`; unrecognised names emit `UserWarning`. Valid names: `asphalt`, `concrete`, `soil`, `vegetation`, `water`. The safest source is always `area_gm.layers` directly — its keys are already correct material names.
-
-```python
-area_gm = client.ground_materials.get_area(polygon)
-my_layers = area_gm.layers
-# {"asphalt": {"type": "FeatureCollection", "features": [...]},
-#  "vegetation": {"type": "FeatureCollection", "features": [...]}, ... }
-```
-
-To override a layer, replace just that key:
-
-```python
-my_layers = {**area_gm.layers, "vegetation": my_custom_park_polygons}
-```
-
-### Overlapping material layers
-
-The simulator decides a point's material by looking **straight down** and taking the topmost surface. If two material layers overlap — e.g. a `water` polygon sitting on a tile-wide `asphalt` background — flat (same-height) polygons tie, and a tie can flip the result: a lake resolved as `asphalt` and rendered as a hot surface instead of cool water.
-
-Fetched layers (`client.ground_materials.get_area(...)`) come pre-cleaned and stacked, so this is handled for you. When you hand-build `ground_materials`, make the material layers **mutually exclusive** — clip them so each point belongs to exactly one material — or start from `area_gm.layers` and override individual keys (above) rather than adding polygons that overlap the existing ones.
-
-## When each layer is needed
-
-| Analysis | Buildings | Vegetation | Ground materials |
-|---|---|---|---|
-| `wind-speed`, `pedestrian-wind-comfort` | required | optional | optional |
-| `sky-view-factors` | required | usually skip | usually skip |
-| `daylight-availability`, `direct-sun-hours` | required | optional | optional |
-| `solar-radiation` | required | recommended | recommended |
-| `thermal-comfort-index` (UTCI), `thermal-comfort-statistics` (TCS) | required | recommended | recommended |
-
-For wind/SVF you can pass `vegetation={}` and `ground_materials={}` to skip injection. For thermal/solar, omitting them produces a less realistic surface energy balance.
-
-## Mixing fetched + BYO
-
-The cookbook's recipe 04 shows fetch-once-reuse. The same pattern lets you fetch some layers and override others — e.g. keep fetched buildings + vegetation, override ground materials with a proposed redesign:
-
-```python
-area = client.buildings.get_area(polygon)
-area_veg = client.vegetation.get_area(polygon)
-area_gm = client.ground_materials.get_area(polygon)
-
-my_layers = {**area_gm.layers, "vegetation": my_proposed_park_polygons}
-
 result = client.run_area_and_wait(
     request, polygon,
-    buildings=area.buildings,
-    vegetation=area_veg.features,
-    ground_materials=my_layers,
+    buildings=my_buildings,        # {id: {"coordinates": [x, y, z, ...], "indices": [i, j, k, ...]}}
+    vegetation=my_trees,           # {id: GeoJSON Point Feature}
+    ground_materials=my_layers,    # {material: GeoJSON FeatureCollection}
 )
 ```
 
-## Other mesh channels: `context_geometry`, `ground_geometry`
+`None` or `{}` sends nothing for that layer.
 
-Occluders that are never analysed (`context_geometry`) and the terrain the grid drapes onto (`ground_geometry`) go into the **payload**, in the same polygon-bbox-SW metre frame as `buildings`. Terrain never goes in `buildings` / `geometries`. The five channels, side by side: [`analyses/09-facade-terrain.md#the-five-geometry-channels`](analyses/09-facade-terrain.md#the-five-geometry-channels).
+### Buildings
 
-## BYO meshes from OBJ / glTF / BIM exporters — weld first
+- Metres. Origin = south-west corner of the polygon bounding box. x east, y north, z up.
+- Flat lists: `[x0, y0, z0, x1, ...]`, not `[[x, y, z], ...]`. Each entry needs `coordinates` and `indices`.
+  The service drops a mesh without `indices` without any error.
+- Each building is one closed solid with a bottom face. Open meshes give wrong shade.
+- Public data: `client.buildings.get_area(polygon)` returns an `AreaBuildings` object that records its
+  frame. Pass the **object**, not `.buildings`. A bare map is read as "in the frame of the run polygon".
+  If you fetch for polygon A and run polygon B with the bare map, the city moves by the distance between
+  the two corners.
+- A DotBim file has the same fields ([dotbim](https://github.com/paireks/dotbim)).
 
-Exporters write **triangle soup** — three vertices per triangle, nothing shared — and JSON float *text* is the whole payload. Weld duplicate vertices and round coordinates to the centimetre before sending: typically ~5× smaller.
+### Trees
+
+- `{id: Feature}` with a Point in lon/lat. Properties: `genus`, `height` (m), `crownDiameter` (m).
+- An unknown `genus` is a broadleaf. A tree with no size gets 6 m and 4 m, with no warning.
+  Crown keys are the **diameter**, not the radius. A radius makes every tree half as wide.
+  Other property names (`crown_radius`, `treeHeight`) are ignored. The SDK warns when a size-like key
+  holds a number but is not read.
+- Leaf-off: north of 23.5 N, trees are bare from November to March. This changes the three sun
+  analyses. SVF always uses leaf-on. Set `"transmissivity-leaf-off"` (0 to 1) in the properties of
+  one tree to change it.
+
+### Ground materials
+
+- One FeatureCollection in lon/lat for each material: `asphalt`, `concrete`, `soil`, `vegetation`, `water`.
+  An unknown name raises. A UUID key is refused.
+- Only the thermal analyses read them. `albedo` in a feature's properties is ignored: use
+  `ground_albedo` on the request for the whole run.
+- Make layers mutually exclusive. If two overlap, the model picks the top one and a tie can turn
+  a lake into asphalt. Fetched layers come pre-cleaned. When you override, replace one key:
+  `{**area_g.layers, "vegetation": my_park}`.
+
+## Which layers each analysis needs
+
+| Analysis | Buildings | Trees | Ground materials |
+|---|---|---|---|
+| wind speed, pedestrian wind comfort | required | optional | no effect |
+| sky view factor | required | optional | no effect |
+| daylight availability, direct sun hours | required | optional | no effect |
+| solar radiation | required | recommended | no effect |
+| UTCI, TCS | required | recommended | recommended |
+
+## Fetched buildings: know the source
+
+With no `buildings`, you can fetch public ones (`[geodata]` extra). A few cities come from curated
+survey data with measured heights. Elsewhere the source is Overture footprints, and heights are partly
+inferred. The response never says which source you got. Two cities compared this way compare two
+data classes. Pass your own buildings when you have them.
+
+## Mixed
 
 ```python
-def weld(mesh, decimals=2):
-    """Merge duplicate vertices (after rounding to `decimals`) and re-index."""
-    v = np.round(np.asarray(mesh["coordinates"], dtype=float).reshape(-1, 3), decimals)
-    f = np.asarray(mesh["indices"], dtype=int).reshape(-1, 3)
-    uniq, inverse = np.unique(v, axis=0, return_inverse=True)
-    return {**mesh, "coordinates": uniq.ravel().tolist(), "indices": inverse.ravel()[f.ravel()].tolist()}
+area_b = client.buildings.get_area(polygon)            # neighbours, public
+my_layers = {**client.ground_materials.get_area(polygon).layers, "vegetation": my_park}
+result = client.run_area_and_wait(request, polygon, buildings=area_b,
+                                  vegetation=client.vegetation.get_area(polygon).features,
+                                  ground_materials=my_layers)
 ```
 
-Why it matters beyond speed: a per-request body is capped at **64 MiB decompressed** (`413 REF_TOO_LARGE` — after you have already uploaded), and the presigned-upload handoff for large bodies is a transport, not a licence. Weld first.
+## Terrain and context
 
-## Dense or photogrammetric models: the sensor estimator under-counts
+`ground_geometry` (terrain) and `context_geometry` (far shade) go on the request, in the building
+frame. Never put terrain in `buildings`.
+See [analyses/11-terrain-and-context.md](analyses/11-terrain-and-context.md).
 
-The SDK sizes facade batches with `total_area / grid_size²`; synthesis happens on each surface's own `nu × nv` rectangle, so on finely triangulated geometry every small facet rounds up to at least one cell and pays for its masked corners: the estimate under-counts (~1.5×) and the run 422s at the default budget. `max_sensors_per_job` is a correctness lever there, not just a latency one — **halve it**, or raise `surface_grid_size`. Details: [`analyses/09-facade-terrain.md`](analyses/09-facade-terrain.md#pitfalls).
+## Meshes from OBJ, glTF and BIM: weld first
+
+Exporters write triangle soup: three vertices for each triangle, nothing shared. Round to
+1 cm, then weld: the upload gets smaller. A request over 64 MiB is refused (413).
+
+```python
+import numpy as np
+from infrared_sdk.geometry import clean_mesh
+
+# Round first. clean_mesh joins only vertices at the exact same position,
+# so rounding after it would leave near-equal vertices split.
+rounded = np.round(np.asarray(mesh["coordinates"], dtype=float), 2)
+cleaned = clean_mesh(rounded.ravel().tolist(), mesh["indices"])   # welds, drops bad triangles, orients outward
+mesh = {"coordinates": cleaned.coordinates.tolist(),
+        "indices": cleaned.indices.tolist()}
+print(cleaned.report)
+```
+
+Clean each building alone: two touching objects must stay apart.
+
+## Dense or photogrammetric models
+
+The batch estimator for facades is `area / grid_size^2`. On finely triangulated meshes, each small
+facet rounds up to one cell, so the estimate is too low and the run is refused (422).
+Halve `max_sensors_per_job`, or raise `surface_grid_size`.
 
 ## Pitfalls
 
-- **`{}` = skip, not "use empty"** — passing an empty dict is the same as `None`.
-- **Coordinate frames differ across the three layer types** — buildings are local meters (polygon-bbox-SW); vegetation and ground materials are lon/lat. Do not pass lon/lat-style vertices to `buildings`.
-- **Polygon order: `[lon, lat]`** for all GeoJSON (RFC 7946). Lat-first is the most common bug.
-- **Large ground-material sets** are auto-handled — SDK 0.4.3+ switches POSTs >5 MiB to a presigned `$ref` envelope (`INFRARED_BIG_PAYLOADS_ENABLED=true` by default). The historical `if total_features > 5000: pass ground_materials={}` workaround is **no longer required** and actively harmful for UTCI/solar (silently strips material stamps → emissivity 0.97 instead of correct values). Pass the real layers.
-- **Material keys must be material names, not UUIDs** — keys like `"d7a9f2d3-..."` are silently accepted but produce wrong UTCI results (all materials treated as emissivity 0.97 instead of their correct values). Always use `area_gm.layers` directly — its keys are already material names (`"asphalt"`, `"vegetation"`, `"water"`, etc.). SDK ≥ 0.4.7 raises `ValueError` on UUID keys at call time.
-- **Only one polygon** — `polygon` must be a single GeoJSON `Polygon` (not `MultiPolygon`), CCW outer ring, no self-intersection, no holes.
-- **Building coordinates are flat lists**, not nested per-vertex — `[x0, y0, z0, x1, y1, z1, ...]`, not `[[x, y, z], ...]`.
+- `[lat, lon]` instead of `[lon, lat]`. The SDK catches it only when the latitude is above 90.
+- Y-up models, centimetres, an origin at the polygon centre: all silent. Look at the model in a viewer first.
+- One polygon only: a `Polygon`, not a `MultiPolygon`, one ring, no holes.
+- Coordinates must stay below 100,000 m. UTM values are refused.
+- Large ground sets work. Pass the real layers. Never drop them to save size: you lose the materials.

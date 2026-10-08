@@ -1,71 +1,54 @@
-# Wind Speed (wind-speed)
+# Wind speed (`wind-speed`)
 
-Steady-state CFD-style wind magnitude near pedestrian height for a single inflow condition. Output cells are wind speed in m/s. Use when you need the raw flow field, not a comfort classification.
+Wind speed near pedestrian height, for one speed and one direction. Cells are m/s.
+Use it for the flow field. For comfort over a year, use pedestrian wind comfort.
 
-## Request
-
-### Single-tile or quick sanity check — one-shot
-
-```python
-from infrared_sdk import InfraredClient
-from infrared_sdk.analyses.types import WindModelRequest, AnalysesName
-
-payload = WindModelRequest(
-    analysis_type=AnalysesName.wind_speed,
-    wind_speed=15,
-    wind_direction=180,
-)
-result = client.run_area_and_wait(payload, polygon, buildings=area.buildings)
-```
-
-`run_area_and_wait` always merges with the default centre-crop strategy. For single-tile polygons that's optimal; for multi-tile runs it produces visible seam artefacts at tile boundaries.
-
-### Recommended for multi-tile runs — two-step with `directional_blend`
+Run: shape of the call is in [../python/weather-and-time.md](../python/weather-and-time.md#wind).
+Doc: <https://infrared.city/docs/sdk/1.0/python/analyses/index.md>
 
 ```python
 import time
 
-schedule = client.run_area(payload, polygon, buildings=area.buildings)
+from infrared_sdk import WindModelRequest
+from infrared_sdk.analyses.types import AnalysesName
 
-time.sleep(4)  # let API register jobs before first poll
-while True:
-    state = client.check_area_state(schedule)
-    if state.running == 0 and (state.succeeded + state.failed) >= len(schedule.jobs):
-        break
-    time.sleep(8)
-
-result = client.merge_area_jobs(
-    schedule,
-    strategy="directional_blend",
-    wind_direction_deg=180.0,    # match payload.wind_direction
+request = WindModelRequest(
+    analysis_type=AnalysesName.wind_speed,
+    wind_speed=4.5,         # float, m/s, 0 or more. Do not round an EPW mean.
+    wind_direction=270,     # whole degrees (int), wind FROM this bearing (270 = from the west)
 )
+# Wind speed: ALWAYS merge with the directional blend. The default merge shows seams.
+schedule = client.run_area(request, polygon, buildings=buildings)
+known = {}                                   # job states, reused between checks
+while not client.check_area_state(schedule, known=known).is_complete:
+    time.sleep(1)
+result = client.merge_area_jobs(schedule, strategy="directional_blend",
+                                wind_direction_deg=request.wind_direction)
+speed = result.physical_grid()          # m/s, NaN = no value
 ```
 
-`wind_direction_deg` is required for `directional_blend` (and `directional`) — meteorological convention (0=N, 90=E, 180=S, 270=W). Match the value in the payload, or the blend weights point upwind in the wrong direction. See `../05-area-api.md#merging-strategies` for the full strategy table and `cookbook/notebooks/08_wind_merge_strategies.ipynb` for a side-by-side comparison.
+## Parameters
 
-## Response
+| Field | Type | Note |
+|---|---|---|
+| `wind_speed` | float | 0 or more (m/s). Rounding 3.9 to 3 shifts every cell by -23 % |
+| `wind_direction` | int | Meteorological: 0 = from north, 90 = from east. Values outside 0-360 wrap. A fraction is refused |
+| `latitude`, `longitude` | optional | Ignored by wind |
 
-`result.merged_grid` is a 2D `float` numpy array of wind speed in m/s at pedestrian height. `result.min_legend` / `max_legend` give the canonical color-scale bounds for plotting. Per-tile execution lives in `result.succeeded_jobs` / `result.total_jobs` (ints) and `result.failed_jobs` / `result.skipped_jobs` (lists of job ids) — there is no `result.succeeded` / `result.failed`; those names exist only on the `AreaState` returned by `check_area_state()`.
+Wind takes buildings, trees and ground. It has no `ground_geometry` (so `terrain_alignment` has no use), no `context_geometry` and no facade sensors.
+
+## Tiles
+
+Wind tiles are 512 m with a step of 256 m, so they overlap. Always merge wind speed with
+`strategy="directional_blend"` (Python `merge_area_jobs`, TypeScript `mergeAreaJobs`): it
+blends the overlaps along the wind direction. The default merge keeps the centre of each tile
+and leaves visible seams. `run_area_and_wait` uses the default merge, so use the three steps
+above for wind speed. Pedestrian wind comfort is a class map and uses the default merge.
 
 ## Pitfalls
 
-- `wind_speed` is a **`float`** in m/s (SDK 0.5.1+). Fractional values are simulated as
-  given — the model applies speed as a linear scalar after inference, so it never
-  reaches the network. An EPW-derived prevailing wind is a *mean* (e.g. `3.9`), so do
-  NOT round it: at 3.9 m/s truncating to 3 shifts every cell by −23 %.
-  **`wind_speed=0` is accepted** — a legitimate calm-wind baseline.
-  (Before 0.5.1 the SDK rejected both, which was a client-side bug; the server always
-  accepted them.)
-- `wind_direction` stays an **`int`** on purpose. The model truncates a fractional
-  bearing toward zero, so the SDK rejects it loudly rather than silently shifting your
-  input by a fraction of a degree.
-- `wind_direction` follows the meteorological convention: 0 = wind FROM north, 90 = FROM east. Easy to invert.
-- This is a single-direction snapshot — for comfort over a year of weather, use Pedestrian Wind Comfort instead.
-- Leave `latitude` / `longitude` unset — they are optional and ignored by the wind model. (They become required only if you inject vegetation, since the validator needs a reference point. See [byo-inputs.md](../byo-inputs.md).)
-- Always use `min_legend` / `max_legend` as your heatmap bounds, not the grid min/max.
+- One snapshot only. Run several directions for a yearly picture, or use pedestrian wind comfort.
+- 270 means from the west. This is easy to invert.
+- Plot with a fixed scale (0 to 15 m/s, open top bin), not the grid min and max.
 
-## See also
-
-- For result interpretation -> `interpretation/wind-results.md`
-- For comfort classification -> `02-pedestrian-wind-comfort.md`
-- For polygon/buildings setup -> `02-geometry.md`
+Read the result: [../interpretation/wind-results.md](../interpretation/wind-results.md)

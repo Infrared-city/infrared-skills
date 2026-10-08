@@ -1,129 +1,105 @@
-# Integrating Surface Results (rendering facade/roof grids on your own model)
+# Showing facade and roof results on your own model
 
-How to take a `SurfaceAnalysisResult` (see `analyses/09-facade-terrain.md`) and display it on the geometry you submitted — in a BIM tool, game engine, or web viewer. Requires `infrared-sdk >= 0.4.12`.
+How to draw the result of an `analysis_surfaces` run on the geometry you sent: in a web viewer,
+a BIM tool or a game engine. Request fields: [analyses/09-facade-terrain.md](analyses/09-facade-terrain.md).
+Call code: [python/surfaces-and-sensors.md](python/surfaces-and-sensors.md).
+Guide chapter "Draw facade and roof results fast": <https://infrared.city/docs/sdk/sdk.md>
 
-## The contract, in rendering terms
+## The result: columns
 
-Every entry in `result.surfaces` is keyed `"{building-id}/{surface-index}"` — the building id is **your own key** from the `geometries` you submitted, so results map straight back onto your elements. Each `SurfaceSensorGrid` is a planar sensor grid in its own UV frame:
+A surface run gives a `SurfaceAnalysisResult`. Its `columns` hold every surface in rows
+(`S` surfaces), and all cells in one value array:
 
-- `origin` — 3D anchor of the grid, in **the frame you submitted the mesh in**, metres. No shift, provided the polygon's SW corner is submitted `(0, 0)` — see [`geospatial-crs.md#the-frame-rule`](geospatial-crs.md#the-frame-rule)
-- `u_axis`, `v_axis` — unit vectors in the surface plane
-- `grid_size` — cell edge length (your `surface_grid_size`)
-- `nu`, `nv` — grid dimensions; `values` has `nu * nv` entries, **row-major in v** (`index = j * nu + i`)
-- `values[k] is None` — masked cell: its centre lies outside the surface's true footprint. Never zero-fill; cut or skip these.
-- `cell_area[k]` — the **fraction** of the cell inside the surface footprint, in `(0,1]` (dimensionless, *not* m²); multiply by `grid_size²` for the actual area. `cell_tris[k]` — the exact clipped triangle geometry (flat `[x,y,z, ...]`, 9 floats per triangle). Both keys are **absent** (not empty) when the server was asked not to emit them.
-  That is controlled by **`emit_cell_tris`** on the request (SDK 0.5.1+), which **defaults
-  to `False`** on every `analysis_surfaces` request — efficient by default, because on a
-  large facade run the triangle arrays dominate the download (~96 % of the body), and
-  the download is the phase that dominates wall-clock. The cheap
-  pattern is to draw the overview as unclipped cell quads from `origin` / `u_axis` /
-  `v_axis` / `grid_size` / `nu` / `nv` and turn the outlines on per selected building or
-  for an export. Set it `True`
-  explicitly when you need the clipped geometry for Route 2; leave it alone for Route 1
-  or analysis-only work. `values` and every aggregate are identical either way, so
-  nothing analytical is lost — only the exact per-cell outlines used for *drawing*.
-  Handle both shapes: check for the key on `cell_tris` **and** `cell_area`, do not
-  assume either is there.
+| Field | Meaning |
+|---|---|
+| `ids` | Surface ids: `"<your-building-id>/<surface-index>"`. They map back to your elements |
+| `origin` (S, 3) | **Centre of cell (0, 0)** in the frame that you submitted, in metres |
+| `u_axis`, `v_axis` (S, 3) | Unit vectors in the surface plane |
+| `grid_size`, `nu`, `nv` | Cell size and cell counts |
+| `cell_offsets` (S+1) | Surface `i` owns `values[cell_offsets[i]:cell_offsets[i+1]]`, row-major in v (`j * nu + i`) |
+| `values`, `physical_values()` | Stored values, and real values. NaN = no value |
+| `mean`, `peak`, `area` | Roll-ups for each surface |
+| `cell_area` | Fraction of each cell inside the surface, 0 to 1 (not m2) |
 
-> **The crisp-vs-light trade is temporary.** Today Route 2's exact outlines cost
-> you the triangle arrays, so the choice is "crisp but heavy" versus "light but
-> cell-stepped" (Route 1 / the quad fallback). Work is under way to let a client
-> reproduce the server's cell clipping locally, from geometry it already holds —
-> Route 2 quality on an `emit_cell_tris=False` payload. Nothing in this document
-> becomes wrong when that lands; the fallback paths stay valid either way. Until
-> then: if a facade result feels slow to download, that is the triangle arrays,
-> and `emit_cell_tris=False` is the lever — which is why both SDKs already
-> default it to `False`.
+Cell centre: `origin + u_axis * (i * grid_size) + v_axis * (j * grid_size)`.
+The cell corners are the centre `+/- 0.5 * grid_size` along each axis.
+Reading `origin` as a corner puts every surface half a cell off, about 1.4 m diagonal at the
+default 2 m grid. The error is uniform, so it looks fine.
 
-`origin` is the **centre of cell (0, 0)**, not a corner. So:
+## Route 1: render buffers (default for a viewer)
 
-```
-centre(i, j) = origin + u_axis * (i * grid_size) + v_axis * (j * grid_size)
-corners      = centre ± 0.5 * grid_size * u_axis ± 0.5 * grid_size * v_axis
-```
+`columns.render_buffers()` (TypeScript: `surfaceRenderBuffers(columns)`) gives a few flat arrays
+for deck.gl, three.js or WebGL: outline triangles in cell units, `frames`, `dims`, one value for each
+cell, one validity bit for each cell, an `anchor` for the model transform, and `valueMin` and `valueMax`.
+The shader finds the cell from the outline point. No mesh for each cell.
 
-Getting this wrong displaces every surface by half a cell in both `u` and `v` — a ~1.4 m diagonal error at the default 2 m `surface_grid_size`. It's a uniform offset, so it looks plausible rather than obviously broken.
+- Test the **validity bit**. A cell with no value holds 0 and a clear bit. Values are never NaN there.
+- Draw both faces of every frame.
+- Keep one run to one site so the corners stay accurate.
+- Save the layout (frames and outline) once for each geometry (`FacadeLayout.to_bytes`) and the values
+  for each run (`columns.to_bytes`). Rejoin with `attach_values`, which refuses a mismatch.
+- Free memory: `client.forget_schedule(schedule)` for a schedule you will not merge.
 
-To detect fully-covered cells, compare with an epsilon — `cell_area` is emitted from `f32`, so use `cell_area[k] >= 1.0 - 1e-6` rather than `== 1.0`, or float noise misclassifies full cells as partial.
+## Route 2: textures per surface (BIM tools, engines)
 
-## Route 1 — texture mapping (fast, smooth, simplest)
-
-Build a small texture per surface (or pack all surfaces into one atlas) and map it onto the surface quad whose **corner is `origin − (u + v)·gs/2`** — `origin` is the centre of cell (0, 0), not a corner — running to `origin + u·(nu − 0.5)·gs + v·(nv − 0.5)·gs`. A quad started at `origin` itself puts every surface half a cell out. Smooth gradients come free from GPU bilinear filtering; a "raw cells" view is the same texture with nearest filtering.
-
-Handle masked cells with **premultiplied masking** so bilinear edges stay clean — two channels per texel:
+Pack each surface into a small texture with two channels and discard the empty cells in the shader.
+Bilinear filtering then gives smooth gradients with clean edges.
 
 ```
-R = value / value_max        (0 for masked cells)
-G = 1.0                      (0 for masked cells)
+R = value / value_max   (0 for a masked cell)
+G = 1.0                 (0 for a masked cell)
 ```
 
 ```glsl
-// fragment shader
 vec2 c = texture(atlas, uv).rg;
-if (c.g < 0.2) discard;                       // outside the footprint
+if (c.g < 0.2) discard;                          // outside the surface
 float v = clamp(c.r / max(c.g, 1e-4), 0.0, 1.0);
 fragColor = vec4(colormap(v), 1.0);
 ```
 
-This is a complete production approach: ~15 shader lines + one packing loop, no geometry processing at all. Cutouts follow the mask at cell resolution (edges look stepped when zoomed far in — if that matters, use Route 2 or combine both).
+The quad of a surface starts at `origin - (u + v) * grid_size / 2` and runs to
+`origin + u * (nu - 0.5) * grid_size + v * (nv - 0.5) * grid_size`.
 
-## Route 2 — exact mesh from `cell_tris` (crisp boundaries, no textures)
+## Exact outlines
 
-`cell_tris[k]` is the cell already clipped to the surface's true outline. Emit those triangles directly with the cell's value as a flat color (or average values to shared vertices for smooth shading). Boundaries are exact — no stepping — because the server did the clipping. Cost: more geometry (a few triangles per cell) and a mesh build pass.
+Set `emit_cell_tris=True` to get exact clipped cell triangles. They make the answer much larger. Use them for one selected building, or for an export. "Overview, then click" keeps the
+payload small:
 
-**Check `cell_tris` is present before you rely on it** — it is absent on the centre-test / BYO-sensor path, and a client can ask the server to omit it. Fall back to the unclipped cell quad from `centre(i, j)` above (slightly over-drawn at footprint edges) or to Route 1, rather than indexing into a missing array.
+1. Run the whole scene with the default (no triangles). Draw render buffers or textures.
+2. On selection, run again with that building in `buildings`, the rest in `context_geometry`,
+   and `emit_cell_tris=True`.
+3. Cache by building id. Values are the same either way.
 
-## Which route
+## Orientation
 
-| Need | Route |
-|---|---|
-| Interactive city-scale view, smooth gradients | 1 (texture) |
-| Exact printable/exportable geometry, crisp edges | 2 (`cell_tris`) |
-| Best of both | 1 for the overview, 2 on demand for selected elements |
-
-**Overview, then click** — the pattern that keeps the payload small:
-
-1. Run the whole scene with `emit_cell_tris=False` (the default) and draw every surface as Route 1 quads from `origin` / `u_axis` / `v_axis` / `grid_size` / `nu` / `nv`.
-2. On selection, re-run with `geometries={id: buildings[id]}`, the rest of the scene as `context_geometry`, and `emit_cell_tris=True` — one building, one job, Route 2 outlines for exactly the element on screen.
-3. Cache by building id. Colours come from run 1, outlines from run 2; `values` and aggregates are present with either setting.
-
-## Orientation — which way a surface faces
-
-`origin` / `u_axis` / `v_axis` are a **right-handed** frame. The outward normal is
-`u_axis × v_axis`, in that order — the server builds the frame as `u = ẑ × n`, `v = n × u`
-from the surface's own triangle winding, so outward-wound shells (everything
-`client.buildings` returns) give outward normals. Tile-local metres are `+x` east, `+y`
-north, which fixes the compass mapping:
+`origin`, `u_axis` and `v_axis` are a right-handed frame. The outward normal is `u_axis x v_axis`.
+Tile metres have +x east and +y north:
 
 ```python
 import math
 import numpy as np
 
-def outward_normal(s):
-    n = np.cross(s.u_axis, s.v_axis)
-    return n / np.linalg.norm(n)
-
-def bearing(n):
+def bearing(normal):
     """Degrees clockwise from north: 0 = N, 90 = E, 180 = S, 270 = W."""
-    return math.degrees(math.atan2(n[0], n[1])) % 360.0
+    return math.degrees(math.atan2(normal[0], normal[1])) % 360.0
+
+cols = result.columns
+normal = np.cross(cols.u_axis[0], cols.v_axis[0])
+normal /= np.linalg.norm(normal)
+print(bearing(normal), "deg")
 ```
 
-Checked against physics rather than assumed: a 21 June `direct-sun-hours` run in Munich gave
-area-weighted means of **S 5.26 h, E 4.66 h, W 3.90 h, N 2.94 h** by this bearing — the
-expected ordering, which only holds if the normal points outward.
+A facade has `|n_z| <= 0.5`. Do not sort facade from roof by `v_axis[2]` alone.
+Check the normals with a sun-hours run in summer: the area-weighted mean should fall in the order that you expect for the facing (south highest, north lowest in the northern hemisphere).
 
-For the facade/roof split use `surface.is_vertical`, which applies the server's own rule
-(`|n_z| ≤ 0.5` for `n = u_axis × v_axis`). Do not classify by `v_axis[2]` alone.
+## Display
 
-## Display tips
+- One shared colour scale for roofs and facades. The contrast between them is the reading.
+  Isolate facades only with a labelled exception.
+- A surface at exactly 0.0 is data (party wall, light well). A masked cell is NaN. They are different.
+  Exact zeros are data and they move the scene mean. Say whether your mean includes them.
+- Interpolation is a display choice. Keep the grid as the lossless result.
+- `result.aggregates["buildings"]` gives area, mean and peak for each building: use it for element
+  colours, dashboards and ranking.
 
-- **Use ONE shared colour scale for roofs and facades.** They're read together, so a single `[min_legend, max_legend]` scale keeps every surface comparable across the whole scene — roofs sit high (open sky / high radiation), facades lower, and *that contrast is the reading*. This is the coherent default; don't give facades their own scale, or two surfaces on the same building stop being comparable. (Roofs can sit 3&ndash;5&times; facade values in summer solar. If you genuinely must inspect facades in isolation, clip to the facade percentiles as a deliberate, **labelled** exception — classify with `surface.is_vertical` — but never silently.)
-- **A surface at exactly `0.0` is data, not a gap.** Party walls and fully occluded elevations return `mean = peak = 0.0` with every cell present — distinct from the `None` masked cells, which mean "no sensor here". On a 300-building Munich `direct-sun-hours` run, **555 of 1,730 facades (32%)** were exact zeros, moving the scene mean from 5.33 h to 3.62 h. Decide explicitly whether a building or scene aggregate includes them, and say which.
-- **Interpolation is a display choice, not an API request.** The grid is the lossless raw result; bilinear/bicubic filtering at render time produces the smooth transitions. Don't ask for (or build) pre-smoothed meshes — you'd bake in one display style and lose the sensor truth.
-- Per-building rollups (`result.aggregates["buildings"]`: `area` / `mean` / `peak`) are ready-made for element-level coloring, dashboards, and ranking without touching the grids.
-
-## See also
-
-- Making the render *read* correctly — legend bounds, masked cells, categorical output, colormap choice, north-up -> [`recipes/rendering-results-well.md`](recipes/rendering-results-well.md)
-- Request fields, applicability, response shape -> `analyses/09-facade-terrain.md`
-- Geometry / coordinate conventions -> `02-geometry.md`
+More on colour: [recipes/rendering-results-well.md](recipes/rendering-results-well.md).

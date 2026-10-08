@@ -4,7 +4,7 @@ Grid layout (cell pitch, NaN, row/column orientation, legend bounds, scenario di
 
 ## wind-speed
 
-Returns a 2-D `merged_grid` of wind magnitude in **m/s** at pedestrian level (~1.5 m) for one (speed, direction) inflow.
+Returns a 2-D grid (`physical_grid()`) of wind magnitude in **m/s** at pedestrian level (~1.5 m) for one (speed, direction) inflow.
 
 | m/s | Feel |
 |---|---|
@@ -13,25 +13,27 @@ Returns a 2-D `merged_grid` of wind magnitude in **m/s** at pedestrian level (~1
 | 3.5–6 | Breezy |
 | > 6 | Strong / uncomfortable for sitting |
 
-`wind_speed` payload field is a **`float`** in m/s, `0 ≤ v ≤ 100` (SDK 0.5.1+) — pass an EPW-derived mean as-is; truncating 3.9 to 3 shifts every cell by −23 %. `wind_direction` is a whole-degree `int` `0–360`; a fractional bearing is rejected at construction.
+`wind_speed` payload field is a **`float`** in m/s, `v ≥ 0` — pass an EPW-derived mean as-is; truncating 3.9 to 3 shifts every cell by −23 %. `wind_direction` is a whole-degree `int`. Values outside 0–360 wrap. A fractional bearing is rejected at construction.
 
-**Pitfalls:** single-direction snapshot (run several to estimate annual exposure); `wind_direction=270` means wind **from** the west; NaN ≠ zero; **if you see grid-aligned discontinuities on multi-tile runs**, switch from the default centre-crop merge to `merge_area_jobs(strategy="directional_blend", wind_direction_deg=...)` — see [`../05-area-api.md#merging-strategies`](../05-area-api.md#merging-strategies).
+**Pitfalls:** single-direction snapshot (run several to estimate annual exposure); `wind_direction=270` means wind **from** the west; NaN ≠ zero; **if you see grid-aligned discontinuities on multi-tile runs**, switch from the default centre-crop merge to `merge_area_jobs(strategy="directional_blend", wind_direction_deg=...)` — see [`../analyses/01-wind-speed.md`](../analyses/01-wind-speed.md).
 
 ## pedestrian-wind-comfort (PWC)
 
-Returns a 2-D grid where each cell is a **comfort class index** (0 = best, higher = worse), under one of several criteria. Each criterion bins the *probability* (over the weather time series) that wind speed at that cell exceeds a fixed threshold; the class is the worst bin a cell falls into.
+Returns a 2-D grid where each cell is a **comfort class code** (class names are in `result.legend`) (0 = best, higher = worse), under one of several criteria. Each criterion bins the *probability* (over the weather time series) that wind speed at that cell exceeds a fixed threshold; the class is the worst bin a cell falls into.
 
 ### Classes — Lawson LDDC
 
-This is the criterion we use by default and the one to communicate to users.
+Lawson LDDC is a good default to communicate to users.
 
 | Class | Index | Activity / feel |
 |---|---|---|
-| A | 0 | Sitting long (cafés, parks, plazas) — calm, suitable for prolonged stationary use |
-| B | 1 | Sitting short (waiting, brief stops) — light breeze |
-| C | 2 | Standing / strolling (entrances, transitions) — moderate flow |
-| D | 3 | Walking (sidewalks, busy routes) — windy, marginal for lingering |
-| E | 4 | Business walking — uncomfortable for stationary use; flags safety-level exposure |
+| A | 0 | Sitting: calm, suitable for prolonged stationary use |
+| B | 1 | Standing: light breeze, brief stops |
+| C | 2 | Strolling: moderate flow |
+| D | 3 | Business walking: windy, marginal for lingering |
+| E | 4 | Uncomfortable: not suitable for stationary use |
+
+The letters are the SDK class labels. The standard LDDC names above are for reading. The labels at run time are in `result.legend`: print them and use them in your legend.
 
 The SDK output range is `int 0–4` for PWC. **For default reporting, anything class E is flagged as a hotspot.**
 

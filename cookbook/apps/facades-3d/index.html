@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Facade solar radiation</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="scene"></div>
+    <aside class="panel">
+      <h1>Solar radiation on facades and roofs</h1>
+      <p class="sub" id="site"></p>
+      <button id="run" disabled>Run</button>
+      <p class="status" id="status">Loading buildings and weather...</p>
+    </aside>
+    <div class="legend" id="legend" hidden></div>
+    <div class="tip" id="tip" hidden></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

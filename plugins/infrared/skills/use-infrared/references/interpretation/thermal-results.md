@@ -1,49 +1,47 @@
 # Thermal comfort results
 
-Grid layout (cell pitch, NaN, row/column orientation, legend bounds, scenario diffs, GeoTIFF export) is shared across analyses — see [grid-conventions.md](grid-conventions.md). This file covers UTCI units, stress classes, and TCS subtype semantics.
+Grid layout, helpers and legend rules: [grid-conventions.md](grid-conventions.md).
+This file covers units and classes.
 
 ## thermal-comfort-index (UTCI)
 
-Returns the **UTCI equivalent temperature in °C** per pixel at pedestrian height (~1.5 m) — felt temperature combining air temperature, mean radiant temperature (MRT), humidity, and wind. The grid represents the filtered `time_period` window (not a single instant, not an annual mean) — interpret it as the representative value across the filtered hours.
+The UTCI in degrees C per cell at about 1.5 m. It combines air temperature, mean radiant
+temperature (computed inside the model), humidity and wind. The grid is one aggregate over your
+`TimePeriod`. It is not one instant and not an annual mean.
 
-| UTCI (°C) | Stress class |
+| UTCI (C) | Stress class |
 |---|---|
-| > 38 | Strong-to-extreme heat stress — dangerous |
-| 32–38 | Strong heat stress |
-| 26–32 | Moderate heat stress |
-| **9–26** | **No thermal stress (comfortable)** |
-| 0–9 | Slight cold stress |
-| < 0 | Moderate-to-extreme cold stress |
+| above 38 | Strong to extreme heat stress |
+| 32 to 38 | Strong heat stress |
+| 26 to 32 | Moderate heat stress |
+| **9 to 26** | **No thermal stress** |
+| 0 to 9 | Slight cold stress |
+| below 0 | Moderate to extreme cold stress |
 
-(The codebase implements the full ISO/Bröde 10 categories; this collapses the extreme tails.)
+Read values with `physical_grid()`. The stored type can differ, so do not read the raw array.
+The model has a wall afterglow of about 3 hours and a ground lag of about 43 minutes, and no memory
+over several days. Do not call night values validated.
 
-UTCI is driven by air temperature, wind, humidity, and mean radiant temperature (MRT). Hourly weather and a `Location` (lat/lon for sun position) are required. **MRT is computed internally** from geometry + radiation — don't try to pass it. Use `UtciModelRequest.from_weatherfile_payload(...)`.
-
-**Pitfalls:** aggregated over the chosen `time_period` window (not a single instant, not annual); varies sharply with surface material — don't average across material classes; sunny asphalt vs shaded grass can differ 10–15°C three metres apart.
+**Pitfalls**: surface material changes the value a lot (sunny asphalt against shaded grass: 10 to
+15 C three metres apart). Do not average across material classes. Trees and ground materials
+matter: pass them.
 
 ## thermal-comfort-statistics (TCS)
 
-Returns the **time spent** in the chosen UTCI band per pixel — count of filtered hours that fell in that band (range `0` to the total length of the requested window in hours). Divide by the window length to get a fraction / `% time`. The same window length applies to every cell in a run, so absolute hours and the derived fraction are interchangeable for ranking.
+The percent of the `TimePeriod` window (0 to 100) that the UTCI is in the band of the `subtype`.
+All cells of one run share the same window.
 
-The "season × hours-of-day window" comes entirely from the `TimePeriod` you pass — there is no separate season or hours enum. Cascade filter: months, then days within those months, then hours within those days. Example: `TimePeriod(start_month=6, start_day=1, start_hour=9, end_month=6, end_day=30, end_hour=17)` = June, all days, 09:00–17:00. (`TimePeriod` is Pydantic v2 — kwargs only.)
+| `TcsSubtype` | Band |
+|---|---|
+| `thermal_comfort` | UTCI 9 to 26 C |
+| `heat_stress` | UTCI 26 C or more |
+| `cold_stress` | UTCI 9 C or less |
 
-> **Update (2026-06-24):** multi-month and annual windows are now supported for UTCI, TCS, and Solar — the `DNI length N != sun_vectors M` error no longer occurs for these models (prod cutover to Rust worker). Submit a single multi-month or annual job directly.
+The window is a cascade: months, then days, then hours (see [../03-time-period.md](../03-time-period.md)).
+One call gives one subtype. The three bands do not need to add up to 100 %.
 
-Three subtypes via `TcsSubtype` (per-call — to get all three, run three jobs):
+**Pitfalls**: compare designs only with the same weather file and the same window. Different windows
+give different shares.
 
-| Member | Enum value | Meaning |
-|---|---|---|
-| `TcsSubtype.thermal_comfort` | `"thermal-comfort"` | Hours comfortable (UTCI 9–26°C) |
-| `TcsSubtype.heat_stress` | `"heat-stress"` | Hours with heat stress (UTCI ≥ 26°C) |
-| `TcsSubtype.cold_stress` | `"cold-stress"` | Hours with cold stress (UTCI ≤ 9°C) |
-
-The grid stores absolute hours; the `% time` framing is just `cell_hours / window_total_hours`.
-
-**Pitfalls:** absolute hours scale with the time window — a 7-day request returns 7-day totals, so do NOT compare runs with different `TimePeriod`s without normalising; subtypes are computed independently per cell and do not necessarily cover the whole window between them; results are sensitive to which weather file is used — keep the EPW constant when comparing designs.
-
-## See also
-
-- [grid-conventions.md](grid-conventions.md) — shared grid/plot/diff/GeoTIFF conventions
-- `../analyses/07-thermal-comfort-utci.md` — UTCI payload reference
-- `../analyses/08-thermal-comfort-statistics.md` — TCS payload + subtype reference
-- `../03-time-period.md` — cascade-filter semantics for the season × hours window
+See also: [../analyses/07-thermal-comfort-utci.md](../analyses/07-thermal-comfort-utci.md),
+[../analyses/08-thermal-comfort-statistics.md](../analyses/08-thermal-comfort-statistics.md).

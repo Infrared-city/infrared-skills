@@ -1,137 +1,114 @@
-# Grid conventions (shared across all analyses)
+# Grid conventions (the one home for helper and grid rules)
 
-Every analysis returns the same `AreaResult` shape. These conventions hold for wind, solar, and thermal alike — once you know them, every grid reads the same way.
+Every area analysis returns an `AreaResult`. The same rules hold for wind, solar and thermal.
 
-## Quick lookup — what does each cell mean?
+## Always read through the helper
 
-| Analysis | Cell unit | Typical range | Meaning |
+The server stores each result in a compact type. The raw array keeps that type. The stored type can
+differ by analysis and by run, and it is not the real value (it can be scaled or half-float bits).
+
+Do not read `merged_grid` for values. Always read with `physical_grid()`, `has_value()` and
+`render_buffers()`. In TypeScript, use `areaGridValuesF32`. The helpers give real values.
+
+| | Python | TypeScript |
+|---|---|---|
+| Ground grid | `result.physical_grid()` (float64, NaN = no value; `dtype=np.float32` halves memory) | `areaGridValuesF32(result)` (Float32Array) |
+| Facade or roof cells | `result.columns.physical_values()` | `surfaceValuesF32(columns)` |
+| Render buffers | `result.columns.render_buffers()` | `surfaceRenderBuffers(columns)` |
+| Legend range | `result.min_legend`, `result.max_legend` | `result.minLegend`, `result.maxLegend` |
+
+Class results (pedestrian wind comfort) have no numeric legend range: `min_legend` is `None` and
+`result.legend` holds the class names.
+
+## What each cell means
+
+| Analysis | Unit | Range | Meaning |
 |---|---|---|---|
-| `wind-speed` | m/s | 0–30 | Steady-state wind magnitude near pedestrian level for one (speed, direction) inflow |
-| `pedestrian-wind-comfort` | comfort class (int) | 0–4 (A=0 best … E=4 unsafe) | Categorical class per chosen criterion |
-| `daylight-availability` | hours | 0 – period length | Cumulative hours of usable daylight per cell over the `TimePeriod` |
-| `direct-sun-hours` | hours | 0 – hourly samples in the window | Cumulative un-occluded sun hours over the `TimePeriod`. **Keep the window daylight-only** — night samples count as sun on the grid path ([`../analyses/04-direct-sun-hours.md`](../analyses/04-direct-sun-hours.md#keep-the-window-inside-daylight)) |
-| `sky-view-factors` | percent | 0–100 | Hemisphere visible from the cell (100 = fully open, 0 = obstructed) |
-| `solar-radiation` | kWh/m² | 0–~hundreds | Cumulative shortwave irradiance per pixel over the `TimePeriod` |
-| `thermal-comfort-index` (UTCI) | °C | -40 to 50 | Felt temperature combining air, MRT, humidity, wind |
-| `thermal-comfort-statistics` (TCS) | hours | 0–(period length) | Hours in the chosen `TcsSubtype` band; derive `% time` as `cell_hours / window_total_hours` |
+| `wind-speed` | m/s | 0 to 30 | Speed at pedestrian level for one inflow |
+| `pedestrian-wind-comfort` | class code | 0 to 4 for Lawson LDDC (A best) | Class of the chosen criterion |
+| `daylight-availability` | % of window | 0 to 100 | Share of the window with enough daylight |
+| `direct-sun-hours` | hours | 0 to hours in the window | Sum of sun hours. Keep the window daylight-only |
+| `sky-view-factors` | % | 0 to 100 | Visible sky |
+| `solar-radiation` | kWh/m2 | 0 to hundreds | Energy over the window |
+| `thermal-comfort-index` | degrees C | -40 to 50 | Felt temperature over the window |
+| `thermal-comfort-statistics` | % of window | 0 to 100 | Share of time in the chosen band |
 
-For per-analysis class breaks (e.g. UTCI stress thresholds, PWC class semantics), see `wind-results.md`, `solar-results.md`, `thermal-results.md`.
+Per-analysis classes: [wind-results.md](wind-results.md), [solar-results.md](solar-results.md),
+[thermal-results.md](thermal-results.md).
 
 ## The grid
 
-`result.merged_grid` is a 2-D `numpy.ndarray`.
-
 | Property | Value |
 |---|---|
-| Cell pitch | **1 m × 1 m** (fixed; do not assume otherwise) |
-| Single-tile coverage | **512 m × 512 m** (auto-tiled if polygon larger) |
-| Outside polygon / off the terrain | `NaN` — "no data", distinct from "cold/dark/calm" |
-| Under a building footprint, **terrain-draped run** (`ground_geometry` passed) | **`0.0` — a real value, not `NaN`.** Treat as masked, never as "no sun". Verified on the terrain path only — check `(grid == 0).sum()` against your footprint area before assuming the same for a flat run |
-| Row 0 | South edge of polygon bbox |
-| Column 0 | West edge of polygon bbox |
-| Orientation | Plot with `origin="lower"` (matplotlib) or unflipped (Plotly) for north-up |
+| Cell pitch | 1 m by 1 m |
+| One tile | 512 m. A larger area is tiled |
+| Outside the polygon, or off the terrain | NaN. This is "no data", not "cold" or "dark" |
+| Under a building footprint, on a terrain-draped run | 0.0. A real value. Mask it with your footprints |
+| Row 0 | South edge of the grid |
+| Column 0 | West edge of the grid |
+| North up | `origin="lower"` in matplotlib, unflipped in Plotly |
+| Extent | `result.bounds` = (west, south, east, north) of the real grid |
 
-If you flip rows or treat NaN as zero, summary statistics will be wrong. Always mask with `np.isnan`:
+The grid is padded north and east when the polygon is not a multiple of the tile step.
+Always place an overlay with `result.bounds`. Do not rebuild the extent from tile counts.
+Do not crop the image to the polygon: the NaN cells give the overlay its true shape.
+
+Mask NaN before every statistic:
 
 ```python
-import numpy as np
-valid = result.merged_grid[~np.isnan(result.merged_grid)]
-mean_value = valid.mean()
-area_share_above_threshold = (valid > THRESHOLD).mean()
+grid = result.physical_grid()
+valid = grid[~np.isnan(grid)]
+mean = valid.mean()
+share_above = (valid > THRESHOLD).mean()      # NOT np.nanmean(grid > THRESHOLD)
 ```
 
-On a terrain-draped run also exclude the footprint cells before a shadow statistic — they are `0.0`, and a cell with no sun cannot lose any. Prefer a mask built from your own footprints; masking `grid == 0` also drops genuinely sunless open-ground cells.
+## Plot bounds: fix them for each analysis
 
-## Geo-referencing overlays — always use `AreaResult.bounds`
-
-**Anti-pattern:** reconstructing the merged grid's geographic extent from
-tiling internals (tile counts × step size, polygon bbox math). The merged
-grid is anchored at the polygon bbox SW corner and padded past the polygon
-when its sides aren't an integer multiple of the tile step — hand-derived
-extents drift by up to a tile. `AreaResult.bounds` is the SDK-computed
-`(min_lng, min_lat, max_lng, max_lat)` of the actual grid — use it directly
-for image overlays (folium/leaflet/mapbox). See `10_real_world_map_overlay.ipynb`.
-
-## Plot bounds — fix them per analysis, never per run
-
-Distributions are heavy-tailed (especially solar/daylight), so colour bounds taken from the data give a different scale on every run and two runs stop being comparable.
-
-`min_legend` / `max_legend` are populated on **surface** results. On **area** results (`AreaResult`, what `run_area_and_wait` returns for a grid) both fields come back **`None`** — verified on a live SVF run whose grid spanned −0.00 to 96.56. Carry your own domain:
+`result.min_legend` and `result.max_legend` are the exact range of this one result. Two runs get
+two scales, so they cannot be compared. For comparison, use one fixed range for each analysis, or
+a pooled range of all results to compare:
 
 ```python
-DOMAIN = {
-    "sky-view-factors": (0, 100),          # %
-    "daylight-availability": (0, 100),     # %
-    "direct-sun-hours": (0, 12),           # hours — for a 9–17 window; ceiling = daylight samples in YOUR window
-    "solar-radiation": (0, 1000),          # kWh/m2
-    "wind-speed": (0, 15),                 # m/s, top bin open
-    "thermal-comfort-index": (-40, 46),    # degC
-}
-zmin, zmax = DOMAIN[result.analysis_type]
+from infrared_sdk import legend_range, shared_legend_range
 
-fig = px.imshow(
-    result.merged_grid,
-    zmin=zmin,                # NOT result.merged_grid.min()
-    zmax=zmax,
-    origin="lower",
-)
+vmin, vmax = shared_legend_range([baseline, proposed])      # one scale for both
+vmin, vmax = legend_range(result, mode="trimmed")           # 2nd to 98th percentile
 ```
 
-Keeping the domain fixed per analysis type is what makes heatmaps from different runs of the same analysis comparable. See [`../recipes/rendering-results-well.md`](../recipes/rendering-results-well.md) §1.
+`legend_range` modes: `"exact"`, `"trimmed"`, `"fixed"` (you give the range).
+Fixed display domains that work: SVF and daylight availability 0 to 100, direct sun hours 0 to the
+daylight hours of your window, solar 0 to 1000 kWh/m2, wind 0 to 15 m/s (open top bin),
+UTCI -40 to 46 C. More: [../recipes/rendering-results-well.md](../recipes/rendering-results-well.md).
 
-## Comparing scenarios (baseline vs proposed)
-
-The standard architectural workflow — "what does my redesign change?" — uses **same-shape** grids from two runs:
+## Compare scenarios
 
 ```python
-baseline = client.run_area_and_wait(payload, polygon, buildings=existing_buildings, ...)
-proposed = client.run_area_and_wait(payload, polygon, buildings=redesign_buildings, ...)
-
-delta = proposed.merged_grid - baseline.merged_grid    # cell-by-cell change
-improved_share = (delta < 0).sum() / np.isfinite(delta).sum()    # for "lower is better"
+baseline = client.run_area_and_wait(request, polygon, buildings=existing)
+proposed = client.run_area_and_wait(request, polygon, buildings=redesign)
+delta = proposed.physical_grid() - baseline.physical_grid()       # cell by cell
+improved = (delta < 0).sum() / np.isfinite(delta).sum()           # when lower is better
 ```
 
-To make scenarios comparable:
+- Same polygon, same weather file and `TimePeriod`, same analysis parameters.
+- Change only the layer that the redesign touches.
+- Plot the delta with a diverging map centred on zero. Do not use the legend range for a delta.
 
-- **Pin the polygon** — same `polygon` dict for both runs. Different polygons = different bbox = different grid shape.
-- **Pin the weather** — same `TimePeriod` and same EPW `identifier`. Mixing weather files corrupts comfort/UTCI deltas.
-- **Pin the analysis parameters** — same wind speed/direction, same TCS subtype, same PWC criterion.
-- Vary only the layer the redesign touches (buildings, vegetation, or ground materials).
+## Export to GeoTIFF
 
-Plot deltas with a diverging colormap (`RdBu`, `coolwarm`) centred at zero. Don't reuse `min_legend`/`max_legend` for delta plots — those are absolute-scale bounds.
-
-## Exporting to GeoTIFF
-
-For GIS handoff (QGIS, ArcGIS, Earth Engine), write `merged_grid` to a georeferenced raster. The bbox of the input polygon plus the 1 m cell pitch gives you the affine transform:
+Row 0 of a grid is south. A GeoTIFF has row 0 at the north. Flip the rows.
 
 ```python
-import numpy as np
 import rasterio
 from rasterio.transform import from_bounds
 
-grid = result.merged_grid
-lons = [c[0] for c in result.polygon["coordinates"][0]]
-lats = [c[1] for c in result.polygon["coordinates"][0]]
-west, east = min(lons), max(lons)
-south, north = min(lats), max(lats)
+west, south, east, north = result.bounds
+grid = result.physical_grid().astype("float32")
 height, width = grid.shape
-
-transform = from_bounds(west, south, east, north, width, height)
-
-with rasterio.open(
-    "result.tif", "w",
-    driver="GTiff", height=height, width=width, count=1,
-    dtype=grid.dtype, crs="EPSG:4326", transform=transform,
-    nodata=np.nan,
-) as dst:
-    dst.write(np.flipud(grid), 1)   # GeoTIFF expects row 0 = north
+with rasterio.open("result.tif", "w", driver="GTiff", height=height, width=width, count=1,
+                   dtype="float32", crs="EPSG:4326", nodata=float("nan"),
+                   transform=from_bounds(west, south, east, north, width, height)) as dst:
+    dst.write(np.flipud(grid), 1)
 ```
 
-Note the `np.flipud` — Infrared grids are row 0 = south, GeoTIFF is row 0 = north. Skip this and your raster will appear vertically mirrored in QGIS.
-
-For a metric raster, reproject the polygon to a local projected CRS (UTM zone, ETRS89/LAEA) and use `from_bounds` in metres instead.
-
-## See also
-
-- `wind-results.md`, `solar-results.md`, `thermal-results.md` — per-analysis units and class breaks
-- `../05-area-api.md` — `AreaResult` field reference
+For a metric raster, re-project the bounds to a local CRS (UTM, ETRS89 LAEA) and use metres.
+`rasterio` is not an SDK dependency.

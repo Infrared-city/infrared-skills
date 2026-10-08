@@ -1,20 +1,31 @@
 # Infrared Cookbook
 
-Two flavours, same SDK:
+Case studies for the [Infrared SDK](https://infrared.city/docs/sdk/). Each one answers one question about a real site.
 
-- [`notebooks/`](notebooks/) — ten Jupyter notebooks with embedded outputs, walking through every analysis end-to-end (plus multi-tile wind merge strategies and error-handling/tuning) against six preset cities. Auto-mirrored from the SDK source.
-- [`scripts/`](scripts/) — runnable `.py` examples (wind, UTCI, multi-analysis, vegetation/ground, tiling, fetch-layers, advanced usage) plus an async webhook walkthrough at [`scripts/areas_demo_async/`](scripts/areas_demo_async/). Auto-mirrored from the SDK source.
+| Folder | What is in it |
+|---|---|
+| [`notebooks/`](notebooks/) | Ten Python notebooks, 00 to 09. Start here. |
+| [`scripts/`](scripts/) | Three short Python scripts: `quickstart.py`, `own_geometry.py`, `comfort.py`. Each prints the preview cost and asks y/N. `--yes` skips the question. |
+| [`apps/`](apps/) | Runnable apps: map grid, 3D facades, Cloudflare key proxy (TypeScript), FastAPI backend (Python). |
+| [`sample-data/`](sample-data/) | GeoJSON models (Vienna scenarios, platform upload) used by the examples. |
 
-Both directories are auto-synced from the SDK on every release — do not hand-edit. File feedback at <https://github.com/Infrared-city/infrared-skills/issues>.
-
-## Setup
+## Run
 
 ```bash
-git clone git@github.com:Infrared-city/infrared-skills.git
-cd infrared-skills/cookbook/notebooks   # or cookbook/scripts
+git clone https://github.com/Infrared-city/infrared-skills.git
+cd infrared-skills/cookbook/notebooks   # run from here: the notebooks import helpers in this folder
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env   # paste your INFRARED_API_KEY
+export INFRARED_API_KEY=...        # get a key at https://infrared.city
+jupyter lab
 ```
 
-Get an API key at <https://infrared.city>.
+On a headless server, run `xvfb-run -a jupyter lab` for the 3D views. Requirements: [`notebooks/requirements.txt`](notebooks/requirements.txt).
+
+The apps have their own README with run steps.
+
+## Cost
+
+Area runs use tokens. A ground analysis bills one job per tile; facade runs bill one job per building batch, and interior runs one job per part. Always call `client.preview_area(...)` first: it is free and runs on your machine. Read `would_bill_jobs` and `estimated_cost_tokens`, then run. Notebook [08](notebooks/08_scale_and_cost.ipynb) shows how.
+
+Feedback: <https://github.com/Infrared-city/infrared-skills/issues>

@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sky view map</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="map"></div>
+    <aside class="panel">
+      <h1>Sky view factor</h1>
+      <p class="sub">How much open sky each 1 m cell sees. Draw an area or use the default one.</p>
+      <div class="row">
+        <button id="draw" class="secondary">Draw area</button>
+        <button id="run" disabled>Run</button>
+      </div>
+      <p class="status" id="status">Starting...</p>
+    </aside>
+    <div class="legend" id="legend" hidden></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
