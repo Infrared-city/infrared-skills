@@ -1,14 +1,14 @@
-# The Infrared SDK itself.
-infrared-sdk
+# Python 3.11+. Install: pip install -r requirements.txt
+# The SDK, with the extra for public buildings and ground (Overture).
+infrared-sdk[geodata]==1.0.0
 
-python-dotenv
-matplotlib
-plotly
-numpy
-Pillow
+# Maps and tables in the notebooks (ir_plot.py).
+numpy>=2.0
+matplotlib>=3.9
+contextily>=1.6
+pandas>=2.2
+geopandas>=1.0
+shapely>=2.1   # constrained_delaunay_triangles (01_design_variants)
 
-# For 10_real_world_map_overlay.ipynb (interactive OSM basemap overlay):
-folium
-
-# For the optional webhook_receiver.py only:
-flask
+# Run the notebooks.
+jupyter>=1.1
