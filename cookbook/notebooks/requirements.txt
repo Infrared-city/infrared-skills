@@ -7,6 +7,12 @@ plotly
 numpy
 Pillow
 
+# For 04-07 (3D views with ir_view3d.py, sites with ir_site.py, tables).
+# 3D on a server without a display: run Jupyter under `xvfb-run -a`.
+pyvista
+shapely>=2.1
+pandas
+
 # For 10_real_world_map_overlay.ipynb (interactive OSM basemap overlay):
 folium
 
