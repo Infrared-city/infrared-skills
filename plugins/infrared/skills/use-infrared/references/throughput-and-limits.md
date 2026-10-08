@@ -5,8 +5,11 @@ They are indicators, not promises. Check a real run with a free preview.
 
 ## The short version
 
-- The backend can process up to about 100 tiles (jobs) per second for one
-  account, depending on the plan. Contact us if you need more.
+- A normal account can run up to about 100 tiles (jobs) per second.
+- At high rates, your own upload and download (network I/O) is usually the
+  bottleneck, not the backend.
+- Enterprise clients can go much higher. See <https://infrared.city> to learn
+  more, and contact us for a custom setup.
 - A ground analysis of 6 km² finishes in about 3 seconds when it is warm.
   40 km² takes about 8 seconds.
 - Millions of facade sensors finish in seconds.
@@ -56,7 +59,8 @@ Derive the ceiling yourself:
 
 This is a ceiling. A real run is slower, because it also waits for the
 upload of your geometry, the server queue and the download of the
-results. Use the measured numbers below for planning.
+results. Usually your uplink is the bottleneck. Use the measured numbers
+below for planning.
 
 ## Measured speed (SDK 1.0.0, production, October 2026)
 
@@ -124,4 +128,4 @@ first and multiply.
 - For many analyses on one site, pass them in one call or in one process.
 - Do not poll faster than the SDK does. The SDK sends batched status calls.
 - If you see HTTP 429 (too many requests), the SDK waits and retries. If it
-  is frequent, you are near your plan limit. Contact us.
+  is frequent, you are near your account limit. Contact us for more.
