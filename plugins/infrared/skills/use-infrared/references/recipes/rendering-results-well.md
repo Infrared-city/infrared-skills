@@ -4,44 +4,67 @@ Read this before your first render. Every trap below produces a picture that *lo
 result: plausible enough to screenshot, wrong enough to mislead. None of them are model problems.
 
 The Infrared platform renders the same results. This page shows what it does differently.
-Helper and grid rules: [../interpretation/grid-conventions.md](../interpretation/grid-conventions.md).
+Grid rules: [../interpretation/grid-conventions.md](../interpretation/grid-conventions.md).
+The cookbook notebooks use `cookbook/notebooks/ir_plot.py`; the TypeScript apps use the same rules.
+
+## 0. Read values with the helper, never the raw array
+
+Results are stored as half floats (SVF, solar radiation, TCS, wind speed, UTCI) or as
+32-bit floats (direct sun hours, daylight availability, PWC classes). A raw read gives wrong
+numbers or raw bits. Always decode with the helper first:
+
+| Result | Python | TypeScript |
+|---|---|---|
+| Ground grid | `result.physical_grid()` (NaN = no value) | `areaGridValuesF32(result)` |
+| Facades and roofs | `result.columns.physical_values()`, `result.columns.render_buffers()` | `surfaceRenderBuffers(columns)` |
+| Legend range | `legend_range(result)`, `shared_legend_range([...])`, `registry_fixed_range(type)` | `legendRange`, `sharedLegendRange`, `registryFixedRange` |
+
+Decode one time and cache the array. Do not decode on each mouse move.
+
 ---
+
 ## 1. Auto-scaling to the grid's own min/max
 
 **The failure:** each render is normalised to its own min and max. Two runs of the same analysis
 get two scales, so the same value gets two colours. A baseline and a redesign cannot be compared,
 and a flat grid is stretched until noise looks like structure.
 
-**The rule:** the scale is set by the *analysis*, not by the run. Choose one of:
+**The rule:** the *analysis* sets the colour map and the scale, not the run. For the scale, choose one of:
 
-- a fixed domain for each analysis (table below), held constant for all runs that you compare;
+- the fixed range from the public colour registry: `registry_fixed_range(analysis_type)`.
+  It has a range for UTCI (-40 to 46 degrees C) and wind speed (0 to 20 m/s);
+- a fixed domain of your own for the other analyses (table below), the same for all runs that you compare;
 - one pooled range over all results that you compare: `shared_legend_range([a, b])`;
-- for a single result, `result.min_legend` and `result.max_legend`. They hold the exact range of
-  that result (also on area results), so use them only when you do not compare runs.
+- for one result alone, `result.min_legend` and `result.max_legend` (its exact range).
 
 ```python
 import matplotlib.pyplot as plt
-from infrared_sdk import shared_legend_range
+from infrared_sdk import registry_fixed_range, shared_legend_range
 
-DOMAIN = {                       # fixed per analysis, never per run
-    "sky-view-factors": (0, 100),          # %
-    "daylight-availability": (0, 100),     # %
-    "direct-sun-hours": (0, 12),           # h, for a 9 to 17 window: the ceiling is the sample count of YOUR window
-    "solar-radiation": (0, 1000),          # kWh/m2
-    "wind-speed": (0, 15),                 # m/s, top bin OPEN
-    "thermal-comfort-index": (-40, 46),    # degC
+STYLE = {                                  # colour map and unit for each analysis (as ir_plot.py)
+    "sky-view-factors": ("viridis", "%", (0, 100)),
+    "daylight-availability": ("cividis", "%", (0, 100)),
+    "direct-sun-hours": ("magma", "h", None),          # 0 to the sun hours in YOUR window
+    "solar-radiation": ("inferno", "kWh/m2", None),    # depends on the window: fix it per study
+    "thermal-comfort-statistics": ("YlOrRd", "% of hours", (0, 100)),
+    "thermal-comfort-index": ("RdYlBu_r", "degC", None),   # registry: -40 to 46
+    "wind-speed": ("YlGnBu", "m/s", None),                 # registry: 0 to 20, top bin open
 }
-vmin, vmax = DOMAIN[result.analysis_type]
-plt.imshow(result.physical_grid(), origin="lower", cmap="viridis", vmin=vmin, vmax=vmax)
-# For two scenarios: vmin, vmax = shared_legend_range([baseline, proposed])
+cmap, unit, domain = STYLE[result.analysis_type]
+vmin, vmax = domain or registry_fixed_range(result.analysis_type) or (result.min_legend, result.max_legend)
+plt.imshow(result.physical_grid(), origin="lower", cmap=cmap, vmin=vmin, vmax=vmax)
+plt.colorbar(label=unit)
+# Two scenarios on one scale: vmin, vmax = shared_legend_range([baseline, proposed])
 ```
 
-The platform fixes the same idea in its registry: every analysis has a `[min, max]` domain.
-Wind has an **open** top bound: values above 15 m/s take the last colour and the legend says "> 15".
-Clamp out-of-domain values to the end colours. Never leave them uncoloured.
+Wind has an **open** top bound: values above the top take the last colour, and the legend
+says "> 20". Clamp out-of-range values to the end colours. Never leave them without colour.
+Pedestrian wind comfort is categorical: see section 5.
 
 **Exception: difference plots.** Deltas go negative. See section 6.
+
 ---
+
 ## 2. Masked cells rendered as zero
 
 **The failure:** NaN (no value) is mapped to 0. Building footprints and everything outside the polygon
@@ -78,7 +101,9 @@ lit = means[means > 0.0]
 ```
 
 Keep zeros visible on the scale. A wall in permanent shade is a finding.
+
 ---
+
 ## 3. Giving facades their own scale
 
 **The failure:** a facade-only run looks washed out on the shared scale, so you rescale it to the
@@ -94,7 +119,9 @@ vmin, vmax = result.min_legend, result.max_legend      # one scale for the whole
 
 A facade-only rescale is allowed as a deliberate and labelled exception ("facades only, 5th to 95th
 percentile"). Never silent.
+
 ---
+
 ## 4. Picking a rendering route (and paying for the wrong one)
 
 Two routes read the same result: render buffers or textures (light, smooth gradients, stepped edges)
@@ -118,12 +145,13 @@ detail = SvfModelRequest(analysis_type=AnalysesName.sky_view_factors,
 
 Draw the overview from render buffers. Ask for triangles for the building that the user selects.
 Details: [../surface-results-integration.md](../surface-results-integration.md).
+
 ---
 
 ## 5. A continuous colormap on categorical output
 
-**The failure:** `pedestrian-wind-comfort` returns comfort **class indices** (Lawson LDDC:
-`0`=A … `4`=E), not a measurement. Run a continuous ramp over them and you get colours
+**The failure:** `pedestrian-wind-comfort` returns comfort **class indices** (for Lawson LDDC
+`0`=A … `4`=E; other criteria have other classes, listed in `result.legend`), not a measurement. Run a continuous ramp over them and you get colours
 *between* classes, which mean nothing — class B blends into class C, and a viewer reads a
 smooth gradient where the standard defines five hard bins.
 
@@ -132,10 +160,13 @@ smooth gradient where the standard defines five hard bins.
 ```python
 import matplotlib.colors as mcolors
 import matplotlib.patches as mpatches
+import matplotlib.pyplot as plt
 
 LAWSON_LDDC = ["A sitting long", "B sitting short", "C standing/strolling",
                "D walking", "E business walking"]
-COLORS = ["#384672", "#38aead", "#69ad38", "#dee269", "#f00000"]   # platform wind-comfort palette
+labels = result.legend or LAWSON_LDDC       # the classes of the criteria that you ran
+PLATFORM = ["#384672", "#38aead", "#69ad38", "#dee269", "#f00000"]  # platform palette, 5 classes
+COLORS = PLATFORM if len(labels) == 5 else list(plt.get_cmap("RdYlGn_r", len(labels))(range(len(labels))))
 
 cmap = mcolors.ListedColormap(COLORS)
 cmap.set_bad(alpha=0.0)
@@ -143,7 +174,7 @@ norm = mcolors.BoundaryNorm(np.arange(-0.5, len(COLORS)), cmap.N)   # one bin pe
 
 ax.imshow(np.ma.masked_invalid(result.physical_grid()), cmap=cmap, norm=norm,
           origin="lower", interpolation="nearest")
-ax.legend(handles=[mpatches.Patch(color=c, label=l) for c, l in zip(COLORS, LAWSON_LDDC)],
+ax.legend(handles=[mpatches.Patch(color=c, label=l) for c, l in zip(COLORS, labels)],
           loc="center left", bbox_to_anchor=(1, 0.5), frameon=False)
 ```
 
@@ -213,8 +244,9 @@ Infrared grids are **row 0 = south, column 0 = west**. Different consumers disag
 | Plotly | unflipped |
 | folium / leaflet `ImageOverlay` | `np.flipud(grid)` — its first row is drawn at the **north** edge |
 | GeoTIFF | `np.flipud(grid)` — GeoTIFF row 0 is north |
+| Canvas, deck.gl `BitmapLayer`, MapLibre image source | flip the rows of `areaGridValuesF32(result)`; image row 0 is north |
 
-For placement, use `result.bounds` — the SDK-computed `(min_lng, min_lat, max_lng, max_lat)`
+For placement, use `result.bounds` (`[west, south, east, north]`, the same in TypeScript) — the SDK-computed extent
 of the *actual* merged grid. Reconstructing the extent from tile counts × step size drifts by
 up to a tile, because the merged grid is padded past the polygon when the sides aren't an
 integer multiple of the tile step. And **don't crop** the image to the polygon: `bounds`
@@ -222,20 +254,21 @@ describes the full grid, so the image must match it cell-for-cell — the `NaN` 
 the polygon give the overlay its true shape for free (§2).
 
 ---
-## 8. The shortcut: let the server draw it
+## 8. The shortcut: let the SDK draw it
 
-If you need only a correct PNG, the weather service draws it with the canonical palette:
+If you need only a correct PNG, the SDK draws it on your machine with the official colours
+(from the public colour registry; no job, no key):
 
 ```python
-grid = result.physical_grid()
-cells = np.where(np.isnan(grid), None, grid).tolist()      # NaN is not JSON: send null
-png = client.weather.gen_grid_image(grid=cells, analysis_type="sky-view-factors")
+rows = result.to_list()[::-1]                              # NaN -> None; row 0 is south, the PNG top is north
+png = client.weather.gen_grid_image(grid=rows, analysis_type=result.analysis_type)
 open("result.png", "wb").write(png)
 ```
 
 Pass `criteria` or `subtype` for pedestrian wind comfort and thermal comfort so the class
-mapping matches section 5. The TypeScript SDK has `renderGridPng(grid, { analysisType })`:
-one pixel for each cell, up to 960 px on the long side.
+mapping matches section 5. One pixel for each cell, up to 960 px on the long side. No-data
+cells are transparent. TypeScript: `renderGridPng(rows, { analysisType })`.
+
 ---
 
 ## 9. Drawing a terrain-draped grid in 3D

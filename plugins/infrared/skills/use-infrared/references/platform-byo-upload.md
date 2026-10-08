@@ -1,7 +1,5 @@
 # Platform file upload — producing a file the platform accepts
 
-<!-- Verified against forge-kit@origin/main fc69c214 (2026-08-18). -->
-
 How to save a file from Rhino, Grasshopper, QGIS, ArcGIS, Blender, or SketchUp
 so that platform.infrared.city accepts it at the first try.
 
@@ -157,10 +155,8 @@ trees can never evict simulated ones.
 
 **Tree shape:** write `round`, `conical`, or `columnar` in
 `properties.archetype`, or write nothing. Those are the only values the platform
-renderer accepts; anything else silently becomes `round`. The Infrared Core
-registry (`archetypes-2026-06-13`) uses a different vocabulary — `broadleaf`,
-`conifer`, `columnar`, `palm`. The two vocabularies overlap only at `columnar`,
-so a registry name gives you round trees. There is no workaround.
+renderer accepts. Any other value (also `broadleaf`, `conifer`, `palm`) becomes
+`round` without a warning.
 
 The OBJ import fits the archetype from the mesh: constant width → `columnar`,
 widest at the bottom → `conical`, widest in the middle or top → `round`.
@@ -290,10 +286,7 @@ result.
 | Ground polygons kept | 500 in total |
 | Analysis AOI area | 6 km² |
 | Tiles per AOI | 128 non-empty cells |
-| Body through the API worker | up to 32 MB; above that a presigned upload, up to 1 GiB |
 
-The 32 MB and 1 GiB values are server limits for the saved artifact. The client
-rejects your file at 40 MB first, so a normal geometry file never meets them.
 
 ## Weather
 
@@ -311,8 +304,8 @@ Do not truncate columns by hand.
 
 See [python/weather-and-time.md](python/weather-and-time.md).
 
-An uploaded EPW drives the SDK analyses. **AI-backed workflows use weather that
-AIBackend selects** — an EPW upload does not change them.
+An uploaded EPW drives the simulation analyses. The AI-backed workflows choose
+their own weather: an EPW upload does not change them.
 
 ## Pitfalls
 
@@ -347,7 +340,7 @@ Silent corrections — no error, but the result looks wrong:
 | A building landed in the ground layer | It carries `material` or `surface` |
 | A building is missing | Its geometry is not a `Polygon` / `MultiPolygon` |
 | All trees identical (8 m, 5 m) | Height or crown missing / out of range — **both** replaced |
-| Trees round when you expected conifers | `archetype` used a registry name the renderer does not know |
+| Trees round when you expected conifers | `archetype` is not `round`, `conical` or `columnar` |
 | Fewer trees than the file holds | The 500 cap, inside the AOI first |
 | Every surface is `concrete` | Material name not canonical and not a known synonym |
 | Surfaces missing | The 500-polygon cap — later materials truncated first |

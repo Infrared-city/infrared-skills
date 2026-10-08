@@ -1,487 +1,241 @@
-# Recipe: Persistence, Users, and Billing for an Infrared App
+# Recipe: many users, stored runs, no double bills
 
-One simple shape — **two tables (`projects`, `artifacts`) + one blob bucket + one bindings interface** — that grows from "SQLite on my laptop" today to "Postgres + S3 + Auth + Stripe" tomorrow without rewriting call sites.
+Use this page when more than one person uses your app. It adds four things to a working
+app: sign-in, a run limit per user, stored results, and a cache, so that the same inputs
+are never billed twice.
 
-**The atomic unit of work depends on your app.** For a single-baseline tool (one geometry, one set of inputs, one set of results) the **project** is the atom and you can ignore scenarios entirely. For compare-the-options tools (baseline vs proposed design, hot day vs cold day) the **scenario** is the atom — multiple per project, each with its own inputs and result artifacts. The schema below supports both: every artifact carries an optional `scenario_id` (NULL = project-level), and scenarios live as a JSON list inside the project's `state_json` until you outgrow that and lift them into their own table.
+Start from one of the two app shapes. This page adds storage and users to both.
 
-This is the storage layer underneath [`python-fastapi-railway.md`](python-fastapi-railway.md). The frontend pieces in [`../typescript/map-grid.md`](../typescript/map-grid.md) talk to it via HTTP.
+| App shape | Who runs the SDK | Start from |
+|---|---|---|
+| Browser app | The SDK in a Web Worker on each user's device; a proxy holds the key | [../typescript/cloudflare-proxy.md](../typescript/cloudflare-proxy.md) |
+| Server app | Your Python service runs, merges and stores | [python-fastapi-app.md](python-fastapi-app.md) |
 
-## What you get
+Guide chapter "Serve many users": <https://infrared.city/docs/sdk/1.0/sdk.md>.
 
-- **Two tables** that cover everything: `projects` (your domain object) and `artifacts` (inputs + results + annotations, generic by kind/subtype).
-- **One blob bucket** for big files (geojson, dotbim, png, gzipped sim results).
-- **One swap point** — a `StorageBindings` interface — so today is SQLite + local-fs, tomorrow is Postgres + Railway Buckets, with the same routes.
-- **Three deployment paths** with concrete code: hackathon SQLite, Railway all-in, Supabase all-in.
-- **A users + credit-ledger schema** ready to layer auth and Stripe billing on top.
+## The rules
 
-## Target Stack
+1. **The Infrared key bills your account.** It stays on your server. Each user signs in to
+   *your* app; the proxy or the service adds the key.
+2. **Check the user before every billed call.** The proxy or `POST /runs` checks the sign-in
+   and the user's quota. Preview is free: allow it more often.
+3. **Cache by input hash.** The API has no result cache. The same run again is billed again.
+   Hash every input, and return the stored run for a known hash.
+4. **Store the result, not the job.** Job results expire on the server. Save the merged
+   result in your own storage when the run is done.
+5. **Charge from the preview.** Reserve `would_bill_jobs` credits before the run. Give them
+   back if the run fails.
 
-- Python 3.11+, FastAPI (continues from [`python-fastapi-railway.md`](python-fastapi-railway.md)).
-- `sqlalchemy>=2.0` + `alembic` for schema; works against SQLite, Postgres, MySQL with one connection-string change.
-- `boto3` for S3-compatible blob storage (works for Railway Buckets, Backblaze B2, R2, Supabase Storage S3 endpoint).
-- Path A: nothing else. Path B: Railway. Path C: Supabase + `supabase-py`.
+## The tables
 
-## The two-table schema
+Four tables are enough. Put big files in a bucket, not in the database.
+
+| Table | Key columns | Why |
+|---|---|---|
+| `users` | `id`, `email`, `credits` | Sign-in and balance |
+| `runs` | `id`, `user_id`, `input_hash` (unique), `status`, `jobs`, `schedule_json`, `result_key`, `error` | One row per distinct run; the cache |
+| `credit_ledger` | `user_id`, `delta`, `reason`, `ref` (unique with `reason`) | Every charge and refund, idempotent |
+| `projects` (optional) | `id`, `user_id`, `name`, `polygon`, `state_json` | Sites, scenarios, UI state |
 
 ```python
-# app/db/schema.py
-import uuid
-from datetime import datetime
+# db.py: SQLAlchemy 2.x. The same code runs on SQLite and Postgres.
+from datetime import datetime, timezone
+from sqlalchemy import DateTime, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from sqlalchemy import String, Text, DateTime, Index
 
+def now() -> datetime:
+    return datetime.now(timezone.utc)
 
 class Base(DeclarativeBase): ...
 
-
-def _uuid() -> str:
-    return uuid.uuid4().hex
-
-
-# `scale` is an enum-checked hint for the UI (more / less detail at different zoom levels).
-class Project(Base):
-    __tablename__ = "projects"
-    id:           Mapped[str]      = mapped_column(String(32), primary_key=True, default=_uuid)
-    user_id:      Mapped[str]      = mapped_column(String(64), index=True)
-    name:         Mapped[str]      = mapped_column(String(255))
-    scale:        Mapped[str]      = mapped_column(String(16), default="building")  # 'region' | 'city' | 'building'
-    centroid_json: Mapped[str]     = mapped_column(Text)      # {"lat":..., "lon":...}
-    boundary_json: Mapped[str|None] = mapped_column(Text, nullable=True)  # GeoJSON polygon
-    state_json:   Mapped[str]      = mapped_column(Text, default="{}")
-    # ^ holds scenarios, active scenario id, UI state — anything nested
-    created_at:   Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at:   Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    deleted_at:   Mapped[datetime|None] = mapped_column(DateTime, nullable=True, index=True)
-
-
-class Artifact(Base):
-    __tablename__ = "artifacts"
-    id:           Mapped[str]      = mapped_column(String(32), primary_key=True, default=_uuid)
-    project_id:   Mapped[str]      = mapped_column(String(32), index=True)
-    scenario_id:  Mapped[str|None] = mapped_column(String(32), nullable=True, index=True)
-    kind:         Mapped[str]      = mapped_column(String(32))      # input | result | annotation
-    subtype:      Mapped[str]      = mapped_column(String(64))      # buildings | sun-hours | pin
-    format:       Mapped[str]      = mapped_column(String(32))      # geojson | dotbim | png | json
-    status:       Mapped[str]      = mapped_column(String(16), default="ready")  # pending|ready|failed
-    blob_key:     Mapped[str|None] = mapped_column(String(255), nullable=True)
-    params_json:  Mapped[str]      = mapped_column(Text, default="{}")
-    idempotency_key: Mapped[str]   = mapped_column(String(64))
-    created_at:   Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    deleted_at:   Mapped[datetime|None] = mapped_column(DateTime, nullable=True, index=True)
-
-    __table_args__ = (
-        Index("ix_artifacts_lookup", "project_id", "kind", "subtype", "scenario_id"),
-        Index("uq_artifacts_idempotency", "project_id", "idempotency_key", unique=True),
-    )
-```
-
-Why two tables and JSON-blobs instead of fully normalised: scenarios, layers, and result-overlays all nest. Cramming them into rigid tables is a yak-shave that you'll undo when product changes next sprint. JSON inside `state_json` is queryable on Postgres (`->`, `->>`) and indexable when you need it.
-
-## The bindings interface (swap point)
-
-Two protocols. Every code path you write uses the protocols, never the concrete implementation.
-
-```python
-# app/db/bindings.py
-from typing import Protocol, runtime_checkable
-from sqlalchemy.orm import Session
-
-
-@runtime_checkable
-class DBBinding(Protocol):
-    def session(self) -> Session: ...
-
-
-@runtime_checkable
-class BlobBinding(Protocol):
-    def put(self, key: str, body: bytes, content_type: str) -> str: ...   # returns public_url or signed url
-    def get(self, key: str) -> bytes: ...
-    def delete(self, key: str) -> None: ...
-    def presign_put(self, key: str, content_type: str, expires_s: int = 3600) -> str: ...
-```
-
-## Routes (one place — works for all three paths)
-
-```python
-# app/routers/projects.py
-import uuid
-from fastapi import APIRouter, Depends
-from app.deps import get_db, get_blobs
-from app.db.schema import Project, Artifact
-
-router = APIRouter(prefix="/projects", tags=["projects"])
-
-_CONTENT_TYPES = {
-    "geojson": "application/geo+json",
-    "ifc": "model/ifc",
-    "dotbim": "application/octet-stream",
-    "png": "image/png",
-    "json": "application/json",
-}
-
-
-@router.get("")
-def list_projects(user_id: str, db = Depends(get_db)):
-    with db.session() as s:
-        rows = s.query(Project).filter_by(user_id=user_id, deleted_at=None).all()
-        return [{"id": p.id, "name": p.name, "state": p.state_json} for p in rows]
-
-
-@router.post("/{project_id}/artifacts/presign")
-def presign(project_id: str, subtype: str, format: str,
-            blobs = Depends(get_blobs)):
-    key = f"projects/{project_id}/{subtype}/{uuid.uuid4().hex}.{format}"
-    ct = _CONTENT_TYPES.get(format, "application/octet-stream")
-    return {"key": key, "url": blobs.presign_put(key, ct)}
-```
-
----
-
-## Path A — Hackathon today (SQLite + local filesystem)
-
-Zero external services. Runs anywhere Python runs. Perfect for the demo machine. Migrating off it later is one config change.
-
-```python
-# app/bindings/sqlite_local.py
-from pathlib import Path
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
-ENGINE = create_engine("sqlite:///./data/app.db", connect_args={"check_same_thread": False})
-SessionLocal = sessionmaker(bind=ENGINE, expire_on_commit=False)
-
-class SqliteDB:
-    def session(self): return SessionLocal()
-
-class LocalBlobs:
-    def __init__(self, root: Path = Path("./data/blobs")):
-        self.root = root; root.mkdir(parents=True, exist_ok=True)
-    def put(self, key, body, content_type):
-        path = self.root / key; path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(body); return f"/blobs/{key}"
-    def get(self, key): return (self.root / key).read_bytes()
-    def delete(self, key): (self.root / key).unlink(missing_ok=True)
-    def presign_put(self, key, content_type, expires_s=3600):
-        # No presigning locally — frontend uploads through FastAPI directly.
-        return f"/blobs/upload?key={key}"
-```
-
-Mount a `GET /blobs/{key}` route that streams from disk. Done.
-
-**Persists across restarts. Loses data if Railway redeploys (use Railway Volumes if you want it to survive deploys).**
-
----
-
-## Path B — Railway all-in (Postgres + Railway Buckets)
-
-One platform, one bill, all S3-compatible. Railway Buckets is S3 over Tigris — `boto3` works.
-
-**Provision in Railway dashboard:**
-1. Project → New → **Database → PostgreSQL**. Railway injects `DATABASE_URL` into your service env.
-2. Project → New → **Bucket**. Note the bucket name; Railway injects access keys.
-
-**Bindings:**
-
-```python
-# app/bindings/railway.py
-import os, boto3
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
-ENGINE = create_engine(os.environ["DATABASE_URL"], pool_pre_ping=True)
-SessionLocal = sessionmaker(bind=ENGINE, expire_on_commit=False)
-
-class PostgresDB:
-    def session(self): return SessionLocal()
-
-class RailwayBuckets:
-    def __init__(self):
-        self.bucket = os.environ["BUCKET"]
-        self.s3 = boto3.client(
-            "s3",
-            endpoint_url=os.environ.get("ENDPOINT", "https://storage.railway.app"),
-            aws_access_key_id=os.environ["ACCESS_KEY_ID"],
-            aws_secret_access_key=os.environ["SECRET_ACCESS_KEY"],
-            region_name=os.environ.get("REGION", "auto"),
-        )
-    def put(self, key, body, content_type):
-        self.s3.put_object(Bucket=self.bucket, Key=key, Body=body, ContentType=content_type)
-        # Railway Buckets are private-only. Return a presigned GET URL for access.
-        return self.s3.generate_presigned_url(
-            "get_object", Params={"Bucket": self.bucket, "Key": key}, ExpiresIn=3600,
-        )
-    def get(self, key):
-        return self.s3.get_object(Bucket=self.bucket, Key=key)["Body"].read()
-    def delete(self, key):
-        self.s3.delete_object(Bucket=self.bucket, Key=key)
-    def presign_put(self, key, content_type, expires_s=3600):
-        return self.s3.generate_presigned_url(
-            "put_object",
-            Params={"Bucket": self.bucket, "Key": key, "ContentType": content_type},
-            ExpiresIn=expires_s,
-        )
-```
-
----
-
-## Path C — Supabase all-in (Postgres + Storage + Auth)
-
-Single signup, generous free tier (500 MB DB, 1 GB storage, 50K MAU), magic-link auth out of the box. Catch: free projects pause after **1 week of inactivity** — you manually unpause from the dashboard.
-
-**Provision:** create a project at supabase.com → grab the Postgres connection string + the Storage S3 keys (Project Settings → Storage → S3 access).
-
-**Bindings:**
-
-```python
-# app/bindings/supabase.py
-import os, boto3
-from botocore.config import Config
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
-ENGINE = create_engine(os.environ["SUPABASE_DB_URL"], pool_pre_ping=True)
-SessionLocal = sessionmaker(bind=ENGINE, expire_on_commit=False)
-
-class SupabaseDB:
-    def session(self): return SessionLocal()
-
-class SupabaseStorage:
-    def __init__(self):
-        self.bucket = os.environ["SUPABASE_BUCKET"]
-        ref = os.environ["SUPABASE_PROJECT_REF"]
-        self.s3 = boto3.client(
-            "s3",
-            endpoint_url=f"https://{ref}.storage.supabase.co/storage/v1/s3",
-            aws_access_key_id=os.environ["SUPABASE_S3_KEY_ID"],
-            aws_secret_access_key=os.environ["SUPABASE_S3_SECRET"],
-            region_name=os.environ["SUPABASE_REGION"],  # copy from Project Settings → Storage → S3 access
-            config=Config(s3={"addressing_style": "path"}),
-        )
-    # put / get / delete / presign_put: identical body to RailwayBuckets above.
-```
-
-**Auth — magic link in 10 lines:**
-
-```python
-# app/routers/auth.py
-import os
-from fastapi import APIRouter
-from supabase import create_client
-
-router = APIRouter(prefix="/auth", tags=["auth"])
-sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_ANON_KEY"])
-
-@router.post("/magic-link")
-def magic_link(email: str):
-    sb.auth.sign_in_with_otp({"email": email, "options": {
-        "email_redirect_to": "https://my-app.lovable.app/callback"
-    }})
-    return {"sent": True}
-```
-
-The frontend hits `/callback?access_token=...`, hands the JWT to your FastAPI; verify it with Supabase's JWT secret (use `PyJWT` or `python-jose`; verification code is not in this recipe — implement it before going live with real users).
-
----
-
-## Picking a path
-
-| | A: SQLite | B: Railway | C: Supabase |
-|---|---|---|---|
-| DB | SQLite file | Postgres | Postgres |
-| Blob | local fs | Buckets (S3) | Storage (S3) |
-| Auth | none | bring your own | built-in magic-link |
-| Data survives redeploy | needs Volume | yes | yes |
-| Idle behavior | nothing | always-on | pauses after 1 week |
-
-**Default for hackathon:** A for the first few hours (zero ops), then C if you need user accounts. Skip B unless you've already paid for Railway Hobby and want one bill.
-
----
-
-## Adding users and a credit ledger
-
-Same two-table shape, plus two more. Snippets in this section assume the standard FastAPI imports plus `import uuid` and `from app.db.schema_users import User, CreditLedger` already in scope.
-
-```python
-# app/db/schema_users.py
-from datetime import datetime
-from sqlalchemy import String, Integer, DateTime
-from sqlalchemy.orm import Mapped, mapped_column
-from app.db.schema import Base, _uuid
-
-
-class User(Base):
-    __tablename__ = "users"
-    id:         Mapped[str]      = mapped_column(String(32), primary_key=True, default=_uuid)
-    email:      Mapped[str]      = mapped_column(String(255), unique=True, index=True)
-    stripe_customer_id: Mapped[str|None] = mapped_column(String(64), nullable=True)
-    credits:    Mapped[int]      = mapped_column(Integer, default=0)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-
+class Run(Base):
+    __tablename__ = "runs"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(64), index=True)   # who started it first
+    input_hash: Mapped[str] = mapped_column(String(64), unique=True)  # the cache key
+    analysis: Mapped[str] = mapped_column(String(48))
+    status: Mapped[str] = mapped_column(String(16), default="queued")  # queued|running|done|failed
+    jobs: Mapped[int] = mapped_column(Integer, default=0)             # from the preview
+    schedule_json: Mapped[str | None] = mapped_column(Text)           # to resume after a restart
+    result_key: Mapped[str | None] = mapped_column(String(255))       # blob with the result
+    error: Mapped[str | None] = mapped_column(String(255))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 class CreditLedger(Base):
     __tablename__ = "credit_ledger"
-    id:        Mapped[str]      = mapped_column(String(32), primary_key=True, default=_uuid)
-    user_id:   Mapped[str]      = mapped_column(String(32), index=True)
-    delta:     Mapped[int]      = mapped_column(Integer)         # +50 (purchase) or -2 (sim run)
-    reason:    Mapped[str]      = mapped_column(String(64))      # purchase | sim_run | refund
-    ref:       Mapped[str|None] = mapped_column(String(64), nullable=True)  # stripe_session_id or artifact_id
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    __table_args__ = (UniqueConstraint("reason", "ref"),)             # one charge per run
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(String(64), index=True)
+    delta: Mapped[int] = mapped_column(Integer)                       # -jobs, +refund, +purchase
+    reason: Mapped[str] = mapped_column(String(32))                   # run | refund | purchase
+    ref: Mapped[str] = mapped_column(String(128))                     # run id or payment id
 ```
 
-Deduct on sim run — wrap the existing wrapper from [`python-fastapi-railway.md`](python-fastapi-railway.md):
+Keep `users.credits` as a cached sum of the ledger, or compute it with `SUM(delta)`.
+
+## The cache key
+
+Hash everything that changes the result: the request, the polygon, every layer, and the
+SDK version. Use canonical JSON (sorted keys, no spaces), so equal inputs give equal bytes.
 
 ```python
-# app/services/billing.py
+import hashlib, json
+import infrared_sdk
+
+def input_hash(request, polygon: dict, buildings=None, vegetation=None,
+               ground_materials=None) -> str:
+    blob = {
+        "sdk": infrared_sdk.__version__,                         # a new SDK can change results
+        "request": request.model_dump(mode="json"),             # includes weather and time period
+        "terrain_alignment": getattr(request, "terrain_alignment", None),  # not in the dump for wind
+        "polygon": polygon,
+        "buildings": buildings, "vegetation": vegetation, "ground_materials": ground_materials,
+    }
+    text = json.dumps(blob, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(text.encode()).hexdigest()
+```
+
+- Hash the **own data the user sent**, not a public-data fetch. For a public-data run, hash
+  the polygon and the analysis, and store the fetched buildings with the run.
+- Round coordinates to a fixed precision before you hash, if your front end can send
+  `16.3710000001` for the same point.
+- A failed run must not block a retry: delete its row, or allow a new row when the old one
+  has `status = "failed"`.
+
+## Start a run: check, reserve, run, store
+
+```python
+import gzip, uuid
 from sqlalchemy.exc import IntegrityError
 
-def deduct_credits(db, user_id: str, amount: int, ref: str) -> bool:
+def start_run(db, blobs, client, pool, user, request, polygon, buildings) -> dict:
+    key = input_hash(request, polygon, buildings)
     with db.session() as s:
-        user = s.query(User).filter_by(id=user_id).with_for_update().one()
-        if user.credits < amount:
-            return False
-        user.credits -= amount
-        s.add(CreditLedger(user_id=user_id, delta=-amount, reason="sim_run", ref=ref))
+        if (old := s.query(Run).filter_by(input_hash=key).one_or_none()) and old.status != "failed":
+            return {"run_id": old.id, "cached": True}            # same inputs: no new bill
+        if old:
+            s.delete(old)
+        jobs = client.preview_area(polygon, payload=request, buildings=buildings).would_bill_jobs
+        if balance(s, user.id) < jobs:
+            raise PermissionError("not enough credits")          # HTTP 402 to your front end
+        run = Run(id=uuid.uuid4().hex, user_id=user.id, input_hash=key,
+                  analysis=request.analysis_type, jobs=jobs)
+        s.add(run)
+        s.add(CreditLedger(user_id=user.id, delta=-jobs, reason="run", ref=run.id))
         try:
-            s.commit(); return True
+            s.commit()                                           # unique input_hash: a parallel click loses here
         except IntegrityError:
-            s.rollback(); return False
-```
+            s.rollback()
+            return {"run_id": s.query(Run).filter_by(input_hash=key).one().id, "cached": True}
+        run_id = run.id                                          # read it while the session is open
+    pool.submit(execute, db, blobs, client, run_id, request, polygon, buildings)
+    return {"run_id": run_id, "cached": False}
 
-Route guard:
-
-```python
-@router.post("/sims/sun-hours")
-def sun_hours(req: SunHoursRequest, user = Depends(current_user), db = Depends(get_db)):
-    if not deduct_credits(db, user.id, amount=1, ref=f"sun-hours/{uuid.uuid4().hex}"):
-        raise HTTPException(402, "Insufficient credits")
-    return run_sun_hours(req.lat, req.lon, req.month)
-```
-
-## Stripe webhook stub
-
-Add credits when a Checkout session completes. Use Stripe Checkout in test mode — works on Railway / Render / Supabase Edge alike.
-
-```python
-# app/routers/stripe_webhook.py
-import os, stripe
-from stripe import SignatureVerificationError
-from fastapi import APIRouter, Request, HTTPException, Depends
-
-router = APIRouter()
-stripe.api_key = os.environ["STRIPE_SECRET_KEY"]
-WEBHOOK_SECRET = os.environ["STRIPE_WEBHOOK_SECRET"]
-
-@router.post("/webhooks/stripe")
-async def stripe_webhook(request: Request, db = Depends(get_db)):
-    payload = await request.body()
-    sig = request.headers.get("stripe-signature", "")
+def execute(db, blobs, client, run_id, request, polygon, buildings) -> None:
     try:
-        event = stripe.Webhook.construct_event(payload, sig, WEBHOOK_SECRET)
-    except SignatureVerificationError:
-        raise HTTPException(400, "Bad signature")
-    if event["type"] == "checkout.session.completed":
-        session = event["data"]["object"]
-        credits = int(session["metadata"]["credits"])
-        user_id = session["client_reference_id"]
-        with db.session() as s:
-            # Idempotency: Stripe retries webhooks on timeout. The ledger ref
-            # (=session id) lets us no-op on duplicate deliveries.
-            if s.query(CreditLedger).filter_by(reason="purchase", ref=session["id"]).first():
-                return {"ok": True, "duplicate": True}
-            user = s.query(User).filter_by(id=user_id).one()
-            user.credits += credits
-            s.add(CreditLedger(user_id=user_id, delta=credits, reason="purchase", ref=session["id"]))
-            s.commit()
-    return {"ok": True}
-```
-
-For stronger guarantees, add a unique constraint on `(reason, ref)` in the `CreditLedger` schema and catch `IntegrityError` instead of pre-querying — the DB then enforces idempotency under concurrent webhook deliveries.
-
-When you create the Checkout Session, set `client_reference_id=user.id` and `metadata={"credits": "50"}`. Verify locally with `stripe listen --forward-to localhost:8000/webhooks/stripe`.
-
-**EU VAT caveat:** the Stripe + credit-ledger pattern above ignores VAT/sales tax. The moment a European user buys credits, you owe VAT in their member state — register via [EU VAT OSS](https://vat-one-stop-shop.ec.europa.eu/index_en), layer [Stripe Tax](https://stripe.com/tax), or skip the problem entirely with Polar (next section).
-
-## Billing shortcuts
-
-Two alternatives to the raw Stripe + credit-ledger pattern, depending on what you want to skip.
-
-### Polar.sh — Stripe + EU VAT handled for you
-
-[Polar](https://polar.sh) sits on top of Stripe and acts as **Merchant of Record**: it handles EU VAT and US sales tax globally — you never register for VAT or remit anywhere. Webhooks follow [Standard Webhooks v1](https://www.standardwebhooks.com/) — don't roll the HMAC by hand (the spec has subtle base64 + multi-header rules that are easy to get wrong); use the official library.
-
-```python
-# app/routers/polar_webhook.py
-# pip install standardwebhooks
-import os, json
-from fastapi import APIRouter, Request, HTTPException, Depends
-from standardwebhooks import Webhook
-from app.deps import get_db
-
-router = APIRouter()
-WEBHOOK = Webhook(os.environ["POLAR_WEBHOOK_SECRET"])
-
-
-@router.post("/webhooks/polar")
-async def polar_webhook(request: Request, db = Depends(get_db)):
-    payload = await request.body()
-    try:
-        WEBHOOK.verify(payload, dict(request.headers))
+        result = client.run_area_and_wait(request, polygon, buildings=buildings)
+        body = gzip.compress(json.dumps(result.to_dict()).encode())  # real values, null = no value
+        blobs.put(f"results/{run_id}.json.gz", body, "application/gzip")
+        update_run(db, run_id, status="done", result_key=f"results/{run_id}.json.gz")
     except Exception:
-        raise HTTPException(400, "Bad signature")
-    event = json.loads(payload)
-    # NOTE: use `order.paid`, not `order.created` — `created` fires while the order
-    # is still pending payment; `paid` fires after the charge clears.
-    if event["type"] == "order.paid":
-        meta = event["data"]["metadata"]
-        credits = int(meta.get("credits", 0))
-        user_id = meta["user_id"]
-        with db.session() as s:
-            # Idempotency: same pattern as the Stripe webhook (Polar also retries).
-            if s.query(CreditLedger).filter_by(reason="purchase", ref=event["data"]["id"]).first():
-                return {"ok": True, "duplicate": True}
-            user = s.query(User).filter_by(id=user_id).one()
-            user.credits += credits
-            s.add(CreditLedger(user_id=user_id, delta=credits, reason="purchase", ref=event["data"]["id"]))
-            s.commit()
-    return {"ok": True}
+        log.exception("run %s failed", run_id)                   # details stay in the server log
+        update_run(db, run_id, status="failed", error="run failed")
+        refund(db, run_id)                                       # ledger row reason="refund", ref=run_id
 ```
 
-When you create the Polar Checkout Session, set `metadata={"user_id": user.id, "credits": "50"}` so the webhook can find the user and credit amount. You also get a hosted customer portal (subscription management, invoices, cancel) for free — zero lines on your side.
+Read a stored result back with `AreaResult.from_dict(json.loads(gzip.decompress(body)))`.
+Then use `physical_grid()`, `bounds` and the legend as for a live result.
 
-### Stripe Meters — charge per sim, no credit ledger
+- **Facade and roof runs:** store the values with `columns.to_bytes(layout_key=...)` and the
+  layout one time for each geometry (`layout.to_bytes()`). See "Save and reload" in the guide.
+- **Long runs that must survive a deploy:** use `run_area` and store `schedule.to_dict()` in
+  `schedule_json`. A start-up task resumes open runs ([../async-and-jobs.md](../async-and-jobs.md)).
+- **Share results.** A run belongs to its input hash, not to one user. A second user with
+  the same inputs gets the stored result. Decide if that is allowed in your app (public sites:
+  usually yes; private designs: add `user_id` or a project id to the hash).
 
-If pay-as-you-go fits better than upfront credits (charged per sim run, billed monthly), [Stripe Billing Meters](https://docs.stripe.com/api/billing/meter-event/create) replaces the entire `credits` column + `CreditLedger` table + `deduct_credits()` race-condition guard. One-time setup in the Stripe dashboard creates a Meter, Product, metered Price, and per-customer subscription. Then in the sim route:
+## The browser app (proxy) version
+
+In the browser shape the SDK runs on the user's device, so the proxy is your only server.
+
+- The Worker checks the session (your sign-in, or Supabase / Clerk / Auth.js JWT).
+- It counts billed calls per user in a database (Cloudflare D1, or KV for a simple counter).
+  A run of N tiles makes about 2 N POSTs (upload link and submit). Count the submits
+  (`POST .../async/...`), not every request.
+- Store results from the browser: send the decoded grid (`areaGridValuesF32(result)`) with
+  `result.bounds` and the legend to your bucket through the Worker, keyed by the input hash.
+  Before a run, ask the Worker for that hash first.
+- Delete the `geometryUrlStore` at sign-out ([../building-fast-apps.md](../building-fast-apps.md)).
+
+## Storage: pick one path
+
+| | A: local | B: Postgres + S3 | C: Supabase |
+|---|---|---|---|
+| Database | SQLite file | Postgres (Railway, Neon, RDS) | Supabase Postgres |
+| Bucket | folder on disk | any S3 API (R2, Railway Buckets, B2, S3) | Supabase Storage (S3 API) |
+| Sign-in | none, or one shared password | your own | built in (magic link, OAuth) |
+| Good for | a demo on one machine | a hosted app | sign-in without your own auth code |
+
+One bucket class covers B and C. Only the endpoint and keys change:
 
 ```python
-import stripe
-stripe.api_key = os.environ["STRIPE_SECRET_KEY"]
+import os, boto3
+from botocore.config import Config
 
-def report_sim_run(stripe_customer_id: str, event_name: str = "sim_run") -> None:
-    stripe.billing.MeterEvent.create(
-        event_name=event_name,
-        payload={"stripe_customer_id": stripe_customer_id, "value": "1"},
-    )
-
-# Replace `deduct_credits(...)` in your /sims route with:
-report_sim_run(user.stripe_customer_id)
+class S3Blobs:
+    def __init__(self) -> None:
+        self.bucket = os.environ["BUCKET"]
+        self.s3 = boto3.client("s3", endpoint_url=os.environ["S3_ENDPOINT"],
+                               aws_access_key_id=os.environ["S3_KEY_ID"],
+                               aws_secret_access_key=os.environ["S3_SECRET"],
+                               region_name=os.environ.get("S3_REGION", "auto"),
+                               config=Config(s3={"addressing_style": "path"}))
+    def put(self, key: str, body: bytes, content_type: str) -> None:
+        self.s3.put_object(Bucket=self.bucket, Key=key, Body=body, ContentType=content_type)
+    def get(self, key: str) -> bytes:
+        return self.s3.get_object(Bucket=self.bucket, Key=key)["Body"].read()
+    def url(self, key: str, seconds: int = 3600) -> str:     # private bucket: signed GET link
+        return self.s3.generate_presigned_url("get_object",
+                                              Params={"Bucket": self.bucket, "Key": key}, ExpiresIn=seconds)
 ```
 
-Tradeoff: invoice-at-month-end UX instead of "you have 47 credits left." For hackathon demos the upfront-credit shape is usually clearer to the audience.
+- Path A on a container host loses the disk at each deploy. Mount a volume, or use B.
+- Free Supabase projects pause after a week with no use.
+- SQLite ignores `with_for_update()`. The unique constraints still protect you.
+
+## Sign-in
+
+Use a provider. Do not write password code for a demo.
+
+- **Supabase:** magic link from the front end; verify the JWT in your API with the project's
+  JWKS (`PyJWT` with `PyJWKClient`). Never trust a `user_id` sent by the browser.
+- **Clerk, Auth0, Auth.js:** the same shape: verify the token on each request, then read
+  the user id from it.
+- **One-machine demo:** one shared password in an environment variable is enough.
+
+## Payments (optional)
+
+| Option | You get | Notes |
+|---|---|---|
+| Stripe Checkout + the ledger above | Credit packs | Webhook `checkout.session.completed` adds a `purchase` row with `ref = session id`. The unique `(reason, ref)` makes a repeated delivery harmless. You handle VAT (Stripe Tax). |
+| Polar | Credit packs, VAT and sales tax handled (merchant of record) | Standard Webhooks v1; verify with the `standardwebhooks` library. Use `order.paid`, not `order.created`. |
+| Stripe Billing Meters | Pay per run, monthly invoice | Send one meter event per run instead of a ledger. |
+
+Webhook rules for every provider: verify the signature on the raw body, answer fast, and
+make the handler idempotent with a unique key on the payment id.
 
 ## Pitfalls
 
-- **`state_json` mutation in place** — SQLAlchemy doesn't notice in-place dict edits. Reassign: `project.state_json = json.dumps({**old, "active": new_id})`. Or use a JSON column type with `MutableDict`.
-- **`idempotency_key` protects against duplicate writes** — every artifact INSERT carries a unique `idempotency_key` per project (commonly the SHA-256 of canonical-JSON params). The DB enforces uniqueness via the `uq_artifacts_idempotency` index, so retries and parallel runs converge on a single row instead of producing duplicates.
-- **No row locking under SQLite** — `with_for_update()` is a no-op. For the hackathon it doesn't matter; under Postgres it's real.
-- **Railway Buckets are private-only** — the virtual-hosted URL is not publicly accessible. Return a presigned GET URL from `put()` (as shown in the binding above), or proxy through your FastAPI endpoint.
-- **Path A on Railway loses data on redeploy** unless you attach a Railway Volume. Documented surprise.
-- **Supabase pause** — set a calendar reminder. Or use a free uptime ping (e.g., GitHub Actions cron hitting `/health` weekly) to keep the project warm.
-- **Stripe in browser** — never use Stripe **Secret Key** client-side. Checkout Session creation happens on the backend; the frontend redirects to the returned URL.
-- **JSON in URLs** for boundary geometry — fine for small polygons; for big ones, upload as an artifact and reference by `artifact_id`.
+- A cache key without the SDK version or without the weather returns an old result for a
+  new question.
+- Charging per tile in your UI but per job in the ledger: always use `would_bill_jobs`.
+- A retry loop around `run_area_and_wait`: the SDK already retries. A second loop can pay twice.
+- In-place edits of a JSON column are not seen by SQLAlchemy. Assign a new value, or use `MutableDict`.
+- Error text from the SDK can hold details that users must not see. Log it; send a short message.
 
-## See also
+## Check before you call it done
 
-- Backend the routes live in: [`python-fastapi-railway.md`](python-fastapi-railway.md)
-- Frontend that consumes these routes: [`../typescript/map-grid.md`](../typescript/map-grid.md)
-- AI-generated frontend with auth wired up: [`../building-fast-apps.md`](../building-fast-apps.md)
-- Webhooks (Standard Webhooks v1 verification — same pattern as Stripe): [`https://infrared.city/docs/sdk/1.0/python/webhooks/index.md`](https://infrared.city/docs/sdk/1.0/python/webhooks/index.md)
+- [ ] The same inputs from two users or two clicks give one run and one ledger charge.
+- [ ] A failed run gives the credits back, and the same inputs can run again.
+- [ ] A stored result reloads after a restart and draws the same map.
+- [ ] No Infrared key in the front end, the logs or a response.

@@ -1,22 +1,17 @@
 # Platform export — what comes out of a project
 
-<!-- Verified against forge-kit@origin/main fc69c214 (2026-08-18). -->
-
 platform.infrared.city can write a project to a ZIP archive, and can read a
 project bundle back. To put files *in*, read
 [platform-byo-upload.md](platform-byo-upload.md).
 
 ## Availability
 
-**Project export and import are a staging surface. They are not in production.**
+**Project export and import are not on the production platform yet.** Do not
+promise them to a customer before Infrared releases them.
 
-The dialogs sit behind the build flag `VITE_PROJECT_PORTABILITY`, which the
-deploy workflow sets only for the `staging` branch. Do not promise project
-export to a customer until Infrared moves the flag to production.
-
-This flag gates the GeoTIFF and JPEG result files too. Every result-raster
-writer in the client sits inside the export code, so there is no separate
-result download on production today.
+The GeoTIFF and JPEG result files come only from this export. The production
+platform has no separate result download today. To get result grids now, run
+the analysis with the SDK ([python/quickstart.md](python/quickstart.md)).
 
 ## What the export offers
 
