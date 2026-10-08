@@ -10,5 +10,9 @@ pandas>=2.2
 geopandas>=1.0
 shapely>=2.1   # constrained_delaunay_triangles (01_design_variants)
 
+# 3D views in 04-07 (ir_view3d.py). On a server without a display: `xvfb-run -a jupyter ...`.
+pyvista>=0.44
+plotly>=5.20   # optional interactive HTML export
+
 # Run the notebooks.
 jupyter>=1.1
