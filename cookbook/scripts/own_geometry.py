@@ -3,7 +3,7 @@
 Run:
     pip install infrared-sdk matplotlib shapely
     export INFRARED_API_KEY=...
-    python own_geometry.py          # add --yes to skip the cost question
+    python own_geometry.py  # --yes: no cost question; --verbose: SDK progress
 
 It reads your own model (here the Vienna Karlsplatz baseline in
 `../sample-data/vienna-demo/scenarios/01-baseline`): footprints with heights,
@@ -25,9 +25,13 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-from infrared_sdk import InfraredClient, SolarModelRequest
-from infrared_sdk.analyses.types import AnalysesName
-from infrared_sdk.models import TimePeriod
+# SDK progress lines stay hidden unless you pass --verbose (set before the import).
+if "--verbose" not in sys.argv:
+    os.environ.setdefault("INFRARED_QUIET", "1")
+
+from infrared_sdk import InfraredClient, SolarModelRequest  # noqa: E402
+from infrared_sdk.analyses.types import AnalysesName  # noqa: E402
+from infrared_sdk.models import TimePeriod  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "notebooks"))  # ir_site.py: GeoJSON -> meshes
