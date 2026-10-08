@@ -4,6 +4,10 @@
   </a>
 </p>
 
+> [!IMPORTANT]
+> **Frozen: this branch is for Infrared SDK 0.5.x (plugin 0.3.x).** It gets no more updates. For SDK 1.0, use the [`main` branch](https://github.com/Infrared-city/infrared-skills) and the docs at <https://infrared.city/docs/sdk/>.
+
+
 <p align="center">
   <a href="https://infrared.city/"><b>infrared.city</b></a>
   &nbsp;·&nbsp;
