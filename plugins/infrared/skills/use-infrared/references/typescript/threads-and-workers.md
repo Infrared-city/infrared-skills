@@ -12,8 +12,8 @@ large facade runs. Do not run the SDK in many processes.
 - `await initializeCore()` loads the WASM core once per process.
 - The core runs on the main thread. Network calls (upload, submit, poll,
   download) do not block the event loop. The CPU steps do.
-- For a script or a server job, this is fast enough. A 20 km² ground run
-  plans in about 3 seconds on one core.
+- For a script or a server job, this is fast enough. A ground run of about
+  20 km² plans in about 3 seconds on one core (measured on 2026-10-08, see below).
 
 ## Threaded core (Node 22 or later)
 
@@ -38,8 +38,8 @@ const client = new InfraredClient({ apiKey: process.env.INFRARED_API_KEY });
 Threads speed up the parallel CPU steps: planning and merging facade runs.
 They do not speed up ground runs, small areas or the cloud time.
 
-Measured on one 32-core machine, Node 22, about 24 km² of a dense city
-(about 68,000 buildings, facades planned offline with `previewAreaBatches`,
+Measured on 2026-10-08, Node 22, about 20 km² with about 68,000 buildings,
+on one 32-core machine (facades planned offline with `previewAreaBatches`,
 no API cost). Median of two runs:
 
 | Step | `threads` 1 | `threads` 4 | `threads` 8 |

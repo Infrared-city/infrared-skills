@@ -12,7 +12,8 @@ import {
 } from "@infrared-city/infrared-sdk-ts";
 import type { Polygon } from "@infrared-city/infrared-sdk-ts/tiling";
 import { createContextMesh } from "./context-mesh.ts";
-import { cellIndex, cellIsValid, createSurfaceMesh } from "./surface-mesh.ts";
+import { cellIsValid, createSurfaceMesh } from "./surface-mesh.ts";
+import { cellFromHit, cellInfo } from "./sample.ts";
 import { SOLAR, rampTable, renderLegend } from "./ramp.ts";
 import { relayUrl } from "../../cloudflare-proxy/src/proxy.ts";
 
@@ -88,7 +89,7 @@ status(`${preview.plannedJobCount} job(s) · ${preview.sensorCount?.toLocaleStri
   + `about ${preview.estimatedCostTokens} tokens. Press Run.`);
 $("run").removeAttribute("disabled");
 
-let shown: { buffers: SurfaceRenderBuffers; values: Float32Array; mesh: THREE.Mesh } | undefined;
+let shown: { columns: SurfaceColumns; buffers: SurfaceRenderBuffers; values: Float32Array; mesh: THREE.Mesh } | undefined;
 
 $("run").addEventListener("click", async () => {
   $("run").setAttribute("disabled", "");
@@ -106,7 +107,7 @@ $("run").addEventListener("click", async () => {
     const mesh = createSurfaceMesh(buffers, rampTable(SOLAR), range);
     if (shown) scene.remove(shown.mesh);
     scene.add(mesh);
-    shown = { buffers, values, mesh };
+    shown = { columns, buffers, values, mesh };
     renderLegend($("legend"), SOLAR, range, "Solar radiation, June to August (kWh/m²)");
     $("legend").hidden = false;
     status(`Done in ${((performance.now() - t0) / 1000).toFixed(1)} s · `
@@ -126,17 +127,12 @@ renderer.domElement.addEventListener("pointermove", (event) => {
   const ndc = new THREE.Vector2((event.clientX / innerWidth) * 2 - 1, -(event.clientY / innerHeight) * 2 + 1);
   raycaster.setFromCamera(ndc, camera);
   const hit = raycaster.intersectObject(shown.mesh)[0];
-  if (!hit || hit.faceIndex == null || !hit.barycoord) return void (tip.hidden = true);
-  // (s, t) of the hit point = barycentric mix of the 3 corners' cell coordinates.
-  const geo = shown.mesh.geometry;
-  const cell = geo.getAttribute("cell");
-  const frame = geo.getAttribute("frame");
-  const v0 = 3 * hit.faceIndex;
-  const w = [hit.barycoord.x, hit.barycoord.y, hit.barycoord.z];
-  const s = w.reduce((sum, wi, i) => sum + wi * cell.getX(v0 + i), 0);
-  const t = w.reduce((sum, wi, i) => sum + wi * cell.getY(v0 + i), 0);
-  const k = cellIndex(frame.getX(v0), frame.getY(v0), frame.getZ(v0), s, t);
-  tip.textContent = cellIsValid(shown.buffers, k) ? `${shown.values[k].toFixed(0)} kWh/m²` : "no value";
+  // Hit -> cell index (barycentric mix of the corners' cell coordinates), see sample.ts.
+  const k = hit ? cellFromHit(hit, shown.mesh.geometry) : -1;
+  if (k < 0) return void (tip.hidden = true);
+  const info = cellInfo(shown.columns, shown.values, k);  // value + surface and building id
+  tip.textContent = cellIsValid(shown.buffers, k)
+    ? `${info.value.toFixed(0)} kWh/m² · building ${info.buildingId}` : "no value";
   tip.style.left = `${event.clientX}px`;
   tip.style.top = `${event.clientY}px`;
   tip.hidden = false;

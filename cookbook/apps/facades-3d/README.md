@@ -12,6 +12,9 @@ Move the pointer over a wall to see the value of that cell.
 2. `export INFRARED_API_KEY=...` (or put it in a `.env` file here; it is git-ignored)
 3. `npm run dev` and open the URL. Press **Run** (the default site is 1 job, about 10 tokens).
 
+Do not start the dev server with `--host`. The dev server holds the real key; on
+the network, a foreign page can pass its `Origin` check.
+
 Change the site with `?lon=..&lat=..` in the URL. The panel shows the jobs, sensors and
 tokens before you run. A facade run bills per building batch, so the app uses
 `previewAreaBatches`, not `previewArea`.
@@ -36,6 +39,7 @@ with its exact colour. The mesh sits at `anchor`, so the f32 positions stay smal
 |---|---|
 | `src/main.ts` | Core start, client, buildings and weather, preview, Run, hover. |
 | `src/surface-mesh.ts` | Render buffers → three.js mesh + shader. Also `cellIndex`, `cellIsValid`. |
+| `src/sample.ts` | Pick a cell, sample at 3D points, stats per building or surface, CSV/JSON export ([guide](../../../plugins/infrared/skills/use-infrared/references/typescript/facades-sampling.md)). |
 | `src/context-mesh.ts` | All buildings as one grey mesh. |
 | `src/ramp.ts` | A colour ramp and the HTML legend. |
 

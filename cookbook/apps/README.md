@@ -11,7 +11,8 @@ Small, runnable web apps on the [Infrared TypeScript SDK](https://infrared.city/
 
 All three use the same rule: **the browser never holds the API key.** The browser
 calls `/api/ir/*` on its own origin. A proxy adds the key and forwards the call to
-`https://api.infrared.city/v2/*`. In development the Vite dev server is the proxy.
+`https://api.infrared.city/v2/*`. It forwards only the routes the SDK calls; all
+other routes get 403. In development the Vite dev server is the proxy.
 In production the Worker is the proxy. Both run the same file:
 [`cloudflare-proxy/src/proxy.ts`](cloudflare-proxy/src/proxy.ts). Keep the three
 folders side by side.

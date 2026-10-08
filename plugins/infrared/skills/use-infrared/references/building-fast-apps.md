@@ -86,8 +86,7 @@ sky, solar = client.run_area_and_wait([svf_request, solar_request], polygon, bui
 
 ## 6. Helpers, then the colour scale
 
-Never decode the stored type yourself. A UTCI grid in TypeScript holds half-float bits.
-Use the helper, then map values to colours with one fixed scale for each analysis.
+Never decode the stored type yourself. Always use the helper, then map values to colours with one fixed scale for each analysis.
 
 | Result | Python | TypeScript |
 |---|---|---|

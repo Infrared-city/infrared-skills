@@ -90,6 +90,9 @@ colours win on the same walls.
 Raycast the mesh. `hit.faceIndex` gives the 3 vertices; mix their `cell` attribute
 with `hit.barycoord` to get `(s, t)`, then `k` with the same rule as the shader.
 Show `values[k]` from `surfaceValuesF32` when the validity bit is set.
+The app's `src/sample.ts` does this (`cellFromHit`, `cellInfo`). It also samples
+at your own points and gives statistics per building:
+[facades-sampling.md](facades-sampling.md).
 
 ## Checks that passed (real run, 217,083 cells)
 

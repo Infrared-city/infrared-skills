@@ -80,7 +80,7 @@ loaded (the building fetch is not in the time).
 
 Facades, 6 km² of a dense city, SVF: about 2.8 million sensors on about
 42,000 surfaces. The run took about 4 s cold and about 2.6 s warm. A larger
-multi-million-sensor city run takes about 10 s.
+multi-million-sensor city run takes about 10 seconds.
 
 How the time splits on the 40 km² cold run (total about 15 s):
 
@@ -93,9 +93,10 @@ The warm run has no upload. It is almost half the time.
 
 ## Local planning is free
 
-Planning is local CPU work and costs no tokens. On one core, a 24 km² area
-with about 68,000 buildings plans a ground run in about 3 seconds and a
-facade run (about 18 million sensors) in about 9 seconds. The threaded
+Planning is local CPU work and costs no tokens. Measured on 2026-10-08,
+Node 22, about 20 km² with about 68,000 buildings: on one core, a ground run
+plans in about 3 seconds and a facade run (about 18 million sensors) in
+about 9 seconds. The threaded
 core halves the facade plan. See `typescript/threads-and-workers.md`.
 
 ## Example scenarios
@@ -103,9 +104,10 @@ core halves the facade plan. See `typescript/threads-and-workers.md`.
 These are estimates from the numbers above.
 
 **A district of 5 km².**
-About 20 solar-family tiles per analysis, so about 200 tokens each.
+About 25 solar-family tiles per analysis, so about 250 tokens each.
 Cold run about 8 s, warm run about 3 s. SVF, solar and UTCI together reuse
-one upload. Wind needs about 80 tiles, still under the default cap.
+one upload. Wind needs about 81 tiles (about 810 tokens), still under the
+default cap.
 
 **A whole city centre of 40 km².**
 About 170 solar-family tiles, about 1,700 tokens per analysis. You must
