@@ -8,11 +8,11 @@ Build a SketchUp Ruby extension that lets users click a point in their 3D model,
 
 When you need deeper Infrared API detail, route to:
 
-- `../00-setup.md` — auth, key management.
-- `../01-quickstart.md` — minimum async request shape.
-- `../02-geometry.md` — polygon format, `[lon, lat]` coord order.
+- `../python/quickstart.md` — auth, key management.
+- `../python/quickstart.md` — minimum async request shape.
+- `../geospatial-crs.md` — polygon format, `[lon, lat]` coord order.
 - `../03-time-period.md` — `TimePeriod` semantics and cascade-filter behaviour.
-- `../04-weather-data.md` — station lookup, EPW parsing, `filter_weather_data`.
+- `../python/weather-and-time.md` — station lookup, EPW parsing, `filter_weather_data`.
 - `../async-and-jobs.md` — job lifecycle, polling, result download.
 - `../byo-inputs.md` — `buildings=` / `vegetation=` payload shapes.
 - `../analyses/0N-*.md` — per-analysis payload details.
@@ -538,7 +538,7 @@ EPW column indices (0-indexed, 8-line header skipped):
 
 | Phase | Build | Done-when |
 |---|---|---|
-| **0** Read | This file end-to-end. Open `../00-setup.md` + `../async-and-jobs.md`. | You can sketch the ZIP→POST→poll→decompress chain from memory. |
+| **0** Read | This file end-to-end. Open `../python/quickstart.md` + `../async-and-jobs.md`. | You can sketch the ZIP→POST→poll→decompress chain from memory. |
 | **1** Scaffold | `ir_city.rb` loader + `extension.rb` with toolbar, two menu items, `prefs` helpers. | SketchUp loads the extension. Toolbar appears. Settings dialog opens and saves a key to `ir_city_prefs.json`. |
 | **2** HTTP client | `api_client.rb`: `submit_analysis`, `poll_until_done`, `download_result`, `decompress_and_parse`, `zip_string`. No weather yet. | Hard-code a Vienna payload as JSON; POST it; print the job_id; poll to completion; print the grid dimensions. |
 | **3** Geometry | `simulation_tool.rb`: `collect_geometry`, `traverse_faces`, `face_to_arrays`, `model_point_to_latlng`. | `collect_geometry(model, point, 0)` returns a non-empty buildings dict for any SketchUp model with groups. |
@@ -626,11 +626,11 @@ The Infrared API's job status endpoint sometimes returns `"Succeded"` (one 'c').
 
 ## Related References
 
-- `../00-setup.md`
-- `../01-quickstart.md`
-- `../02-geometry.md`
+- `../python/quickstart.md`
+- `../python/quickstart.md`
+- `../geospatial-crs.md`
 - `../03-time-period.md`
-- `../04-weather-data.md`
+- `../python/weather-and-time.md`
 - `../async-and-jobs.md`
 - `../byo-inputs.md`
 - `../analyses/01-wind-speed.md`

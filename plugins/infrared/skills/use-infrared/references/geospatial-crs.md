@@ -64,7 +64,7 @@ metres in most of Europe. That is what `terrain_alignment` is for:
 
 | Mode | Behaviour |
 |---|---|
-| `"auto-align"` (default) | Re-bases every solid in `geometries` / `context_geometry` / `vegetation` onto the terrain below it before inference, with a 0.5 m skirt. Absorbs the mismatch silently — which is why fetched buildings plus an absolute DEM "just work". |
+| `"auto-align"` | Re-bases every solid in `geometries` / `context_geometry` / `vegetation` onto the terrain below it before inference, with a 0.5 m skirt. Absorbs the mismatch silently — which is why fetched buildings plus an absolute DEM "just work". |
 | `"assume-aligned"` | Moves nothing — a validator, not a fixer. Any base outside the seating band (09's `terrain_alignment` table) is a **422 for the whole job**, naming the offenders with residuals. Use it when you have prepped geometry against this exact DEM and want a mismatch to be loud. |
 | `"as-is"` | Trusts your geometry exactly: no seating, no check. Not sendable from any released Python SDK yet — see the `terrain_alignment` table in [`analyses/09-facade-terrain.md`](analyses/09-facade-terrain.md#terrain_alignment--how-your-geometry-meets-the-ground). |
 
@@ -346,9 +346,9 @@ Don't skip the `np.flipud` — see `interpretation/grid-conventions.md`.
 
 ## See also
 
-- [02-geometry.md](02-geometry.md) — polygon format, SDK validation chain
+- [geospatial-crs.md](geospatial-crs.md) — polygon format, SDK validation chain
 - [byo-inputs.md](byo-inputs.md) — building local-meter frame vs vegetation/ground lon/lat
-- [05-area-api.md](05-area-api.md) — the per-tile transform step by step, context margin, `AreaResult.bounds`
+- [python/quickstart.md](python/quickstart.md) — the per-tile transform step by step, context margin, `AreaResult.bounds`
 - [surface-results-integration.md](surface-results-integration.md) — **canonical** for the surface UV frame: cell centres, `cell_tris`, texture mapping
 - [analyses/09-facade-terrain.md](analyses/09-facade-terrain.md) — `ground_geometry`, `terrain_alignment`, per-tile terrain slicing
 - [interpretation/grid-conventions.md](interpretation/grid-conventions.md) — GeoTIFF export, row 0 = south

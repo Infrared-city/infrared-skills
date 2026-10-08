@@ -1,202 +1,130 @@
 ---
 name: use-infrared
-description: Use the Infrared SDK (`pip install infrared-sdk`) to run urban microclimate simulations — wind, pedestrian wind comfort (PWC), solar radiation, daylight, sun hours, sky view factor (SVF), thermal comfort (UTCI), thermal comfort statistics (TCS) — and interpret results. Also covers getting data in and out of the Infrared platform as files. Activate when the user mentions Infrared, infrared.city, infrared-sdk, urban microclimate, wind / PWC / Lawson, solar / daylight / sun hours / SVF, UTCI / thermal comfort, asks to run an outdoor environmental simulation on a polygon, or asks how to upload / import / export / download / back up their data, project or results — GeoJSON, OBJ, EPW, GeoTIFF or ZIP — or how to save a file from Rhino, Grasshopper, QGIS, ArcGIS, Blender or SketchUp for Infrared.
-allowed-tools: Bash(pip:*), Bash(uv:*), Bash(python:*), Bash(python3:*), Bash(curl:*)
+description: Run Infrared urban microclimate simulations (wind, pedestrian wind comfort, solar radiation, sun hours, daylight, sky view factor, UTCI thermal comfort, comfort statistics, interior daylight factor and energy balance) from Python (`pip install infrared-sdk`) or TypeScript (`npm install @infrared-city/infrared-sdk-ts`), in scripts, web apps, Grasshopper or Rhino, and read the results. Also covers files in and out of the Infrared platform. Use when the user mentions Infrared, infrared.city, infrared-sdk, urban microclimate, wind / Lawson / PWC, solar / daylight / sun hours / SVF, UTCI / thermal comfort, facade or roof analysis, a map or 3D app that shows results, Grasshopper or Rhino with Infrared, or uploads, imports or exports GeoJSON, OBJ, EPW, GeoTIFF or ZIP.
+allowed-tools: Bash(pip:*), Bash(uv:*), Bash(python:*), Bash(python3:*), Bash(npm:*), Bash(node:*), Bash(curl:*)
 license: Apache-2.0
 ---
 
 # Use Infrared
 
-## MANDATORY: Read before writing any code
+Do not write SDK calls from memory. Read the page for your language, or fetch the docs (below).
 
-> **Do NOT write SDK calls from memory or training data.** Payload shapes, enum values, and method signatures change between SDK versions. Guessing produces silent wrong results or cryptic 422 errors.
+## What do you want to build?
 
-**Before writing the first SDK code block in this conversation, in order:**
-
-1. Read **[00-setup.md](references/00-setup.md)** — install, auth, client init, Python 3.9+ requirement
-2. Identify the analysis type → read its reference file from the table in *Choosing an analysis* below
-3. **Bring your own geometry. This is the intended way to use the SDK** — not an advanced
-   option, and not only when the user volunteers a file. Ask what geometry they have before
-   you reach for the fetch path. **Pick the right BYO route first, they are different things:**
-   - Data goes into **SDK calls** (in-memory payloads, your own Python) → **[byo-inputs.md](references/byo-inputs.md)**
-   - Data goes into the **platform** as **files** (platform.infrared.city — "Bring your own data" at project creation, or the Data-layers panel) → **[platform-byo-upload.md](references/platform-byo-upload.md)**. Data comes back **out** of the platform → **[platform-export.md](references/platform-export.md)**.
-   - If the user just says "get my data into Infrared" without saying which, **ask** — the file contracts are not interchangeable.
-   - Only if they genuinely have no geometry: hand a polygon to `run_area*` and let the
-     platform fetch context buildings. That path exists for **prototyping and demos**. It is
-     not the intended production route — see the fetched-context entry below for why.
-4. If async, webhooks, or multi-tile → also read **[async-and-jobs.md](references/async-and-jobs.md)**
-
-Do not skip step 2. The analysis file is the authoritative payload shape — not your training data.
-
-## Where do the sensors go — pick one
-
-| You set | Sensors land on | Comes back as |
+| Goal | SDK | Go to |
 |---|---|---|
-| nothing | **the ground** — 1 m grid; drapes onto `ground_geometry` when you pass one | `AreaResult.merged_grid`, a 2-D raster with **no z** |
-| `analysis_surfaces` | **the building shells** in `geometries` — facades / roofs. **The ground is not part of this mode.** | `SurfaceAnalysisResult`, per-surface UV grids |
-| `sensor_points` | exactly the points you give (single tile, job primitives only) | flat list under `"output"` |
-| `daylight-factor` model | **inside rooms** — see [*`daylight-factor` is an INTERIOR model*](#daylight-factor-is-an-interior-model) | per-floor point lists |
+| Grasshopper or Rhino component | Python in Rhino 8 | [grasshopper](references/recipes/grasshopper.md), [geometry and drawing](references/recipes/grasshopper-geometry-and-drawing.md), [pitfalls](references/recipes/grasshopper-pitfalls.md) |
+| Analysis, study or notebook for yourself | Python | [python/quickstart](references/python/quickstart.md), `cookbook/notebooks/00_quickstart.ipynb` |
+| Web app for yourself (browser, map, 3D facades) | TypeScript in the browser | [typescript/quickstart](references/typescript/quickstart.md), [map-grid](references/typescript/map-grid.md), [facades-3d](references/typescript/facades-3d.md), `cookbook/apps/map-grid`, `cookbook/apps/facades-3d` |
+| Web app for many users (sign-in, secret key) | TypeScript front end + Cloudflare Worker proxy | [cloudflare-proxy](references/typescript/cloudflare-proxy.md), `cookbook/apps/cloudflare-proxy`, [persistence-and-users](references/recipes/persistence-and-users.md) |
+| High-throughput backend (many sites, queue, cache) | Python service | [python-fastapi-app](references/recipes/python-fastapi-app.md), `cookbook/apps/python-fastapi` |
+| SketchUp or other CAD plugin | Ruby or Python, same API | [sketchup-plugin](references/recipes/sketchup-plugin.md) |
+| Upload your own data to the platform (no code) | none | [platform-byo-upload](references/platform-byo-upload.md) |
 
-One of four per request; ground **and** buildings = two requests. Channels, terrain and the shatter trap → [analyses/09-facade-terrain.md#the-five-geometry-channels](references/analyses/09-facade-terrain.md#the-five-geometry-channels)
+Every row: read [building-fast-apps](references/building-fast-apps.md) for speed.
+## Concepts and guidance
 
-**Two interior models are deployed; this skill covers one.** `daylight-factor` ships in
-0.5.1 — [analyses/10-interior-daylight-factor.md](references/analyses/10-interior-daylight-factor.md).
-**`energy-balance` is deployed but has no SDK class on any branch** — reach it over the
-raw async endpoints ([async-and-jobs.md](references/async-and-jobs.md)).
+### What each analysis answers
 
-## Silently wrong — read before you trust a number
+| Question | Analysis (unit) | Page |
+|---|---|---|
+| How fast is the wind? Is it comfortable for people? | `wind-speed` (m/s), `pedestrian-wind-comfort` (class) | [01](references/analyses/01-wind-speed.md), [02](references/analyses/02-pedestrian-wind-comfort.md) |
+| How much daylight? How many hours of direct sun? | `daylight-availability` (% of window), `direct-sun-hours` (h) | [03](references/analyses/03-daylight-availability.md), [04](references/analyses/04-direct-sun-hours.md) |
+| How open is the sky? How much solar energy? | `sky-view-factors` (%), `solar-radiation` (kWh/m2) | [05](references/analyses/05-sky-view-factors.md), [06](references/analyses/06-solar-radiation.md) |
+| What does it feel like outside? For how long is it comfortable, hot, cold? | `thermal-comfort-index` UTCI (degrees C), `thermal-comfort-statistics` (% of window) | [07](references/analyses/07-thermal-comfort-utci.md), [08](references/analyses/08-thermal-comfort-statistics.md) |
+| Daylight in a room? Heating and cooling need? (Beta) | `daylight-factor` (%), `energy-balance` (kWh/m2 a) | [10](references/analyses/10-interior-daylight-factor.md), [12](references/analyses/12-interior-energy-balance.md) |
 
-The section above is *which file to read*. This is *what will bite you anyway*. Everything below
-returns a **plausible number with a 200**, not an error: nothing here raises, several are billed,
-and a reviewer reading your output cannot tell. One pass and you are immune.
+Reading results: [interpretation/](references/interpretation/grid-conventions.md).
 
-- **Fetched context buildings are not one dataset, and the response never says which you got** — omit `buildings` and the platform fills context from whatever covers that polygon. A few cities are served from curated survey data with *measured* heights; everywhere else falls back to a global footprint set whose heights are largely inferred from `building:levels` guesses, and missing storey tags become a default height. Same call, same 200, materially different geometry — so a shadow, wind or UTCI result is only as good as a source you did not choose and cannot see. Comparing two cities this way compares two data classes. **Pass your own `buildings` whenever you have them.** → [byo-inputs.md](references/byo-inputs.md)
-- **Polygon CRS is never validated** — a projected or `[lat, lon]` polygon that still lands inside `[-180,180]×[-90,90]` runs, on the wrong patch of the planet. → [geospatial-crs.md](references/geospatial-crs.md)
-- **Two metre frames, and no error between them** — `buildings` / `context_geometry` / `ground_geometry` you pass to `run_area*` are **polygon-bbox-SW**; per-tile payloads and `sensor_points` are **tile-local**. Mix them and the geometry lands a tile away, silently. → [geospatial-crs.md#the-frames-end-to-end](references/geospatial-crs.md#the-frames-end-to-end)
-- **`min_legend` / `max_legend` are `None` on every area run** — so the usual `... if not None else np.nanmin(grid)` guard takes the fallback *every* time and auto-scales each render to its own data. Populated on **surface** results only. **An SDK bug, not a server limit**: the worker sends kebab-case `min-legend`/`max-legend` and the merge path read camelCase. Fixed in #260/#261, landing in **0.5.2** — PyPI latest is **0.5.1**, so this still applies on every released version; on 0.5.2+ the workaround becomes optional. → [recipes/rendering-results-well.md](references/recipes/rendering-results-well.md)
-- **Masked cells are `None`, never `0`** — map to `NaN` before any mean. Separately, a surface at exactly `0.0` is real data (party walls, light wells) — 32% of facades on one Munich run. Two different things. → [surface-results-integration.md](references/surface-results-integration.md)
-- **No `ground_geometry` means a flat plane at z = 0** — not an error, and the result looks entirely normal. There is no terrain client; terrain is bring-your-own, every time. → [analyses/09-facade-terrain.md](references/analyses/09-facade-terrain.md)
-- **Terrain in `geometries` is accepted, billed, and returns a shattered mesh** — surface synthesis clusters faces into flat regions (same normal within 5°, same plane within 2 cm), which a TIN fails on nearly every edge: seams and holes. Terrain goes in `ground_geometry`; the ground grid drapes onto it by itself. → [analyses/09-facade-terrain.md#results-on-the-ground-with-terrain](references/analyses/09-facade-terrain.md#results-on-the-ground-with-terrain)
-- **Switching `terrain_alignment` barely moves the scene mean** while rewriting individual surfaces — measured: mean +0.03 kWh/m², 44% of facades moved by more than 1. A before/after on averages passes straight through it. → [analyses/09-facade-terrain.md](references/analyses/09-facade-terrain.md)
-- **Terrain is sliced per tile as of 0.5.1** — distant relief no longer shades unless you pass it as `context_geometry`. → [analyses/09-facade-terrain.md](references/analyses/09-facade-terrain.md)
-- **A `direct-sun-hours` grid window that includes night hours counts them as sun** — a below-horizon sun is clamped to a horizontal ray, which escapes any open site. Keep the window inside sunrise–sunset for the latitude and month. Smell: `grid.max()` == the window's sample count. `daylight-availability` is immune. → [analyses/04-direct-sun-hours.md#keep-the-window-inside-daylight](references/analyses/04-direct-sun-hours.md#keep-the-window-inside-daylight)
-- **Every result comes back in the frame you submitted, and the SDK reads your mesh coordinates as metres from the polygon's SW corner** — it never re-anchors your geometry. Put the polygon's SW corner at submitted `(0, 0)`; pad **NE only**. → [geospatial-crs.md#the-frame-rule](references/geospatial-crs.md#the-frame-rule)
-- **On a terrain-draped grid, cells under building footprints come back as `0.0`, not `NaN`** — `NaN` is outside-polygon or off-terrain only. Exclude the footprint zeros from any "cells in shadow" statistic. → [interpretation/grid-conventions.md](references/interpretation/grid-conventions.md)
-- **`emit_cell_tris=True` is ~96 % of a facade body** — `values` and every aggregate are identical either way; turn it on per selected building or for an export, not for the overview. → [surface-results-integration.md](references/surface-results-integration.md)
-- **Interior entities are nested; `ground_geometry` and `vegetation` are flat** — the wrong shape is not a server error: the entity is skipped and you get a confident field over an empty occluder. → [analyses/10-interior-daylight-factor.md](references/analyses/10-interior-daylight-factor.md)
-- **Interior tier dispatch takes the first key present** (`sensor_points` → `sensor_surfaces` → `buildings` → `floors`) — the losers are dropped, not rejected: a one-storey request billed as every storey. → same file
-- **`openingFactor` is read by that exact spelling, no alias** — `opening_factor` is ignored and the window silently becomes clear glass. → same file
-- **Daylight factor no longer has an artificial floor** (server change 2026-08, lambda-models#234/#239): exterior reflected light is TRACED — facing buildings seen through `openings` re-emit part of the sky they hide; a sealed or opening-less room returns exactly 0, and low readings are real signal. `exterior_ground_reflectance` is accepted but currently has NO effect (lambda-models#241). → same file
-- **`preview_area` without `analysis_type` prices the wind grid** — ~4× the tiles for a solar/thermal run (verified: 36 vs 9 on one polygon). It warns; the number it hands back is still wrong. → [05-area-api.md](references/05-area-api.md)
-- **Each facade sub-batch is billed separately** — a request over the server's 262,144-sensor cap is split transparently, and every sub-job charges. → [analyses/09-facade-terrain.md](references/analyses/09-facade-terrain.md)
+### Inputs: your data first
 
-## Default workflow — bring your own data
+- Your own buildings, trees and ground are the main path ([byo-inputs](references/byo-inputs.md)). Ask what the user has
+  (BIM, Rhino, IFC, GeoJSON). Public data (Overture, city data) is a fallback. Its source and heights vary: say so.
+- Frames: the area is a lon/lat polygon (`[lon, lat]`). Meshes are metres from the polygon's south-west corner, z up
+  ([crs](references/geospatial-crs.md)). Sensors: ground, facades and roofs, or own points ([09](references/analyses/09-facade-terrain.md)).
+  Terrain and far shade (128 m reach in 1.0): [11](references/analyses/11-terrain-and-context.md). Time: [03](references/03-time-period.md).
 
-**BYO is the primary way to use this SDK.** The whole point is your design: proposed massing,
-a scheme that does not exist yet, a landscape you are changing. Fetched context cannot contain
-any of that, and for anything you are actually designing it is the wrong input by definition —
-you would be simulating today's city, not your proposal.
+### Area runs and results
 
-So: BIM/Rhino/IFC/GeoJSON footprints, custom landscapes, proposed-scenario ground. **Ask what
-geometry the user has.** Reach for the fetch path only when they have none, and say plainly
-that it is a prototype stand-in.
+The SDK cuts the area into 512 m tiles, uploads the geometry once, sends one job for each tile and
+analysis, polls, and merges. A failed tile raises (no map with holes). A resend never bills twice.
+- Always read values with the helper: `result.physical_grid()` (Python), `areaGridValuesF32(result)` (TypeScript).
+  Never read the raw array: its stored type differs by analysis. NaN means no value. A facade at 0.0 is real.
+- Row 0 is south. Place an overlay with `result.bounds`. Use a fixed colour scale for each analysis:
+  [grid-conventions](references/interpretation/grid-conventions.md), [rendering-results-well](references/recipes/rendering-results-well.md).
+- Cost: preview first (free, local). Price from `would_bill_jobs`: one job is one tile for one analysis.
 
-→ **BYO via SDK (start here):** [byo-inputs.md](references/byo-inputs.md) — **BYO as files into the platform:** [platform-byo-upload.md](references/platform-byo-upload.md) — **Prototype-only, fetched context:** [01-quickstart.md](references/01-quickstart.md)
+## Python
 
-## Setup and basics
-
-| Topic | Reference |
-|---|---|
-| Install + auth | [00-setup.md](references/00-setup.md) |
-| End-to-end quickstart | [01-quickstart.md](references/01-quickstart.md) |
-| Polygon / GeoJSON / coords | [02-geometry.md](references/02-geometry.md) |
-| **Coordinate systems** — every frame in one place (WGS84 in, polygon-bbox-SW, tile-local, surface UV, vertical datum), reprojection recipes, wrong-place diagnostic | [geospatial-crs.md](references/geospatial-crs.md) |
-| Time period / weather window | [03-time-period.md](references/03-time-period.md) |
-| Weather data / EPW | [04-weather-data.md](references/04-weather-data.md) |
-| Bring your own buildings / trees / ground | [byo-inputs.md](references/byo-inputs.md) |
-| Platform FILE upload (GeoJSON/.obj/.epw formats, projections, caps, units, saving a file from Rhino/QGIS/ArcGIS/Blender) | [platform-byo-upload.md](references/platform-byo-upload.md) |
-| Platform FILE export (ZIP contents, geometry exchange triplet, bundle import — **staging-only today**) | [platform-export.md](references/platform-export.md) |
-
-## Execution styles
-
-Pick the entry point first — it shapes blocking, webhooks, and persistence. Full rule: [async-and-jobs.md](references/async-and-jobs.md).
-
-| When | Entry point |
-|---|---|
-| Sync, blocks until result | `client.run_area_and_wait()` → `AreaResult` |
-| Async, returns `AreaSchedule` (use webhook or `check_area_state`); land via `client.merge_area_jobs(schedule)` once terminal | `client.run_area()` → `AreaSchedule` |
-| Single tile, custom polling | `client.analyses.execute()` + `client.jobs.*` → `Job` |
-
-## Choosing an analysis
-
-**READ the linked reference file before writing any code for that analysis.** The payload shape, required fields, and enum values are defined there — not in this table.
-
-| User wants to know… | Analysis | Weather? | READ this reference | Result interpretation |
-|---|---|---|---|---|
-| Is it windy at street level? | `wind-speed` | no | [analyses/01-wind-speed.md](references/analyses/01-wind-speed.md) | [interpretation/wind-results.md](references/interpretation/wind-results.md) |
-| Is wind comfortable for pedestrians? | `pedestrian-wind-comfort` | **REQUIRED** | [analyses/02-pedestrian-wind-comfort.md](references/analyses/02-pedestrian-wind-comfort.md) | [interpretation/wind-results.md](references/interpretation/wind-results.md) |
-| Enough daylight at street level? | `daylight-availability` | no | [analyses/03-daylight-availability.md](references/analyses/03-daylight-availability.md) | [interpretation/solar-results.md](references/interpretation/solar-results.md) |
-| Sun-hour exposure? | `direct-sun-hours` | no | [analyses/04-direct-sun-hours.md](references/analyses/04-direct-sun-hours.md) | [interpretation/solar-results.md](references/interpretation/solar-results.md) |
-| How open is the sky? | `sky-view-factors` | no | [analyses/05-sky-view-factors.md](references/analyses/05-sky-view-factors.md) | [interpretation/solar-results.md](references/interpretation/solar-results.md) |
-| Solar energy on a surface? | `solar-radiation` | **REQUIRED** | [analyses/06-solar-radiation.md](references/analyses/06-solar-radiation.md) | [interpretation/solar-results.md](references/interpretation/solar-results.md) |
-| Outdoor thermal comfort? | `thermal-comfort-index` (UTCI) | **REQUIRED** | [analyses/07-thermal-comfort-utci.md](references/analyses/07-thermal-comfort-utci.md) | [interpretation/thermal-results.md](references/interpretation/thermal-results.md) |
-| % of time uncomfortable per year? | `thermal-comfort-statistics` (TCS) | **REQUIRED** | [analyses/08-thermal-comfort-statistics.md](references/analyses/08-thermal-comfort-statistics.md) | [interpretation/thermal-results.md](references/interpretation/thermal-results.md) |
-| Daylight **inside** a room? | `daylight-factor` | no | [analyses/10-interior-daylight-factor.md](references/analyses/10-interior-daylight-factor.md) | same reference |
-
-### `daylight-factor` is an INTERIOR model
-
-No polygon, no Area API — `run_area()` rejects it — and its entities use a **nested** mesh shape
-where the flat outdoor shape silently yields an empty occluder. Read
-[analyses/10-interior-daylight-factor.md](references/analyses/10-interior-daylight-factor.md) first.
-
-### Weather is not optional for the four marked REQUIRED
-
-Those payloads carry weather **arrays**, not a weather file id. Build them with the SDK — never by hand:
-
-```python
-stations = client.weather.get_weather_file_from_location(lat=lat, lon=lon)  # nearest stations
-weather_data = client.weather.filter_weather_data(
-    identifier=stations[0]["uuid"], time_period=tp)                         # one point per hour in tp
-payload = SolarRadiationModelRequest.from_weatherfile_payload(..., weather_data=weather_data)
+```bash
+pip install infrared-sdk    # "[geodata]" adds public buildings, trees, ground. Set INFRARED_API_KEY; never put it in code.
 ```
 
-Omitting them does **not** produce a clean validation error. The request is accepted (`202`), **the job is
-billed**, and it fails in the worker with a message that names an internal array, not the missing input:
-`DNI length 0 != sun_vectors 240`, `missing array 'horizontal-infrared-radiation-intensity'`.
-If you see either, you omitted weather data — add it via the snippet above and resubmit. Full API:
-[04-weather-data.md](references/04-weather-data.md).
+```python
+from infrared_sdk import InfraredClient, SvfModelRequest
+from infrared_sdk.analyses.types import AnalysesName
 
-## Cross-cutting topics
+lon, lat = 16.371, 48.208                                  # [lon, lat], WGS84
+polygon = {"type": "Polygon", "coordinates": [[[lon, lat], [lon + 0.004, lat],
+           [lon + 0.004, lat + 0.003], [lon, lat + 0.003], [lon, lat]]]}
+# Your own meshes: {id: {"coordinates": [x, y, z, ...], "indices": [...]}} in metres from the
+# polygon's south-west corner. See references/python/own-data.md. Stand-in: one 20 x 20 x 30 m box.
+buildings = my_buildings
 
-| Topic | Reference |
-|---|---|
-| Area API / tiling / AreaResult / cost preview | [05-area-api.md](references/05-area-api.md) |
-| Facade / roof / BYO sensors, geometry channels, `terrain_alignment`, ground results on terrain | [analyses/09-facade-terrain.md](references/analyses/09-facade-terrain.md) |
-| Interior geometry preparation (rooms, windows, per-window glazing, sensor grids) | [analyses/10-interior-daylight-factor.md](references/analyses/10-interior-daylight-factor.md) |
-| Async runs / `AreaSchedule` / single-tile primitives | [async-and-jobs.md](references/async-and-jobs.md) |
-| Webhooks / Standard Webhooks v1 / verification | [06-webhooks.md](references/06-webhooks.md) |
-| Image generation (PNG output) | [07-images.md](references/07-images.md) |
-| Errors / exception hierarchy | [08-error-handling.md](references/08-error-handling.md) |
-| Plotting / compare scenarios (baseline vs proposed) / GeoTIFF export | [interpretation/grid-conventions.md](references/interpretation/grid-conventions.md) |
-| Gradio area explorer app recipe | [recipes/gradio-area-explorer.md](references/recipes/gradio-area-explorer.md) |
-| Making a render read correctly (legend bounds, masked cells, categorical output, colormaps) | [recipes/rendering-results-well.md](references/recipes/rendering-results-well.md) |
+client = InfraredClient()                                  # reads INFRARED_API_KEY
+request = SvfModelRequest(analysis_type=AnalysesName.sky_view_factors)
+print(client.preview_area(polygon, payload=request).would_bill_jobs, "job(s)")   # free
+result = client.run_area_and_wait(request, polygon, buildings=buildings)
+grid = result.physical_grid()                              # real values, NaN = no value
+```
 
-## Recipes
+More in `references/python/`: [own-data](references/python/own-data.md), [weather-and-time](references/python/weather-and-time.md),
+[surfaces-and-sensors](references/python/surfaces-and-sensors.md), [interior](references/python/interior.md),
+[errors-and-retries](references/python/errors-and-retries.md).
 
-Use the `references/recipes/` folder for UI/app implementation recipes that combine SDK usage with product-level UX guidance.
+## TypeScript
 
-- Start with [recipes/gradio-area-explorer.md](references/recipes/gradio-area-explorer.md) to build a compact Gradio app using the Infrared SDK.
-- For a richer 3D playground (Vite + React + DeckGL frontend, FastAPI backend, Zustand state, location picker that dynamically fetches buildings / vegetation / ground materials from the SDK), see [recipes/sdk-playground-fastapi.md](references/recipes/sdk-playground-fastapi.md).
-- To build a **SketchUp Ruby extension** that submits simulations directly from a 3D model and renders heatmap results as coloured faces in the viewport — including a post-run KPI panel with stats and charts — see [recipes/sketchup-plugin.md](references/recipes/sketchup-plugin.md). Note: this recipe uses Ruby (not Python); the Infrared API contract (auth headers, payload shapes, async job lifecycle) is identical.
-- To call the SDK from **Rhino 8 Grasshopper** Python 3 Script components, see [recipes/grasshopper.md](references/recipes/grasshopper.md) — a flat list of small patterns: SDK install via `# r:`, auto-registering outputs (`ScriptVariableParam` + `BeforeRunScript`), sticky state, off-UI-thread work with `threading` + `ExpireSolution(True)`, browser-based AOI picker, DotBim ↔ Rhino Mesh, locating the .gh file, saving PNG / GeoTIFF, heatmap mesh from a numpy grid, and visible logging.
-- For a **full Rhino 8 Grasshopper component** — reading geometry from named Rhino layers, submitting, and returning coloured Rhino meshes — see [recipes/grasshopper-component-shape.md](references/recipes/grasshopper-component-shape.md) (Script-Mode vs SDK-Mode, the run sequence, a complete skeleton, and every shared helper: layer reading, coordinate frame, payload, budget, colour, drape, bake, stacked-massing merge), then [recipes/grasshopper-analyses.md](references/recipes/grasshopper-analyses.md) for the facade / terrain / interior specifics, and [recipes/grasshopper-pitfalls.md](references/recipes/grasshopper-pitfalls.md) for the measured limits and the failures that return HTTP 200.
-- For **hackathon/demo stacks** (TypeScript direct API, FastAPI + Railway, React frontends, persistence, billing): see [recipes/hackathon-tools.md](references/recipes/hackathon-tools.md).
-- **Before your first render**, read [recipes/rendering-results-well.md](references/recipes/rendering-results-well.md) — the traps that make correct results *look* wrong (per-run auto-scaling, masked cells painted as zero, facades on their own scale, continuous ramps on categorical output, rainbow colormaps, flipped north), and what ForgeKit does instead. Tool-agnostic: applies to matplotlib, Three.js, DeckGL, or a BIM viewport.
+```bash
+npm install @infrared-city/infrared-sdk-ts   # Node 18+, from npmjs.org, no token
+```
 
-## Invariants
+An `.npmrc` that maps `@infrared-city` to GitHub Packages keeps you on an old version: remove that line.
+```ts
+import { InfraredClient, initializeCore, areaGridValuesF32, type AreaResult } from "@infrared-city/infrared-sdk-ts";
 
-- **Python 3.9+** required.
-- Auth: `X-Api-Key` header from `INFRARED_API_KEY` env. Never `Authorization: Bearer`.
-- GeoJSON coords: `[longitude, latitude]` (RFC 7946), **WGS84 / EPSG:4326** assumed (never validated — reproject before calling; see [geospatial-crs.md](references/geospatial-crs.md)).
-- Imports: `from infrared_sdk import InfraredClient`; `from infrared_sdk.analyses.types import AnalysesName, ...`; `from infrared_sdk.models import TimePeriod, Location` (only for analyses that take them — wind does not).
-- Enum **values** are kebab-case (`"wind-speed"`); enum **member names** are snake_case (`AnalysesName.wind_speed`, `PwcCriteria.lawson_lddc`, `TcsSubtype.heat_stress`).
-- `wind_direction=270` means wind **from** the west (meteorological convention).
-- For most uses: `client.run_area_and_wait(request, polygon, buildings=...)` (sync). Single-tile polygons skip tiling automatically. **Exception:** multi-tile **`wind-speed`** runs should use the two-step path with `merge_area_jobs(strategy="directional_blend", wind_direction_deg=...)` to eliminate seam artefacts — see [05-area-api.md#merging-strategies](references/05-area-api.md#merging-strategies). For async / long-running, see [async-and-jobs.md](references/async-and-jobs.md).
-- Single tile is **512 m × 512 m**. Cell pitch is **1 m × 1 m**. Polygon larger than that auto-tiles. Solar/UTCI/TCS tiles carry a **128 m context margin** per side for distant-shadow buildings.
-- `wind_speed` is a **`float`** in m/s, `0 ≤ v ≤ 100` (SDK 0.5.1+). Do **not** round an EPW mean to satisfy a type — truncating 3.9 to 3 shifts every cell by −23 %.
-- `wind_direction` is a **whole-degree `int`**, `0 ≤ d ≤ 360`. A fractional bearing (e.g. `22.5`) is rejected at construction — round it deliberately before passing.
-- Plotting bounds: distributions are heavy-tailed, so never scale to the grid's own min/max. Carry a fixed per-analysis domain — SVF/DA `[0,100]`, DSH `[0,12]` (for a 9–17 window — the ceiling is the daylight sample count of *your* window), solar `[0,1000]`, wind `[0,15]`, UTCI `[-40,46]` — and hold it constant across runs you compare. (`min_legend` / `max_legend` serve this on **surface** results only; see *Silently wrong* above.) Details: [recipes/rendering-results-well.md](references/recipes/rendering-results-well.md).
-- Coordinate frames: WGS84 lon/lat in, polygon-bbox-SW metres for caller geometry, tile-local metres inside a tile, surface UV out. Full map: [geospatial-crs.md#the-frames-end-to-end](references/geospatial-crs.md#the-frames-end-to-end).
-- Use `result.bounds` (added 0.4.4) — not `polygon.bounds` — to place the bitmap in a map viewer. `result.bounds` reflects the real NE-padded grid extent.
+await initializeCore();                                    // once, before any area run
+const client = new InfraredClient({ apiKey: process.env.INFRARED_API_KEY });
+const polygon = { type: "Polygon", coordinates: [[[16.371, 48.208], [16.375, 48.208], [16.375, 48.211], [16.371, 48.211], [16.371, 48.208]]] };
+const buildings = { tower: { coordinates, indices } };     // your meshes in metres (see references/typescript/quickstart.md)
 
-## Pitfalls
+const plan = await client.previewAreaBatches({ analysisType: "sky-view-factors" }, polygon, { buildings });
+console.log(plan.plannedJobCount);                         // free
+const result = await client.runAreaAndWait({ analysisType: "sky-view-factors" }, polygon, { buildings });
+const grid = areaGridValuesF32(result as AreaResult);      // Float32Array, NaN = no value
+```
+TypeScript pages and apps: see the table above.
 
-- **Writing SDK code from training-data memory without reading the analysis reference** — payload shapes and enum values change between versions. Always read the reference first.
-- **Skipping 00-setup.md** and guessing the import path or client constructor signature.
-- `[lat, lon]` instead of `[lon, lat]` in GeoJSON (most common bug).
-- `AnalysesName.WIND_SPEED` → `AnalysesName.wind_speed` (StrEnum members are snake_case).
-- **Submitting `pedestrian-wind-comfort` / `solar-radiation` / `thermal-comfort-index` / `thermal-comfort-statistics` without weather arrays** — accepted and billed, then fails in the worker. See *Weather is not optional* above.
-- Skipping vegetation/ground for thermal or solar runs — they materially affect MRT and surface heat. See [byo-inputs.md](references/byo-inputs.md).
-- Verifying webhooks against re-encoded JSON instead of raw bytes (see [06-webhooks.md](references/06-webhooks.md)).
+Ground grid row 0 is south: flip the rows for an image. Facades and roofs: `surfaceRenderBuffers(columns)`.
 
-**End of task** — always read [references/reflection-and-feedback.md](references/reflection-and-feedback.md) once. Runnable recipes live at [`cookbook/`](https://github.com/Infrared-city/infrared-skills/tree/main/cookbook).
+## Docs for agents
+
+- Guide: <https://infrared.city/docs/sdk/>. The whole guide as one file: <https://infrared.city/docs/sdk/sdk.md>
+- Page index: <https://infrared.city/docs/sdk/llms.txt> and <https://infrared.city/docs/sdk/1.0/llms.txt>
+- Each page is Markdown too: add `index.md` (for example <https://infrared.city/docs/sdk/1.0/python/sdk/index.md>)
+
+## Other topics
+- Cookbook notebooks in [`cookbook/`](https://github.com/Infrared-city/infrared-skills/tree/main/cookbook): `00_quickstart`,
+  `01_design_variants`, `02_summer_heat`, `03_wind_comfort`, `04_solar_facades_3d`, `05_sensors_3d`,
+  `06_interior`, `07_terrain_and_context`, `08_scale_and_cost`.
+- Platform files: [upload](references/platform-byo-upload.md), [export](references/platform-export.md) (ask: SDK data or platform files?).
+- [Facade results on your model](references/surface-results-integration.md), [jobs](references/async-and-jobs.md), [recipes](references/recipes/hackathon-tools.md).
+
+## Silent traps
+None of these raise an error.
+- Lat and lon swapped, Y-up, centimetres, origin not at the south-west corner, an open mesh.
+- Weather left out of a thermal or solar request: billed, then fails. Use `from_weatherfile_payload`.
+- No `ground_geometry` means a flat plane. Terrain in `buildings` gives a shattered mesh.
+- Night hours in a `direct-sun-hours` window count as sun. Shade beyond 128 m past a tile is missing.
+- Interior entities must be nested. `preview_area` without `payload=` prices the wind grid.
+- Do not call UTCI night values validated.
+End of task: read [references/reflection-and-feedback.md](references/reflection-and-feedback.md) once.

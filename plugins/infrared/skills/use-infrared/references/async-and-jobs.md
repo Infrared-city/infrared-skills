@@ -161,7 +161,7 @@ print(state.status, state.succeeded, state.failed, state.is_complete)
 
 `AreaState` fields: `status`, `job_states` (`dict[str, JobStatus]`), `succeeded`, `failed`, `running`, `pending`, `total`, `is_complete` (`True` only when `total > 0` and no jobs are non-terminal). Loop on `is_complete` with your own sleep.
 
-**Same shape works for sync timeouts.** When `run_area_and_wait()` raises `AreaTimeoutError`, the exception's `.area_state` attribute is the same `AreaState` shape — so the recovery code you write for async polling also handles sync timeouts. Catch the timeout, inspect `e.area_state.succeeded` / `e.area_state.failed` / `e.area_state.is_complete`, and (if jobs are still running) keep checking via `client.check_area_state(schedule)` from the underlying schedule. See `08-error-handling.md`.
+**Same shape works for sync timeouts.** When `run_area_and_wait()` raises `AreaTimeoutError`, the exception's `.area_state` attribute is the same `AreaState` shape — so the recovery code you write for async polling also handles sync timeouts. Catch the timeout, inspect `e.area_state.succeeded` / `e.area_state.failed` / `e.area_state.is_complete`, and (if jobs are still running) keep checking via `client.check_area_state(schedule)` from the underlying schedule. See `python/errors-and-retries.md`.
 
 ### Materialise results
 
@@ -180,7 +180,7 @@ schedules = client.run_area([wind_payload, svf_payload], polygon, buildings=area
 # schedules is list[AreaSchedule], one per payload, all sharing one thread pool.
 ```
 
-All schedules share a single `max_workers` (default 20) thread pool. Webhook events for the whole batch arrive as `payloads × tiles` deliveries in a tight burst — see `06-webhooks.md` for buffer-ingestion guidance.
+All schedules share a single `max_workers` (default 20) thread pool. Webhook events for the whole batch arrive as `payloads × tiles` deliveries in a tight burst — see `https://infrared.city/docs/sdk/1.0/python/webhooks/index.md` for buffer-ingestion guidance.
 
 ## Pitfalls
 
@@ -189,7 +189,7 @@ All schedules share a single `max_workers` (default 20) thread pool. Webhook eve
 - **`failed_submissions` is not job failure.** It tracks tiles whose **HTTP submission** failed (transport-level errors). Job-level failures arrive later as `job.failed` webhook events / `JobStatus.failed` and surface in `AreaResult.failed_jobs` after `merge_area_jobs()`.
 - **`run_area_and_wait` with `webhook_url=` still blocks.** Passing a webhook URL does **not** make the call async — events are delivered to the URL **and** the call still blocks and returns the merged `AreaResult` locally. Use it when you want both a synchronous result inline and a backend stream of job-level signals.
 - **Persisted `AreaSchedule` requires SDK version compatibility.** `from_dict` is forward-compatible across minor versions (unknown keys are ignored), but a major schema change can break replay. Don't persist schedules indefinitely across SDK upgrades; re-submit if the version moves.
-- **Multi-payload bursts.** A `run_area([p1, p2, ...], polygon, ...)` call delivers `payloads × tiles` webhook events in a tight window. See `06-webhooks.md` for the buffer-ingestion pattern.
+- **Multi-payload bursts.** A `run_area([p1, p2, ...], polygon, ...)` call delivers `payloads × tiles` webhook events in a tight window. See `https://infrared.city/docs/sdk/1.0/python/webhooks/index.md` for the buffer-ingestion pattern.
 - **402 fail-fast is account-global and non-retryable (0.4.10+).** When the account has insufficient credits, the first tile submission returns HTTP 402 and the SDK aborts the whole schedule immediately — no tiles submitted; `schedule.submission_abort_status == 402`. Distinct from `failed_submissions` (transport errors, retryable via `retry_from=`).
 
 ## Polling the HTTP endpoints directly (no SDK)
@@ -205,7 +205,7 @@ For CI smoke scripts, non-Python clients and debugging. Paths from `analyses/job
 
 ⚠️ **The status field is `jobStatus`, not `status`** (`Succeeded`/`Failed`/`Cancelled`,
 plus the historical misspelling `Succeded`). A loop keyed on `status` never terminates.
-Worked TS loop: [recipes/typescript-direct-api.md](recipes/typescript-direct-api.md).
+Worked TS loop: [typescript/quickstart.md](typescript/quickstart.md).
 
 ⚠️ **A direct POST over ~30 MB returns 413** — API Gateway's body limit is far below the
 64 MiB accept-path cap the backend docs quote, so large geometry must go via the `$ref`
@@ -214,7 +214,7 @@ default 5 MiB).
 
 ## See also
 
-- `05-area-api.md` — sync `run_area_and_wait` deep-dive, tiling geometry, `AreaResult` fields
-- `06-webhooks.md` — Standard Webhooks v1 verification, idempotency, multi-payload burst handling
-- `08-error-handling.md` — `AreaTimeoutError`, `JobFailedError`, `JobTimeoutError`, `TiledRunError`
-- `01-quickstart.md` — minimum-viable end-to-end run
+- `python/quickstart.md` — sync `run_area_and_wait` deep-dive, tiling geometry, `AreaResult` fields
+- `https://infrared.city/docs/sdk/1.0/python/webhooks/index.md` — Standard Webhooks v1 verification, idempotency, multi-payload burst handling
+- `python/errors-and-retries.md` — `AreaTimeoutError`, `JobFailedError`, `JobTimeoutError`, `TiledRunError`
+- `python/quickstart.md` — minimum-viable end-to-end run

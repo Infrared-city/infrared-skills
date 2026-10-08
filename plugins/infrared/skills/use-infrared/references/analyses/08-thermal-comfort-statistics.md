@@ -1,52 +1,41 @@
-# Thermal Comfort Statistics (thermal-comfort-statistics)
+# Thermal comfort statistics (`thermal-comfort-statistics`, TCS)
 
-Per-cell aggregated thermal-comfort statistic over the requested window — HOURS falling in a chosen class (divide by the window's total filtered hours for a fraction). Subtype is selected per call: `thermal_comfort`, `heat_stress`, or `cold_stress`.
-
-## Request
+For each cell, the **percent of the time window** that the UTCI is in one band.
+You choose the band for each call with `subtype`.
 
 ```python
-from infrared_sdk import InfraredClient
-from infrared_sdk.analyses.types import TcsModelBaseRequest, TcsModelRequest, TcsSubtype, AnalysesName
-from infrared_sdk.models import TimePeriod, Location
+from infrared_sdk.analyses.types import TcsModelRequest
+from infrared_sdk.analyses.types import AnalysesName, TcsModelBaseRequest, TcsSubtype
+from infrared_sdk.models import Location
 
-tp = TimePeriod(
-    start_month=6, start_day=1, start_hour=9,
-    end_month=6, end_day=30, end_hour=17,
-)
-# Multi-month and annual windows are supported as of 2026-06-24 (Rust worker).
-
-weather_data = client.weather.filter_weather_data(
-    identifier="your-weather-file-id",
-    time_period=tp,
-)
-
-payload = TcsModelRequest.from_weatherfile_payload(
+request = TcsModelRequest.from_weatherfile_payload(
     payload=TcsModelBaseRequest(
         analysis_type=AnalysesName.thermal_comfort_statistics,
-        subtype=TcsSubtype.heat_stress,
+        subtype=TcsSubtype.heat_stress,        # thermal_comfort, heat_stress or cold_stress
     ),
-    location=Location(latitude=48.1983, longitude=11.575),
-    time_period=tp,
-    weather_data=weather_data,
+    location=Location(latitude=48.208, longitude=16.371),
+    time_period=tp, weather_data=rows,         # as in the UTCI page
 )
-result = client.run_area_and_wait(payload, polygon, buildings=area.buildings)
+result = client.run_area_and_wait(request, polygon,
+                                  buildings=buildings, vegetation=trees, ground_materials=ground)
+share = result.physical_grid()                 # 0 to 100 (% of the window), NaN = no value
 ```
 
-## Response
+## Subtypes
 
-`result.merged_grid` is a 2D `float` array — hours in the selected class for each cell (0 to the window's total filtered hours). Derive `% time` as `cell_hours / window_total_hours`. `min_legend` / `max_legend` are the canonical bounds. The semantic meaning depends on the chosen `subtype`.
+| `TcsSubtype` | Counts the hours with |
+|---|---|
+| `thermal_comfort` | UTCI from 9 to 26 C |
+| `heat_stress` | UTCI of 26 C or more |
+| `cold_stress` | UTCI of 9 C or less |
+
+For all three, run three requests. Each call is one subtype.
 
 ## Pitfalls
 
-- Three subtypes via `TcsSubtype`: `thermal_comfort`, `heat_stress`, `cold_stress`. Subtype is per-call — to get all three, run three jobs (each gets its own `config_hash`).
-- `Location` is REQUIRED — drives sun position and weather model.
-- Use `from_weatherfile_payload` — it pulls all 7 weather fields automatically. MRT is computed internally; do not pass it.
-- Pass the SAME `TimePeriod` to `filter_weather_data` and `from_weatherfile_payload`. Mismatch corrupts the result silently.
-- For a single aggregated UTCI map (degrees C, no class binning) use Thermal Comfort Index.
+- The window comes only from the `TimePeriod`: months, then days, then hours.
+- Percent is relative to the window. Do not compare runs with different windows without care.
+- Keep the weather file fixed when you compare designs.
+- Same inputs and materials as UTCI: pass trees and ground.
 
-## See also
-
-- For result interpretation -> `interpretation/thermal-results.md`
-- For aggregated UTCI -> `07-thermal-comfort-utci.md`
-- For weather file fetch -> `04-weather-data.md`
-- For time periods -> `03-time-period.md`
+Read the result: [../interpretation/thermal-results.md](../interpretation/thermal-results.md)

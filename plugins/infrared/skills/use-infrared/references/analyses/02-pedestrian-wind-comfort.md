@@ -1,48 +1,41 @@
-# Pedestrian Wind Comfort (pedestrian-wind-comfort)
+# Pedestrian wind comfort (`pedestrian-wind-comfort`)
 
-Wind comfort classification across a full weather time series using a chosen standard. Output cells are categorical comfort/safety classes per the selected criterion.
-
-## Request
+A comfort class for each cell, from a full time series of wind. The class follows one standard
+that you choose. Cells hold class codes, not speeds.
 
 ```python
-from infrared_sdk import InfraredClient
-from infrared_sdk.analyses.types import PwcModelRequest, PwcCriteria, AnalysesName
+from infrared_sdk import PwcModelRequest
+from infrared_sdk.analyses.types import AnalysesName, PwcCriteria
 from infrared_sdk.models import TimePeriod, extract_weather_fields
 
-weather_data = client.weather.filter_weather_data(
-    identifier="your-weather-file-id",
-    time_period=TimePeriod(
-        # Multi-month and annual windows are supported. A full-year wind rose
-        # (start_month=1 → end_month=12) is the standard for pedestrian comfort.
-        start_month=1, start_day=1, start_hour=0,
-        end_month=12, end_day=31, end_hour=23,
-    ),
-)
-wind_fields = extract_weather_fields(weather_data, ["windSpeed", "windDirection"])
+year = TimePeriod(start_month=1, start_day=1, start_hour=0,
+                  end_month=12, end_day=31, end_hour=23)
+rows = client.weather.filter_weather_data(identifier=station_uuid, time_period=year)
 
-payload = PwcModelRequest(
+request = PwcModelRequest(
     analysis_type=AnalysesName.pedestrian_wind_comfort,
-    criteria=PwcCriteria.lawson_2001,
-    **wind_fields,
+    criteria=PwcCriteria.lawson_lddc,
+    **extract_weather_fields(rows, ["windSpeed", "windDirection"]),   # two hourly lists
 )
-result = client.run_area_and_wait(payload, polygon, buildings=area.buildings)
+result = client.run_area_and_wait(request, polygon, buildings=buildings)
+classes = result.physical_grid()        # class codes; NaN = no value
+labels = result.legend                  # class names, indexed by the code
 ```
 
-## Response
+## Parameters
 
-`result.merged_grid` is a 2D categorical array — integer class indices per the selected criterion. `min_legend` / `max_legend` cover the class range used by the criterion. The interpretation file describes how indices map to comfort labels.
+- `criteria` (`PwcCriteria`): `vdi_3787`, `lawson_1970`, `lawson_2001`, `lawson_lddc`, `davenport`,
+  `nen_8100_comfort`, `nen_8100_safety`. Pick the one that your client or city uses.
+- `wind_speed` and `wind_direction` are lists with one value per hour, of equal length.
+  Do not mix them up with the single numbers of `wind-speed`.
+- A full-year window is the normal choice.
 
 ## Pitfalls
 
-- Seven criteria available via `PwcCriteria`: `vdi_387`, `lawson_1970`, `lawson_2001`, `lawson_lddc`, `davenport`, `nen_8100_comfort`, `nen_8100_safety`. Pick one matching your jurisdiction or client convention.
-- `wind_speed` and `wind_direction` here are LISTS of floats from a weather file — not single ints like `WindModelRequest`. Don't mix them up.
-- The two arrays must have equal length and align element-wise (each pair = one hourly observation).
-- Pass the same `TimePeriod` to `filter_weather_data` and reuse it; mismatched windows silently produce wrong stats.
-- `nen_8100_safety` is a SAFETY criterion (storm risk), not a comfort one — different question, different output.
+- Class codes are not numbers to average. Report the area share for each class, or the mode.
+- Mask NaN before you count a share: `valid = grid[~np.isnan(grid)]`.
+- `nen_8100_safety` answers a safety question (storms), not a comfort question.
+- Summer-only and yearly weather give different classes. Keep the weather fixed when you compare designs.
+- Use a discrete colour map and a class legend ([../recipes/rendering-results-well.md](../recipes/rendering-results-well.md)).
 
-## See also
-
-- For result interpretation -> `interpretation/wind-results.md`
-- For raw wind field -> `01-wind-speed.md`
-- For weather file fetch -> `04-weather-data.md`
-- For time periods -> `03-time-period.md`
+Read the result: [../interpretation/wind-results.md](../interpretation/wind-results.md)

@@ -1,65 +1,57 @@
 # TimePeriod
 
-Solar, thermal, and wind-comfort analyses need a `TimePeriod` to define the simulation window and (for weather-driven analyses) which hourly weather rows to keep.
-
-## Format
+Solar, thermal and wind-comfort analyses use a `TimePeriod` for the simulation window.
+Weather-driven analyses also use it to keep the matching hourly rows.
+Code and examples: [python/weather-and-time.md](python/weather-and-time.md).
 
 ```python
 from infrared_sdk.models import TimePeriod
 
-tp = TimePeriod(
-    start_month=6, start_day=1, start_hour=9,
-    end_month=8, end_day=31, end_hour=17,
-)
+tp = TimePeriod(start_month=6, start_day=1, start_hour=9,
+                end_month=8, end_day=31, end_hour=17)
 ```
 
-> **Update (2026-06-24):** multi-month and annual `TimePeriod` windows are now supported for all six analyses that accept a `TimePeriod`: `solar-radiation`, `direct-sun-hours`, `daylight-availability`, `thermal-comfort-index`, `thermal-comfort-statistics`, and `pedestrian-wind-comfort`. The earlier `DNI length N != sun_vectors M` error never applied to PWC (it consumes `wind_speed`/`wind_direction`, not `sun_vectors`); a full-year wind rose is the standard way to assess pedestrian comfort. `wind-speed` and `sky-view-factors` take no `TimePeriod`.
+All six fields are required ints, as keyword arguments:
 
-All 6 fields are required ints:
+| Field | Range |
+|---|---|
+| `start_month`, `end_month` | 1 to 12 |
+| `start_day`, `end_day` | 1 to 31 |
+| `start_hour`, `end_hour` | 0 to 23 |
 
-| Field         | Range |
-| ------------- | ----- |
-| `start_month` | 1-12  |
-| `start_day`   | 1-31  |
-| `start_hour`  | 0-23  |
-| `end_month`   | 1-12  |
-| `end_day`     | 1-31  |
-| `end_hour`    | 0-23  |
+## Cascade
 
-## Cascade behaviour
+The window is a recurring filter of every year in the weather file, in three levels:
+months (start to end), then days inside those months, then hours inside those days.
+`end_*` is inclusive at each level.
 
-`TimePeriod` is a recurring window — the API filters every year in the weather file as a 3-level cascade (filtering happens server-side; the client just POSTs the period):
+1 Jun to 31 Aug, 08:00 to 18:00 keeps 92 days x 11 hours = 1,012 hours.
+1 Jun to 20 Aug, 09:00 to 17:00 keeps about 3 months x 20 days x 9 hours = 540 hours, not a continuous
+range. So direct sun hours sums over days x hours.
 
-1. **Months** — only data from `start_month` through `end_month`.
-2. **Days** — within those months, only days from `start_day` through `end_day`.
-3. **Hours** — within those days, only hours from `start_hour` through `end_hour`.
+## Winter and year windows
 
-Example: `TimePeriod(start_month=6, start_day=1, start_hour=9, end_month=8, end_day=20, end_hour=17)` keeps ~3 months × 20 days × 9 hours = **540 hourly points per year**. (`TimePeriod` is a Pydantic v2 model — pass kwargs only, positional args raise `TypeError`.)
+A window across the new year is **one** `TimePeriod`: `start_month=12 ... end_month=2` keeps
+December, January and February (990 hours at 08 to 18 h). The values come in file order:
+January first. Do not split it. A full-year window is normal for pedestrian wind comfort.
 
-## Which analyses need TimePeriod
+## Which analyses use it
 
-| Analysis                   | TimePeriod | Weather Data |
-| -------------------------- | ---------- | ------------ |
-| Wind Speed                 | No         | No           |
-| Sky View Factors           | No         | No           |
-| Daylight Availability      | Yes | No           |
-| Direct Sun Hours           | Yes | No           |
-| Solar Radiation            | Yes        | Yes          |
-| Thermal Comfort (UTCI)     | Yes        | Yes          |
-| Thermal Comfort Statistics | Yes        | Yes          |
-| Pedestrian Wind Comfort    | Yes (for weather filtering) | Yes (wind speed/direction arrays) |
+| Analysis | TimePeriod | Weather columns |
+|---|---|---|
+| wind speed, sky view factor | no | no |
+| daylight availability, direct sun hours | yes | no (needs location) |
+| solar radiation | yes | direct and diffuse radiation |
+| UTCI, TCS | yes | 7 columns |
+| pedestrian wind comfort | yes (to cut the weather) | wind speed and direction lists |
+| energy balance (interior) | no (one year) | 2 or 4 series |
 
 ## Pitfalls
 
-- Pass the **same** `TimePeriod` to `filter_weather_data()` and the analysis payload — mismatched windows desync weather arrays from the simulation.
-- `end_*` fields are inclusive on each cascade level.
-- **`direct-sun-hours` grid runs: keep `start_hour`–`end_hour` inside daylight for the latitude and month.** Night samples are counted as sun (a 24-hour window reads 24.0 h on open ground). `daylight-availability` filters night out itself; DSH does not. See [`analyses/04-direct-sun-hours.md`](analyses/04-direct-sun-hours.md#keep-the-window-inside-daylight).
-- `TimePeriod` is frozen (Pydantic `frozen=True`); construct a new one to change values.
-- Impossible calendar dates (April 31, June 31, September 31, November 31, February 30), zero-length windows, and `end < start` raise `ValidationError` at construction. February 29 is accepted (no year context). Year-wrap windows (e.g. Nov→Feb) are not supported — split into two periods.
-- `daylight-availability` and `direct-sun-hours` support multi-month and annual windows as of 2026-06-24 (Rust worker cutover). Submit a single job for the full season window.
-
-## See also
-
-- `04-weather-data.md` — feeding weather into payloads
-- `analyses/07-thermal-comfort-utci.md` — UTCI uses TimePeriod + weather
-- `analyses/06-solar-radiation.md` — Solar Radiation uses TimePeriod + weather
+- Use the same `TimePeriod` for the weather filter and for the request.
+- Direct sun hours on the ground: keep the hours inside daylight
+  ([analyses/04-direct-sun-hours.md](analyses/04-direct-sun-hours.md)).
+- `TimePeriod` is frozen. Build a new one to change it.
+- Impossible dates (31 April, 30 February), zero-length windows raise at construction (a window across the new year is valid).
+  29 February is accepted.
+- A gap in your EPW inside the window is an error before you pay. The SDK never fills a gap.

@@ -4,7 +4,7 @@ One simple shape — **two tables (`projects`, `artifacts`) + one blob bucket + 
 
 **The atomic unit of work depends on your app.** For a single-baseline tool (one geometry, one set of inputs, one set of results) the **project** is the atom and you can ignore scenarios entirely. For compare-the-options tools (baseline vs proposed design, hot day vs cold day) the **scenario** is the atom — multiple per project, each with its own inputs and result artifacts. The schema below supports both: every artifact carries an optional `scenario_id` (NULL = project-level), and scenarios live as a JSON list inside the project's `state_json` until you outgrow that and lift them into their own table.
 
-This is the storage layer underneath [`python-fastapi-railway.md`](python-fastapi-railway.md). The frontend pieces in [`typescript-frontend-patterns.md`](typescript-frontend-patterns.md) talk to it via HTTP.
+This is the storage layer underneath [`python-fastapi-railway.md`](python-fastapi-railway.md). The frontend pieces in [`../typescript/map-grid.md`](../typescript/map-grid.md) talk to it via HTTP.
 
 ## What you get
 
@@ -482,6 +482,6 @@ Tradeoff: invoice-at-month-end UX instead of "you have 47 credits left." For hac
 ## See also
 
 - Backend the routes live in: [`python-fastapi-railway.md`](python-fastapi-railway.md)
-- Frontend that consumes these routes: [`typescript-frontend-patterns.md`](typescript-frontend-patterns.md)
-- AI-generated frontend with auth wired up: [`lovable-frontend.md`](lovable-frontend.md)
-- Webhooks (Standard Webhooks v1 verification — same pattern as Stripe): [`../06-webhooks.md`](../06-webhooks.md)
+- Frontend that consumes these routes: [`../typescript/map-grid.md`](../typescript/map-grid.md)
+- AI-generated frontend with auth wired up: [`../building-fast-apps.md`](../building-fast-apps.md)
+- Webhooks (Standard Webhooks v1 verification — same pattern as Stripe): [`https://infrared.city/docs/sdk/1.0/python/webhooks/index.md`](https://infrared.city/docs/sdk/1.0/python/webhooks/index.md)

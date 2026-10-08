@@ -1,41 +1,40 @@
-# Daylight Availability (daylight-availability)
+# Daylight availability (`daylight-availability`)
 
-Fraction of the requested time window for which a ground cell receives sufficient daylight, accounting for building shadowing. No weather data needed — sun position is computed from lat/lon + time period.
-
-## Request
+The share of the time window in which a cell gets enough daylight, with shade from buildings.
+It needs a time period and a location. It needs no weather array.
 
 ```python
-from infrared_sdk import InfraredClient
-from infrared_sdk.analyses.types import SolarModelRequest, AnalysesName
+from infrared_sdk import SolarModelRequest
+from infrared_sdk.analyses.types import AnalysesName
 from infrared_sdk.models import TimePeriod
 
-payload = SolarModelRequest(
+request = SolarModelRequest(
     analysis_type=AnalysesName.daylight_availability,
-    accuracy="standard",  # optional: "standard" (default) or "precision" (finer raytracing, slower)
-    latitude=48.1983,
-    longitude=11.575,
-    time_period=TimePeriod(
-        start_month=6, start_day=1, start_hour=9,
-        end_month=6, end_day=30, end_hour=17,
-    ),
+    latitude=48.208, longitude=16.371,        # required: they set the sun position
+    time_period=TimePeriod(start_month=6, start_day=1, start_hour=9,
+                           end_month=6, end_day=30, end_hour=17),
+    accuracy="standard",                      # or "precision": finer rays, slower
 )
-result = client.run_area_and_wait(payload, polygon, buildings=area.buildings)
+result = client.run_area_and_wait(request, polygon, buildings=buildings)
+daylight = result.physical_grid()             # see the unit note below
 ```
 
-## Response
+`SolarModelRequest` is shared with direct sun hours. Only `analysis_type` differs.
 
-`result.merged_grid` is a 2D `float` array of cumulative **hours of usable daylight** per cell over the requested `TimePeriod` (range: 0 to the period length in hours). Use `min_legend` / `max_legend` for plotting — most cells cluster near the upper bound, so deriving bounds from the grid alone produces washed-out heatmaps.
+## Unit
+
+The grid is the **percent of the window** with enough daylight (0 to 100). A one-day test on a
+single tower gave 28.6 to 100. Stored type: f32. Judge it as a share of the window, never in lux.
 
 ## Pitfalls
 
-- The request class is `SolarModelRequest` (NOT `SolarRadiationModelRequest`). Same class is shared with Direct Sun Hours; only the `analysis_type` enum differs.
-- `latitude` / `longitude` are REQUIRED here — they drive the solar position, unlike SVF/Wind where they are optional.
-- A short `time_period` (a single day) is valid but rarely informative; pick a representative season window.
-- This is daylight, not direct sun hours — for raw sunlit duration use `04-direct-sun-hours.md`.
-- Always plot with `min_legend` / `max_legend`.
+- Not lux. Do not compare it with indoor light standards.
+- Short windows (one day) are valid but rarely useful. Use a season.
+- A year hides winter and summer differences. Pair it with direct sun hours.
+- Daylight availability removes night hours itself. Direct sun hours does not.
+- Facades, roofs, own sensor points and `context_geometry` work here
+  ([../python/surfaces-and-sensors.md](../python/surfaces-and-sensors.md)). In a leaf-off season,
+  trees let more light through.
+- Do not confuse it with the daylight **factor** (an indoor overcast-sky model).
 
-## See also
-
-- For result interpretation -> `interpretation/solar-results.md`
-- For direct sun hours -> `04-direct-sun-hours.md`
-- For time periods -> `03-time-period.md`
+Read the result: [../interpretation/solar-results.md](../interpretation/solar-results.md)

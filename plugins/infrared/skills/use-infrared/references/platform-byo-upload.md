@@ -309,7 +309,7 @@ Do not truncate columns by hand.
 |---|---|---|---|---|---|---|---|---|
 | Holds | month | day | hour | **dry-bulb °C** | RH % | GHI Wh/m² | wind direction ° | wind speed m/s |
 
-See [04-weather-data.md](04-weather-data.md).
+See [python/weather-and-time.md](python/weather-and-time.md).
 
 An uploaded EPW drives the SDK analyses. **AI-backed workflows use weather that
 AIBackend selects** — an EPW upload does not change them.

@@ -283,11 +283,11 @@ Before considering the app done:
 
 ## Related References
 
-- `../00-setup.md`
-- `../02-geometry.md`
+- `../python/quickstart.md`
+- `../geospatial-crs.md`
 - `../03-time-period.md`
-- `../05-area-api.md`
-- `../07-images.md`
+- `../python/quickstart.md`
+- `rendering-results-well.md`
 - `../analyses/01-wind-speed.md`
 - `../analyses/04-direct-sun-hours.md`
 - `../analyses/07-thermal-comfort-utci.md`
