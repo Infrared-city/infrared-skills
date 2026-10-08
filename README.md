@@ -7,6 +7,7 @@
 <p align="center">
   <a href="https://infrared.city/"><b>infrared.city</b></a> &nbsp;·&nbsp;
   <a href="https://infrared.city/docs/sdk/">SDK docs</a> &nbsp;·&nbsp;
+  <a href="#try-it-in-five-minutes">Try it</a> &nbsp;·&nbsp;
   <a href="#install-the-plugin">Install</a> &nbsp;·&nbsp;
   <a href="#what-do-you-want-to-build">Router</a> &nbsp;·&nbsp;
   <a href="#cookbook">Cookbook</a>
@@ -40,6 +41,33 @@ Tools to build with the [Infrared SDK](https://infrared.city/docs/sdk/) (urban m
 2. A **cookbook**. Notebooks, scripts, and small apps. Each one answers one question about a real site.
 
 The skill links to the docs site for API detail. It does not copy it.
+
+## Try it in five minutes
+
+You need an API key from <https://infrared.city>. Set it once: `export INFRARED_API_KEY=...`
+
+**Ask your coding agent.** Install the plugin (next section). Then ask, for example:
+
+- "Make a map of the sky view factor around Karlsplatz, Vienna."
+- "Build me a small web app: I draw an area, press Run, and see thermal comfort on a map."
+- "Write a Grasshopper component that shows summer sun on my facades."
+
+**Run a notebook.**
+
+```bash
+git clone https://github.com/Infrared-city/infrared-skills && cd infrared-skills/cookbook/notebooks
+pip install -r requirements.txt
+jupyter lab 00_quickstart.ipynb
+```
+
+**Run a web app.**
+
+```bash
+cd infrared-skills/cookbook/apps/map-grid
+npm install && npm run dev
+```
+
+Each run shows its cost first (a free preview). One small area is about 10 tokens.
 
 ## Install the plugin
 
