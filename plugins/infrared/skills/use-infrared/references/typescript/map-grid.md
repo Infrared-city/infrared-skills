@@ -73,8 +73,8 @@ new BitmapLayer({
 - Check alignment: the NaN holes must sit on the basemap's buildings.
 - `colour` is your own ramp between the legend bounds (the app has a viridis
   table in `src/ramp.ts`). The SDK has no value-to-colour function.
-- No canvas code? `renderGridPng(grid2d, { analysisType, reverseRows: true })` gives a PNG
-  coloured with the Infrared registry; `grid2d` is `rows` arrays of `cols` values.
+- No canvas code? `await renderGridPng(grid2d, { analysisType, reverseRows: true })` gives a PNG
+  (a `Uint8Array`) coloured with the Infrared registry; `grid2d` is `rows` arrays of `cols` values.
   `reverseRows: true` puts row 0 (south) at the bottom; no-data cells are transparent.
   Use `URL.createObjectURL(new Blob([png]))` as the layer `image`.
 
@@ -88,5 +88,17 @@ Pedestrian wind comfort is classes: use `result.legend`, not a ramp. See
 ## Other analyses
 
 Change `analysisType`. Wind models use a 256 m tile grid with overlap, so the same area
-has more tiles: preview again. Weather analyses also need `weatherData`,
+has more tiles: preview again.
+
+Wind speed: always merge with the directional blend. The default merge crops each
+tile at its centre and leaves visible seams in a wind field:
+
+```ts
+const input = { analysisType: "wind-speed", windSpeed: 5, windDirection: 270 } as const;
+const schedule = await client.runArea(input, polygon, { buildings });
+while (!(await client.checkAreaState(schedule)).isComplete) await new Promise((r) => setTimeout(r, 1000));
+const result = await client.mergeAreaJobs(schedule, { strategy: "directional_blend", windDirectionDeg: input.windDirection });
+```
+
+`mergeAreaJobs` throws when a tile failed: you never get a map with holes. Weather analyses also need `weatherData`,
 `latitude`, `longitude` and `dateFilters` (see [facades-3d.md](facades-3d.md)).

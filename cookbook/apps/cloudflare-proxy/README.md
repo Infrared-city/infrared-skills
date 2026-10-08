@@ -17,7 +17,7 @@ Deploy: `npx wrangler secret put INFRARED_API_KEY`, then `npx wrangler deploy`.
 
 | Path | Goes to | Notes |
 |---|---|---|
-| `/api/ir/*` | `https://api.infrared.city/v2/*` | Adds `X-Api-Key`. Drops `Authorization`, cookies, `Origin`. |
+| `/api/ir/*` | `https://api.infrared.city/v2/*` | Only the routes the SDK calls (`API_ROUTES` in `src/proxy.ts`); all others get 403. Adds `X-Api-Key`. Drops `Authorization`, cookies, `Origin`. |
 | `/api/s3/<host>/<key>` | `https://<host>/<key>` | Result download only. GET/HEAD, results bucket only, no key. |
 | everything else | the static app (`assets`) | `run_worker_first` sends only `/api/*` to the Worker. |
 
@@ -43,6 +43,12 @@ or `auth` the constructor throws. An `auth` that returns no header is accepted.
 
 ## Protection
 
+The proxy spends **your** key for every visitor that it lets through. These
+layers decide who gets through:
+
+- **Route allowlist** (`API_ROUTES` in `src/proxy.ts`): only the calls the SDK makes
+  for upload, submit, status, result download and pricing. Account, key and billing
+  routes get 403. When a new SDK version calls a new route, add it there.
 - **Origin check** (`src/proxy.ts`): a POST must come from the Worker's own origin or
   from `ALLOWED_ORIGINS`. This stops other web pages. It does not stop scripts: a
   script can send any `Origin`.

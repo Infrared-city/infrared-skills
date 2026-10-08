@@ -17,7 +17,8 @@ browser ── PUT presigned upload URL ──> storage, direct (no proxy)
 ```
 
 - **API calls** go through the proxy. It adds `X-Api-Key` and drops the browser's
-  `Authorization`, cookies and `Origin`.
+  `Authorization`, cookies and `Origin`. It forwards only the routes the SDK
+  calls (a strict allowlist). Every other route gets 403.
 - **Result downloads** go through a relay route. They are presigned storage URLs on
   another origin, and the results bucket sends no CORS headers, so the browser
   blocks a direct download. The relay adds no key: the URL carries its signature.
@@ -64,10 +65,33 @@ export default {
 
 1. `Origin` check: a POST must come from the Worker's own origin or `ALLOWED_ORIGINS`.
    This stops other web pages. It does not stop scripts.
-2. `/api/ir/<path>` → `https://api.infrared.city/v2/<path>` with `X-Api-Key: env.INFRARED_API_KEY`.
-3. `/api/s3/<host>/<key>` → GET/HEAD only, `host` must match the results bucket, no key.
+2. Route allowlist: `/api/ir/<path>` is forwarded only when method and path are an
+   SDK call. Any other path or method gets 403.
+3. Allowed calls go to `https://api.infrared.city/v2/<path>` with `X-Api-Key: env.INFRARED_API_KEY`.
+4. `/api/s3/<host>/<key>` → GET/HEAD only, `host` must match the results bucket, no key.
+
+| Method | Path (after `/v2`) | Why the SDK calls it |
+|---|---|---|
+| POST | `/uploads/presign` | Upload URL for the geometry |
+| GET | `/binary/v1/capabilities` | Which geometry formats the API reads |
+| POST | `/binary/v1/async/<analysis>`, `/async/<analysis>` | Submit one job |
+| GET | `/async/jobs?ids=...`, `/async/jobs/<id>` | Job status (batch, one) |
+| GET | `/async/jobs/<id>/results` | Result download URL |
+| GET | `/billing/pricing` | Public price list (preview with live pricing) |
+
+If a later SDK version calls a new route, that call gets 403. Add the route to
+`API_ROUTES` in `src/proxy.ts`.
 
 The apps' Vite dev servers run the same `handleProxy`, so dev = prod.
+Do not start a dev server with `--host`: the dev server holds the real key, and on
+the network a foreign page can pass the `Origin` check.
+
+## Who spends your tokens
+
+The proxy spends **your** key for every visitor that it lets through. The `Origin`
+check stops other web pages, but not scripts. The rate limit caps the speed, not
+the total. For a public app, add a sign-in check in the Worker. Then only your
+signed-in users can start runs.
 
 ## Config and secrets
 
@@ -94,4 +118,5 @@ directly with `apiKey`: CORS applies only in browsers.
 
 `wrangler dev` on a local port, against the production API: one SVF run from the
 map-grid app (1 tile), result drawn. Foreign `Origin` → 403, POST without `Origin`
-→ 403, relay to another host → 403, relay PUT → 403.
+→ 403, relay to another host → 403, relay PUT → 403 or 405, a route that is not
+on the allowlist → 403.

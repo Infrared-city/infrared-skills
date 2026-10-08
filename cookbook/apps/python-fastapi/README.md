@@ -8,7 +8,8 @@ The guide for this app is the
 | File | What it does |
 |---|---|
 | `main.py` | Endpoints, one shared client, background runs, result cache |
-| `analyses.py` | Analysis name -> SDK request. Add analyses here. |
+| `analyses.py` | Analysis name -> SDK request, and the run (wind: directional blend merge). Add analyses here. |
+| `store.py` | Run store: one run per input hash (under a lock), old runs dropped after 1 h |
 | `geometry.py` | Your GeoJSON footprints -> closed building meshes in metres |
 | `sample-site.json` | A 200 m site with three buildings, to test with |
 
@@ -37,7 +38,7 @@ curl -s localhost:8000/runs/9c83e327fd37
 
 # 4. Get the map.
 curl -s localhost:8000/runs/9c83e327fd37/result.png -o svf.png
-curl -s localhost:8000/runs/9c83e327fd37/result.json -o svf.json
+curl -s "localhost:8000/runs/9c83e327fd37/result.json?step=4" -o svf.json   # every 4th cell
 ```
 
 The same inputs again return the same run (`"cached": true`). It is not billed again.
@@ -53,7 +54,8 @@ The same inputs again return the same run (`"cached": true`). It is not billed a
     {"type": "Feature", "id": "a", "properties": {"height": 18},
      "geometry": {"type": "Polygon", "coordinates": [[[lon, lat], ...]]}}
   ]},
-  "public_buildings": false
+  "public_buildings": false,
+  "allow_large": false
 }
 ```
 
@@ -61,7 +63,11 @@ The same inputs again return the same run (`"cached": true`). It is not billed a
   `wind_direction`) or `direct-sun-hours` (`params`: `month`).
 - `buildings`: your footprints in lon/lat, with `height` in metres.
 - `public_buildings`: set it to `true` only when you have no model. Install
-  `infrared-sdk[geodata]==1.0.0` for it.
+  `infrared-sdk[geodata]==1.0.0` for it. Without it, the API answers 422 with
+  the install line.
+- `allow_large`: the SDK refuses more than 100 tiles (HTTP 422). Set it to
+  `true` to run up to 400 tiles. Check the price with `/preview` first.
+- A bad polygon (not one closed ring of `[lon, lat]` points) gets 422.
 
 ## Deploy
 

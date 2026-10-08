@@ -15,6 +15,9 @@ Press **Run** to get the sky view factor of each 1 m ground cell.
 The Vite dev server is the proxy: it adds the key on the server side. The browser
 bundle does not contain the key. For production, see [`../cloudflare-proxy`](../cloudflare-proxy/).
 
+Do not start the dev server with `--host`. The dev server holds the real key; on
+the network, a foreign page can pass its `Origin` check.
+
 ## Files
 
 | File | What it does |
