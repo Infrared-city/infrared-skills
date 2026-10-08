@@ -1,318 +1,400 @@
-# Recipe: Infrared SDK Patterns in Rhino 8 Grasshopper
+# Recipe: Infrared SDK in Rhino 8 Grasshopper
+Use the Python SDK (`infrared-sdk` 1.0.0) from a Grasshopper Python 3 component in Rhino 8 (Mac or Windows, CPython 3.9).
 
-Calling the Python SDK from Rhino 8's Grasshopper Python 3 Script components. Small reusable patterns — paste the ones you need, mix and match. Not a full component template; the goal is a fast on-ramp for anyone building their own.
+This is a toolbox. Take what you need. A small script that blocks the canvas for 5 seconds is fine. A component for 2000 buildings needs most of this file.
 
-## When this applies
+Companion files:
 
-User has Rhino 8 (CPython 3.9 Script Editor) and wants to call the SDK from Grasshopper — typical: fetch buildings/trees/ground for an AOI, submit BYO meshes to a simulation, render the result as a heatmap on the canvas, save outputs next to the `.gh` file. For shipping a compiled `.gha` via Yak, use Rhino's own .NET docs — this recipe is Python-only.
+- [`grasshopper-geometry-and-drawing.md`](grasshopper-geometry-and-drawing.md): Rhino geometry in, results out, fast drawing, bake, per-building statistics.
+- [`grasshopper-pitfalls.md`](grasshopper-pitfalls.md): the short list of traps.
 
-## Install the SDK once per Rhino session
+API detail: https://infrared.city/docs/sdk/ (agents: https://infrared.city/docs/sdk/llms.txt).
 
-Rhino 8 ships **CPython 3.9** in the Script Editor. Install via the `# r:` directive at the top of any one Python 3 script:
+## 1. Install and load the SDK in Rhino
+
+Two facts decide everything here.
+
+- **All Python 3 components in one Rhino session share one Python process.** The first component that imports `infrared_sdk` decides which copy every other component gets. An old SDK in one component of the file breaks all new components.
+- **Rhino caches the environment of a script component.** A changed `# r:` line may not resolve again.
+
+Rules:
+
+- Install with **Rhino's own pip**. System Python 3.11+ gives wheels that Rhino cannot load. `uv` can pick x86_64 wheels on an ARM Mac.
+- Install `pyproj` too. Without it, a projected CRS uses an approximation: no failure, only less exact. `orjson` is optional.
+
+### Option A: the `# r:` header (one component, new file)
 
 ```python
 #! python 3
-# r: infrared-sdk
+# r: infrared-sdk==1.0.0
 ```
 
-Without `# venv:`, the package lands in the shared default env (`~/.rhinocode/py39-rh8/site-envs/default-<id>/`) and **every other Python 3 script in the session** can `import infrared_sdk` with no header. A failed install marks the env with a `.corrupt` sentinel — recover by deleting the env folder. If the SDK isn't on PyPI yet for Python 3.9, build a wheel from source (`uv build --wheel --out-dir <dest>`) and reference it by absolute path: `# r: /abs/path/to/infrared_sdk-x.y.z-py3-none-any.whl`.
+Pin the version. Not for many components in one file.
 
----
+### Option B: one shared folder (many components)
 
-## Pattern 1 — Component scaffold (SDK mode)
+Install once into a folder that you own. Use Rhino's pip.
 
-Always click "Convert to GH_ScriptInstance" in the editor — it auto-derives inputs from the `RunScript` signature and unlocks `BeforeRunScript` lifecycle hooks. The skeleton:
+```bash
+# macOS path. On Windows, use the python.exe in the same py39-rh8 folder.
+~/.rhinocode/py39-rh8/python3.9 -I -m pip install --upgrade \
+    --target ~/infrared-sdk-libs infrared-sdk==1.0.0 pyproj orjson
+```
+
+Put this bootstrap at the top of **every** Infrared component. It puts the folder first on `sys.path` and removes an SDK that another component loaded from somewhere else.
 
 ```python
-#! python 3
-# r: infrared-sdk
+import os, sys
 
-import Grasshopper
+LIBS = os.path.expanduser("~/infrared-sdk-libs")
+if LIBS in sys.path:
+    sys.path.remove(LIBS)
+sys.path.insert(0, LIBS)
 
-class MyComponent(Grasshopper.Kernel.GH_ScriptInstance):
-    def BeforeRunScript(self):
-        # Register outputs here (Pattern 2). Never change topology in RunScript.
-        pass
-
-    def RunScript(self, api_key: str, run: bool):
-        # Inputs auto-add from this signature.
-        # Use `ghenv.Component` (NOT self.Component — that's None in Rhino 8 SDK mode).
-        return None  # return a tuple matched to registered outputs
+loaded = sys.modules.get("infrared_sdk")
+if loaded is not None and not (getattr(loaded, "__file__", "") or "").startswith(LIBS):
+    # Another copy won the import race. Drop it so that the import below reloads.
+    for name in [n for n in sys.modules if n.split(".")[0] == "infrared_sdk"]:
+        del sys.modules[name]
 ```
 
-## Pattern 2 — Auto-register outputs
+To update, run the pip command again and solve the component. Restart Rhino only if a component already imported the SDK in this session.
 
-Inputs auto-derive from the `RunScript` signature; outputs do not. Returning `(a, b, c)` does NOT create three output sockets. Register them programmatically in `BeforeRunScript`:
+### Check what is loaded
 
-```python
-def BeforeRunScript(self):
-    import clr
-    clr.AddReference("RhinoCodePluginGH")
-    from RhinoCodePluginGH.Parameters import ScriptVariableParam
-    import Grasshopper.Kernel as ghk
-    import Rhino
+Use a small probe component when anything looks strange: `a = "%s from %s" % (infrared_sdk.__version__, infrared_sdk.__file__)`.
 
-    desired = [
-        ("polygon", "Poly", "GeoJSON polygon", ghk.GH_ParamAccess.item, str),
-        ("heatmap", "Heat", "Result mesh", ghk.GH_ParamAccess.item, Rhino.Geometry.Mesh),
-    ]
-    params = ghenv.Component.Params
-    if [p.Name for p in params.Output] == [d[0] for d in desired]:
-        return  # idempotent
+## 2. Client, payloads, weather, area run
 
-    while params.Output.Count > 0:
-        params.UnregisterOutputParameter(params.Output[0], True)
-    for name, nick, desc, access, hint_t in desired:
-        p = ScriptVariableParam(name)
-        p.NickName, p.Description, p.Access = nick, desc, access
-        try:
-            p.TypeHints.Select(clr.GetClrType(hint_t))
-        except Exception:
-            pass  # falls back to generic object if T isn't in the catalog
-        p.CreateAttributes()
-        params.RegisterOutputParam(p)
-    ghenv.Component.VariableParameterMaintenance()
-    params.OnParametersChanged()
-    ghenv.Component.Attributes.ExpireLayout()
-```
-
-**Gotchas, paid for in blood:**
-- Use `RhinoCodePluginGH.Parameters.ScriptVariableParam` — NOT stdlib `Param_Mesh` / `Param_String`. The Script runner casts every output to `ScriptVariableParam` and throws otherwise. Diagnostic: any `Unable to cast object of type '...' to type 'ScriptVariableParam'` exception means you used the wrong base class.
-- Topology changes only in `BeforeRunScript`; the GH SDK forbids it during solve.
-- `TypeHints.Select(T)` picks from a fixed catalog: `str`, `int`, `float`, `bool`, `Mesh`, `Curve`, `Brep`, `Point3d`, `Vector3d`, `Plane`, `System.Drawing.Color`. Anything else silently falls back to generic-object — wrap in try/except.
-- **First-solve count race:** the runner caches the expected output count from *before* `BeforeRunScript` fires. Use an adaptive return on the last line of `RunScript`:
-  ```python
-  results = [a, b, c]
-  n = ghenv.Component.Params.Output.Count
-  return tuple(results[:n] + [None] * (n - len(results)))
-  ```
-  Self-heals after the first solve.
-
-## Pattern 3 — Sticky state across recomputes
-
-`scriptcontext.sticky` survives between solves within the Rhino session. Scope keys with `ghenv.Component.InstanceGuid` so duplicated components don't collide:
-
-```python
-import scriptcontext as sc
-SCOPE = "ir::{}".format(ghenv.Component.InstanceGuid)
-sc.sticky[SCOPE + "::last_result"] = result
-prev = sc.sticky.get(SCOPE + "::last_result")
-```
-
-## Pattern 4 — Off-UI-thread work
-
-Rhino 8 Script components do NOT support `# async: true`. The supported async pattern is a worker thread that calls `ExpireSolution(True)` to re-fire the component when the work is done:
-
-```python
-import threading
-
-def _worker(component, key):
-    result = some_long_call()              # SDK call, file I/O, etc.
-    sc.sticky[key] = result
-    component.ExpireSolution(True)         # safe to call from a worker thread
-
-key = SCOPE + "::result"
-if start and key not in sc.sticky:
-    threading.Thread(target=_worker, args=(ghenv.Component, key), daemon=True).start()
-
-result = sc.sticky.pop(key, None)          # consumed on the next solve
-```
-
-Use this for: SDK calls (`run_area_and_wait` blocks for 30s–5min), browser pickers (next pattern), file I/O — anything that shouldn't freeze the GH canvas.
-
-## Pattern 5 — Browser-based AOI picker
-
-A real basemap beats hand-typed bounding boxes. Open the user's browser to an inline Leaflet page served from an in-process `http.server`, POST the GeoJSON back, stash in sticky, re-fire the component. This same shape (in-process server + native browser) is a generic UI escape hatch any time GH's native widgets aren't enough — color pickers, parameter sliders, data tables — not just AOI picking.
-
-```python
-import socket, threading, webbrowser, json
-from http.server import BaseHTTPRequestHandler, HTTPServer
-
-PICKER_HTML = b"""<!doctype html>...inline Leaflet + leaflet-draw; POST /polygon..."""
-
-def start_picker(component, sticky_key):
-    s = socket.socket(); s.bind(("127.0.0.1", 0))
-    port = s.getsockname()[1]; s.close()
-
-    class H(BaseHTTPRequestHandler):
-        def do_GET(self):
-            self.send_response(200); self.end_headers(); self.wfile.write(PICKER_HTML)
-        def do_POST(self):
-            n = int(self.headers.get("Content-Length", 0))
-            sc.sticky[sticky_key] = json.loads(self.rfile.read(n))
-            self.send_response(200); self.end_headers()
-            component.ExpireSolution(True)
-        def log_message(self, *a): pass  # silence the default stdout spam
-
-    srv = HTTPServer(("127.0.0.1", port), H)
-    threading.Thread(target=srv.serve_forever, daemon=True).start()
-    webbrowser.open("http://127.0.0.1:{}/".format(port))
-```
-
-**Learnings:**
-- `ExpireSolution(True)` from a worker thread is supported and reliable.
-- Pick a free port with `socket.bind(("127.0.0.1", 0))` — never hardcode one.
-- Stash a `last_pick` boolean in sticky and fire only on the **rising edge** of the input boolean — otherwise the picker reopens on every recompute.
-- The server keeps running until Rhino exits. Pro: reusable across solves with no warm-up. Con: shut it down explicitly (`srv.shutdown()`) if you care about port reuse during one session.
-- Scope every sticky key by `InstanceGuid` (Pattern 3) — duplicating the component otherwise hijacks the original's state.
-
-## Pattern 6 — DotBim ↔ Rhino Mesh
-
-The SDK accepts and returns building/vegetation geometry as flat DotBim arrays. Two short helpers cover both directions:
-
-```python
-def dotbim_to_mesh(coords, indices):
-    import Rhino.Geometry as rg
-    m = rg.Mesh()
-    for i in range(0, len(coords), 3):
-        m.Vertices.Add(coords[i], coords[i+1], coords[i+2])
-    for i in range(0, len(indices), 3):
-        m.Faces.AddFace(int(indices[i]), int(indices[i+1]), int(indices[i+2]))
-    m.Normals.ComputeNormals(); m.Compact()
-    return m
-
-def mesh_to_dotbim(mesh, mesh_id):
-    coords, indices = [], []
-    for v in mesh.Vertices:
-        coords.extend([float(v.X), float(v.Y), float(v.Z)])
-    for f in mesh.Faces:
-        if f.IsTriangle:
-            indices.extend([int(f.A), int(f.B), int(f.C)])
-        else:  # triangulate quads
-            indices.extend([int(f.A), int(f.B), int(f.C),
-                            int(f.A), int(f.C), int(f.D)])
-    return {"mesh_id": int(mesh_id), "coordinates": coords, "indices": indices}
-```
-
-Pass to the SDK as `client.run_area_and_wait(payload, polygon, buildings={"0": dotbim_dict, "1": ...})`. Keys are stringified ints.
-
-## Pattern 7 — Locate the .gh file
-
-For saving outputs next to the user's project, ask Grasshopper for its document path:
+### Client
 
 ```python
 import os
-def gh_doc_dir():
-    doc = ghenv.Component.OnPingDocument()
-    if doc and doc.FilePath:
-        return os.path.dirname(doc.FilePath)
-    return os.path.expanduser("~/Desktop")  # unsaved-file fallback
+from infrared_sdk import InfraredClient
 
-out_dir = os.path.join(gh_doc_dir(), "ir_results")
-os.makedirs(out_dir, exist_ok=True)
+def make_client(api_key=""):
+    key = (api_key or os.environ.get("INFRARED_API_KEY") or "").strip()
+    if not key:
+        raise RuntimeError("No API key. Wire a Panel with your key.")
+    return InfraredClient(api_key=key)
 ```
 
-## Pattern 8 — Save PNG / GeoTIFF
+- One client for each thread (not thread-safe). Close it in `finally`, after you read the result.
 
-**Use Pillow, not `Bitmap.SetPixel`** — the .NET per-pixel API takes ~5–15 seconds for a 512×512 grid; Pillow finishes in well under a second.
+### Payloads
+
+| Analysis | Class | `analysis_type` for `preview_area` |
+|---|---|---|
+| Wind speed | `WindModelRequest` | `wind-speed` |
+| Pedestrian wind comfort | `PwcModelRequest` | `pedestrian-wind-comfort` |
+| Solar radiation | `SolarRadiationModelRequest` | `solar-radiation` |
+| Sun hours, daylight availability | `SolarModelRequest` | `direct-sun-hours`, `daylight-availability` |
+| Sky view factor | `SvfModelRequest` | `sky-view-factors` |
+| UTCI | `UtciModelRequest` | `thermal-comfort-index` |
+| Thermal comfort statistics | `TcsModelRequest` | `thermal-comfort-statistics` |
+| Daylight factor (interior) | `DaylightFactorModelRequest` | single job, see below |
+
+`AnalysesName` holds the names (`AnalysesName.solar_radiation`, and so on). Import the classes from `infrared_sdk.analyses.types`.
+
+### Weather
+
+Two sources: your own EPW file, or the public station catalog. Your file is read on your machine. Nothing is uploaded.
 
 ```python
-# r: Pillow
-from PIL import Image
-import numpy as np
+from infrared_sdk import parse_epw
+from infrared_sdk.analyses.types import AnalysesName, UtciModelBaseRequest, UtciModelRequest
+from infrared_sdk.models import Location, TimePeriod
 
-# Color your grid into an HxWx4 RGBA array (vectorise the ramp), then:
-img = Image.fromarray(np.flipud(rgba), "RGBA")   # flipud → north-up PNG
-img.save(os.path.join(out_dir, "{}.png".format(stamp)))
+epw = parse_epw("site.epw")                    # a gap in the data raises: do not catch it
+period = TimePeriod(start_month=6, start_day=1, start_hour=8,
+                    end_month=8, end_day=31, end_hour=18)
+payload = UtciModelRequest.from_weatherfile_payload(
+    payload=UtciModelBaseRequest(analysis_type=AnalysesName.thermal_comfort_index),
+    location=Location(latitude=lat, longitude=lon),
+    time_period=period,
+    weather_data=epw,
+)
 ```
 
-For a real GeoTIFF (QGIS-ready), add `# r: rasterio` once (heavy ~30s install, one-shot):
+A winter window (1 Dec to 28 Feb) is one `TimePeriod`.
+Catalog weather, when you have no file:
 
 ```python
-# r: rasterio
-import rasterio
-from rasterio.transform import from_bounds
-
-# AreaResult.bounds = (lon_min, lat_min, lon_max, lat_max)
-with rasterio.open(path, "w", driver="GTiff",
-                   height=h, width=w, count=1, dtype=grid.dtype,
-                   crs="EPSG:4326",
-                   transform=from_bounds(lon_min, lat_min, lon_max, lat_max, w, h)) as dst:
-    dst.write(np.flipud(grid), 1)  # GeoTIFF row 0 = north; SDK grid row 0 = south
+stations = client.weather.get_weather_file_from_location(lat=lat, lon=lon, radius=50)
+rows = client.weather.filter_weather_data(identifier=stations[0]["uuid"], time_period=period)
+# Pass `rows` as weather_data=. Read the weather once and reuse it for all variants.
 ```
 
-A 2-line JSON sidecar (analysis type, bounds, legend min/max, timestamp) saved alongside the PNG covers the case where the user later wants `gdal_translate` to promote PNG → GeoTIFF.
-
-## Pattern 9 — Heatmap mesh from a numpy grid
-
-Project the SDK's lon/lat bounds to local meters (equirectangular is fine for AOIs ≲ 5 km), build a vertex grid, color each vertex, add quad faces. GH's canvas previews vertex-colored meshes directly:
+Solar radiation uses the same call. Start from a plain base payload, then add the facade and roof fields:
 
 ```python
-import math, Rhino.Geometry as rg
+from typing import Literal
+from infrared_sdk.analyses.types import BaseAnalysisPayload, SolarRadiationModelRequest
 
-# SDK grid is SW-anchored: merged_grid[0, 0] = south + west.
-def grid_to_mesh(grid, bounds_lonlat, lo, hi, ramp):
-    h, w = grid.shape
-    lon_min, lat_min, lon_max, lat_max = bounds_lonlat
-    R = 6378137.0
-    def to_xy(lon, lat, lon0, lat0):
-        x = (lon - lon0) * math.cos(math.radians(lat0)) * math.pi / 180 * R
-        y = (lat - lat0) * math.pi / 180 * R
-        return x, y
-    lon0, lat0 = (lon_min + lon_max) / 2, (lat_min + lat_max) / 2
-    x0, y0 = to_xy(lon_min, lat_min, lon0, lat0)
-    x1, y1 = to_xy(lon_max, lat_max, lon0, lat0)
-    dx, dy = (x1 - x0) / max(w - 1, 1), (y1 - y0) / max(h - 1, 1)
-
-    m = rg.Mesh()
-    for j in range(h):
-        for i in range(w):
-            m.Vertices.Add(x0 + i * dx, y0 + j * dy, 0.0)  # j=0 → south, matches SDK
-    for j in range(h):
-        for i in range(w):
-            v = grid[j, i]
-            m.VertexColors.Add(*((180, 180, 180) if v != v else ramp(v, lo, hi)))
-    for j in range(h - 1):
-        for i in range(w - 1):
-            a = j * w + i
-            m.Faces.AddFace(a, a + 1, a + w + 1, a + w)
-    m.Normals.ComputeNormals(); m.Compact()
-    return m
+base = BaseAnalysisPayload[Literal[AnalysesName.solar_radiation]](
+    analysis_type=AnalysesName.solar_radiation)
+payload = SolarRadiationModelRequest.from_weatherfile_payload(
+    payload=base, location=Location(latitude=lat, longitude=lon),
+    time_period=period, weather_data=epw)
+payload = payload.model_copy(update={
+    "analysis_surfaces": "all",     # "facades" | "roofs" | "all"
+    "surface_grid_size": 2.0,       # metres; 1.0 gives 4x the cells
+})
 ```
 
-`ramp(v, lo, hi)` returns an `(r, g, b)` int tuple — keep your color logic in one place so PNG and mesh paths stay consistent.
+Sky view factor needs no weather. `SvfModelRequest(analysis_type="sky-view-factors", analysis_surfaces="facades", surface_grid_size=3.0)` is a complete facade payload.
 
-## Pattern 10 — Visible logging
+### Preview, then run
 
-Three places — pipe to all three so the user finds the failure no matter where they look:
+`preview_area` is free and local. Call it before every paid run. Pass `analysis_type` and `payload` as keywords.
 
 ```python
-import time, Rhino, Grasshopper
-LOG_KEY = SCOPE + "::log"
+preview = client.preview_area(polygon, analysis_type="thermal-comfort-index",
+                              payload=payload, buildings=buildings)
+print(preview.tile_count, preview.would_bill_jobs, preview.sensor_count,
+      preview.estimated_cost_tokens)
 
-def log(msg):
-    line = "[{}] {}".format(time.strftime("%H:%M:%S"), msg)
-    print(line)                                                # editor panel
-    Rhino.RhinoApp.WriteLine("[ir] " + line)                   # Rhino command line
-    sc.sticky[LOG_KEY] = sc.sticky.get(LOG_KEY, "") + line + "\n"
-
-# At the end of RunScript, surface the whole log on the component bubble:
-ghenv.Component.AddRuntimeMessage(
-    Grasshopper.Kernel.GH_RuntimeMessageLevel.Remark,
-    sc.sticky.get(LOG_KEY, ""))
+result = client.run_area_and_wait(
+    payload, polygon,                     # polygon: GeoJSON, WGS84 [lon, lat]
+    buildings=buildings,                  # see grasshopper-geometry-and-drawing.md
+    on_progress=lambda st: stage("server %d/%d" % (st.succeeded, st.total)),
+    on_accepted=lambda job_id, *_: save_job_id(job_id),   # log what the server took
+    max_workers=8,                        # submit pool; split it between parallel variants
+    retries=1,                            # failed tiles run once more
+)
 ```
 
-The yellow "i" (Remark) bubble is the most discoverable for non-coders — they hover, they see the log without opening the Script Editor.
+- `payload` can be a **list**. Analyses on the same site share one geometry upload.
+- A failed tile raises `AreaRunError`. There is no partial map.
+- Write the job IDs to a file in `on_accepted`. After a Rhino crash you still know what the server took.
+- Ground analyses give an `AreaResult`. Facade analyses give a `SurfaceAnalysisResult`.
+- Wind and PWC: when the buildings sit on terrain, set `terrain_alignment="to-ground"`. They refuse `ground_geometry`.
+- Comfort materials (UTCI and TCS only): `wall_albedo`, `wall_absorptivity`, `canopy_transmissivity`, `ground_albedo`, `ground_dt_max`.
 
-## Pitfalls
+### Daylight factor: one job
 
-- **`run_area_and_wait` blocks the GH solve thread** for 30s–5min depending on AOI size. Wrap in Pattern 4 for anything beyond a one-off demo.
-- **`Bitmap.SetPixel` is slow** on grids over ~100×100. Always use Pillow (Pattern 8).
-- **Topology changes only in `BeforeRunScript`** — never add/remove params during solve.
-- **First-solve count race** — use the adaptive return pattern (Pattern 2).
-- **`ghenv.Component`, not `self.Component`** — the latter is None in Rhino 8 SDK mode.
-- **Sticky keys collide** between duplicated components unless scoped by `InstanceGuid` (Pattern 3).
-- **`# async: true` doesn't work** on Script components — use threading + `ExpireSolution(True)`.
-- **Grid orientation:** SDK `merged_grid[0, 0]` is the **SW** corner. Flip rows for any image format that expects row 0 = top (PNG, JPEG); leave alone for GIS formats with proper transforms (GeoTIFF).
-- **Localhost / enterprise gateway `base_url` (0.4.10+):** `InfraredClient(api_key=..., base_url="http://localhost:8000/api")` works without a `/v2` suffix. The `/v2` requirement only applies when overriding via `INFRARED_BASE_URL` to point at the standard cloud endpoint.
+Interior daylight factor is one job for one building, not a map. Send the walls, slabs and windows as closed meshes in metres. `interior_entities` wraps them with a category.
 
-## When NOT to use this recipe
+```python
+from infrared_sdk import PartsRunError, interior_entities
+from infrared_sdk.analyses.types import DaylightFactorModelRequest
 
-- **Production `.gha` plugin** — out of scope; see Rhino's own Yak / .NET docs.
-- **High-frequency real-time interaction** (live wind preview, etc.) — wrong tool; reach for Hops or a WebSocket bridge.
-- **Rhino 7 (IronPython 2.7)** — the SDK doesn't support Py2; everything above assumes Rhino 8 CPython 3.9.
+# Each argument is {id: {"coordinates": [...], "indices": [...]}} from your Rhino objects.
+barriers = {**interior_entities(walls, category="wall"),
+            **interior_entities(slabs, category="floor")}
+payload = DaylightFactorModelRequest(
+    analysis_type=AnalysesName.daylight_factor,
+    barriers=barriers,
+    openings=interior_entities(windows, category="window"),   # glazing in the plane of the wall
+    floors=list(range(n_floors)),
+    grid_size=0.5,                    # sensor spacing in metres
+    analysis_height=0.8,              # check this against your sill height
+    context_geometry=interior_entities(neighbours),           # shade only
+)
+try:
+    result = client.analyses.run_and_wait(
+        payload, timeout=600,
+        on_progress=lambda s: stage("server %d/%d" % (s.succeeded, s.total)))
+except PartsRunError as exc:          # a large building runs in parts: send only the failed ones
+    result = client.analyses.run_and_wait(payload, retry_from=exc.schedule)
+```
 
-## See also
+Keep the wall solid and put the window in its plane. Sensor surfaces must be horizontal. Add `context_geometry`, or the rooms read too bright.
 
-- [`byo-inputs.md`](../byo-inputs.md) — general BYO data shapes (DotBim format).
-- [`interpretation/grid-conventions.md`](../interpretation/grid-conventions.md) — authoritative `merged_grid` layout, NaN handling, lon/lat corner ordering.
+## 3. The non-blocking component
+
+### Why
+
+A component that calls `run_area_and_wait` on the UI thread freezes Grasshopper for the whole run. A background thread fixes this. A naive one fails in these ways:
+
+- A saved file with the `run` toggle ON starts a **paid** run when somebody opens the file.
+- Two components that draw at the same time can crash Rhino on macOS.
+- A worker thread that touches the Rhino document or the canvas crashes Rhino at random.
+
+### Rules
+
+- **Run on the rising edge only.** Start when `run` goes from OFF to ON. Never on the level.
+- **Split the work by thread.**
+  - UI thread (the solve): read the Rhino document, convert geometry, draw, bake.
+  - Worker thread: network only (weather, upload, wait, download). Pure numpy work is safe there too.
+- **Never block the UI thread.** No `join()`. No lock with a timeout. Use `lock.acquire(False)` and try later.
+- **Wake the component from the UI thread**, with `ScheduleSolution`. Never call `ExpireSolution` from the worker.
+- **Keep state in `scriptcontext.sticky`**, keyed by the component `InstanceGuid` and a **version** string. Change the version when the stored shapes change.
+- **Put `infrared_sdk.__version__` into the input fingerprint.** A result from another SDK version has other classes.
+- **One heavy draw at a time** across all Infrared components. Use one shared lock in `sticky`.
+- **Progress must not re-solve.** A `ScheduleSolution` for each progress tick re-runs every downstream component. Update only `comp.Message` and repaint. Solve once when the job is done.
+- **Keep paid results.** A finished result stays in `sticky` until the inputs change. A failed draw does not lose it.
+- **Make errors sticky.** Store the error with the input fingerprint. Show it on every solve until the inputs change.
+- **Log elapsed seconds** (`[ 12.3s] stage`) and write the log to a file.
+
+### Recipe: the state machine
+
+`prepare()`, `run_analysis()` and `finish()` are yours.
+
+```python
+import threading, time, traceback
+import Grasshopper, Rhino, System
+import scriptcontext as sc
+
+DRAW_LOCK = sc.sticky.setdefault("ir::draw_lock", threading.Lock())   # shared by ALL components
+VERSION = "v1"                                                        # bump when sticky shapes change
+
+
+def on_ui(fn):
+    """Run fn on the Rhino UI thread. Safe to call from a worker."""
+    Rhino.RhinoApp.InvokeOnUiThread(System.Action(fn))
+
+
+def resolve_later(comp, delay=10):
+    """Ask for ONE new solve. Never blocks the caller."""
+    def expire(doc):
+        if doc.FindObject(comp.InstanceGuid, True) is not None:   # the component may be deleted
+            comp.ExpireSolution(False)
+
+    def schedule():
+        doc = comp.OnPingDocument()
+        if doc is not None:
+            doc.ScheduleSolution(delay, Grasshopper.Kernel.GH_Document.GH_ScheduleDelegate(expire))
+
+    on_ui(schedule)
+
+
+def repaint(comp, text):
+    """Update the label only. No solve, so downstream components stay quiet."""
+    def paint():
+        comp.Message = text
+        comp.OnDisplayExpired(True)
+    on_ui(paint)
+
+
+def solve(comp, inputs):
+    scope = "ir_x::%s::%s" % (VERSION, comp.InstanceGuid)
+    job_key, last_key, edge_key = scope + "::job", scope + "::last", scope + "::run_prev"
+
+    # 1. Rising edge. The first solve after open sees prev == run, so a saved ON toggle never runs.
+    prev = sc.sticky.get(edge_key, bool(inputs["run"]))
+    sc.sticky[edge_key] = bool(inputs["run"])
+    armed = bool(inputs["run"]) and not prev
+
+    last = dict(sc.sticky.get(last_key) or {})
+    job = sc.sticky.get(job_key)
+
+    # 2. Finished job: draw on the UI thread, one component at a time.
+    if job is not None and job["state"] == "done":
+        if not DRAW_LOCK.acquire(False):
+            comp.Message = "waiting for another Infrared component"
+            resolve_later(comp, 500)
+            return last
+        try:
+            sc.sticky.pop(job_key, None)
+            out = finish(comp, job, inputs)              # yours: show or bake
+            sc.sticky[last_key] = out
+            return out
+        finally:
+            DRAW_LOCK.release()
+
+    # 3. Running job: show the last result. The worker repaints the label.
+    if job is not None:
+        return last
+
+    # 4. Idle, or start a new run.
+    if not armed:
+        comp.Message = "ready"
+        return last
+    ctx = prepare(comp, inputs)                           # yours: UI thread, reads the document
+    start(comp, job_key, ctx)
+    comp.Message = "running"
+    return last
+
+
+def start(comp, job_key, ctx):
+    job = {"state": "running", "stage": "starting", "t0": time.perf_counter(), "lines": []}
+
+    def stage(name):
+        job["stage"] = name
+        repaint(comp, "%.0fs  %s" % (time.perf_counter() - job["t0"], name))
+
+    def work():
+        try:
+            job["result"] = run_analysis(ctx, stage)     # yours: network only, no document access
+        except Exception as exc:
+            job["exc"] = exc
+            job["lines"].append(traceback.format_exc())
+        finally:
+            job["state"] = "done"
+            resolve_later(comp)                          # the one solve at the end
+
+    sc.sticky[job_key] = job
+    threading.Thread(target=work, name="ir-run", daemon=True).start()
+```
+
+### Recipe: sticky error bubble
+```python
+def flag(key, fp, level, text):
+    sc.sticky[key] = {"fp": fp, "level": level, "text": text}
+
+def show_flag(comp, key, fp):
+    prob = sc.sticky.get(key)
+    if prob and prob["fp"] != fp:          # the inputs changed: forget the old problem
+        sc.sticky.pop(key, None)
+    elif prob:
+        comp.AddRuntimeMessage(prob["level"], prob["text"])
+```
+
+`fp` is a `repr()` of everything that changes the result: key, time period, surfaces, legend pins, object IDs, grid size and `infrared_sdk.__version__`. `level` is a `Grasshopper.Kernel.GH_RuntimeMessageLevel` value.
+
+### Recipe: reuse paid results for each variant
+```python
+kept = sc.sticky.get(raw_key)                        # (fingerprint, {variant: result})
+raws = dict(kept[1]) if kept and kept[0] == ctx["fp"] else {}
+todo = [n for n in names if n not in raws]           # only new or failed variants run again
+```
+
+**Debounce.** If a slider drives a costly step, store `(fingerprint, first time seen)`. Start the step when the fingerprint did not change for 0.5 s.
+
+### Traps
+
+- `Rhino.RhinoDoc.ActiveDoc` is `None` for a new, unsaved file on macOS. Use `Rhino.RhinoDoc.OpenDocuments()[0]`.
+- `Layers.Modify` in a loop can crash the Layers panel on Rhino Mac. Do not change layers in code. Tell the user instead.
+- Never patch SDK functions inside the shared Rhino process. It breaks every other component.
+
+## 4. Settings panels instead of many sliders
+
+For a component with many options, use one **text input** in list access. A Panel on the canvas holds one key on each line:
+
+```
+analysis: utci          # solar | sun-hours | daylight | svf | utci | tcs | wind | pwc
+months: jun-aug         # 6 | 6-8 | Jun | Dec-Feb
+hours: 9 - 17
+legend: 26..46          # auto | low..high
+```
+
+Make the parser forgiving (any case, `:` or `=`, `#` comments, month names, `6-8` or `6..8`). An unknown key gives a warning with "did you mean". A bad value gives an error bubble that names the key. Several panels merge in order: a preset panel first, then a small override panel. Keep one table with a row for each analysis (name, unit, default legend, facade support).
+
+## 5. Migrating a 0.5.1 script
+
+The full upgrade steps are in `UPGRADING.md` in the SDK repository. The docs home is https://infrared.city/docs/sdk/ (there is no separate upgrade page). Do these steps in order.
+
+1. **Load path.** Use section 1. Make sure no 0.5.1 component stays in the same file.
+2. **Imports.** The modules `infrared_sdk.tiling.merger`, `merger_smart` and `terrain_envelope` are gone. So are the old `transforms` and `terrain_slice` helpers. Use `run_area_and_wait`, or `client.merge_area_jobs(schedule)`.
+3. **Grids.** Never read `result.merged_grid` for numbers. Use `result.physical_grid(np.float32)`. The grid is read-only.
+4. **Facades.** Replace loops over `result.surfaces` with `result.columns` and `columns.render_buffers()`.
+5. **Payload arguments.** UTCI and TCS requests now refuse unknown keywords. Fix the typos that this shows.
+6. **Buildings.** Each entry needs `coordinates` and `indices`. A bad entry now raises before submit.
+7. **Ground materials.** Keys are `asphalt`, `concrete`, `soil`, `vegetation`, `water`. An unknown key raises `ValueError`.
+8. **Weather.** A private weather identifier does not work. Use `parse_epw("file.epw")`.
+9. **Workers.** The default `max_workers` is 8 (was 20).
+10. **Saved state.** Schedules, `config_hash` values and layouts from 0.5.x do not load. Run again. Version your sticky keys.
+11. **Compare.** Do not compare facade values with 0.5.1 sensor by sensor. Wall orientation, grid alignment and mesh cleaning changed.
+
+| 0.5.1 | 1.0 |
+|---|---|
+| `np.nanmin(result.merged_grid)`, `grid += x` | `g = result.physical_grid(np.float32)` |
+| `merge_area_jobs(schedule, dtype=...)` | no `dtype=`; use `physical_grid(dtype)` |
+| `result.surfaces[...]` loops | `result.columns`, `columns.render_buffers()` |
+| `np.isnan(columns.values[i])` | `columns.has_value(i)` |
+| `client.api_key` as text | `client.api_key.get_secret_value()` |
+| daylight factor gives a dict | gives `DaylightFactorResult` (`.to_json()` for a dict) |
+| `retry_from=` an old schedule | refused: start a new run |
+| `WeatherDataPoint.znithLuminance` | `.zenithLuminance` |
+| `buildings.get_area(polygon)` | reads public data on your machine; needs `infrared-sdk[geodata]` |
