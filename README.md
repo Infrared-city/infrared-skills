@@ -12,7 +12,25 @@
   <a href="#cookbook">Cookbook</a>
 </p>
 
+<p align="center">
+  <img alt="plugin 1.0.0" src="https://img.shields.io/badge/plugin-1.0.0-0b7285" />
+  <a href="https://pypi.org/project/infrared-sdk/"><img alt="PyPI infrared-sdk" src="https://img.shields.io/pypi/v/infrared-sdk?label=infrared-sdk" /></a>
+  <a href="https://www.npmjs.com/package/@infrared-city/infrared-sdk-ts"><img alt="npm infrared-sdk-ts" src="https://img.shields.io/npm/v/@infrared-city/infrared-sdk-ts?label=infrared-sdk-ts" /></a>
+</p>
+
 ---
+
+## New in 1.0
+
+- **SDK 1.0, Python and TypeScript.** The skill and every example use `infrared-sdk` 1.0 and `@infrared-city/infrared-sdk-ts` 1.0. All code ran against the live API.
+- **Start from your goal.** A router sends you to the right path: Grasshopper, notebook, web app, app for many users, or backend.
+- **Nine case-study notebooks.** Real sites, basemaps, 3D facades, design variants. Your own model first, public data as the fallback.
+- **Web apps in minutes.** A map with a Run button, a 3D facade viewer, and a Cloudflare Worker that keeps your API key secret. Plus a FastAPI backend.
+- **Fast by design.** One page on how to get the most speed: upload once, let the SDK poll, preview first, threads and workers, what one account can do.
+- **Grasshopper, rewritten.** A non-blocking component, fast mesh drawing and facade textures.
+- **Docs for agents.** The skill links to <https://infrared.city/docs/sdk/> and its `llms.txt`, so agents read the current API.
+
+Using SDK 0.5.x? Use branch [`sdk-0.5.x`](https://github.com/Infrared-city/infrared-skills/tree/sdk-0.5.x). See [Compatibility](#compatibility).
 
 ## What this is
 
