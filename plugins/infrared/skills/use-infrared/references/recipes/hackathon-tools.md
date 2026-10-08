@@ -19,18 +19,18 @@ Quick-start recipes for hackathons, demos, internal tools, and small apps — op
 | You want | Read |
 |---|---|
 | A Node / Bun / Worker route, no Python backend | [../typescript/quickstart.md](../typescript/quickstart.md) |
-| A Python backend you can call from any frontend | [python-fastapi-railway.md](python-fastapi-railway.md) |
+| A Python backend you can call from any frontend | [python-fastapi-app.md](python-fastapi-app.md) |
 | A browser app (map grid, 3D facades) | [../typescript/map-grid.md](../typescript/map-grid.md), [../typescript/facades-3d.md](../typescript/facades-3d.md), [../building-fast-apps.md](../building-fast-apps.md) |
-| Persist projects + add users + charge credits | [persistence-and-users.md](persistence-and-users.md) + [python-fastapi-railway.md](python-fastapi-railway.md) |
+| Persist projects + add users + charge credits | [persistence-and-users.md](persistence-and-users.md) + [python-fastapi-app.md](python-fastapi-app.md) |
 | Charge users + handle EU VAT for me | [persistence-and-users.md](persistence-and-users.md) **Billing shortcuts → Polar** |
-| Everything on one platform (Railway) | python-fastapi-railway + persistence-and-users **Path B** |
-| Everything on one platform (Supabase, magic-link auth) | python-fastapi-railway + persistence-and-users **Path C** |
-| Zero ops, just SQLite + local files | python-fastapi-railway + persistence-and-users **Path A** |
+| Everything on one platform (Railway) | python-fastapi-app + persistence-and-users **Path B** |
+| Everything on one platform (Supabase, magic-link auth) | python-fastapi-app + persistence-and-users **Path C** |
+| Zero ops, just SQLite + local files | python-fastapi-app + persistence-and-users **Path A** |
 
 ## What each recipe covers
 
 - **[../typescript/quickstart.md](../typescript/quickstart.md)** — the TypeScript SDK in Node, Bun or a Worker: `initializeCore`, client, preview, helper.
-- **[python-fastapi-railway.md](python-fastapi-railway.md)** — Python FastAPI that wraps the SDK (being merged into python-fastapi-app.md) and deploys to Railway (or Render). Project layout, `pydantic-settings`, CORS, secret management, deploy literals.
+- **[python-fastapi-app.md](python-fastapi-app.md)** — Python FastAPI that wraps the SDK (being merged into python-fastapi-app.md) and deploys to Railway (or Render). Project layout, `pydantic-settings`, CORS, secret management, deploy literals.
 - **[../typescript/map-grid.md](../typescript/map-grid.md)** — a ground grid on a map, with a legend and a Run button.
 - **[persistence-and-users.md](persistence-and-users.md)** — two-table schema (`projects` + `artifacts`). Three swap paths: SQLite + local-fs, Railway Postgres + Buckets, Supabase. Adds `users` + `credit_ledger` + Stripe webhook stub.
 - **[../building-fast-apps.md](../building-fast-apps.md)** — one worker, upload reuse, preview, baked samples, key proxy.

@@ -4,7 +4,7 @@ One simple shape — **two tables (`projects`, `artifacts`) + one blob bucket + 
 
 **The atomic unit of work depends on your app.** For a single-baseline tool (one geometry, one set of inputs, one set of results) the **project** is the atom and you can ignore scenarios entirely. For compare-the-options tools (baseline vs proposed design, hot day vs cold day) the **scenario** is the atom — multiple per project, each with its own inputs and result artifacts. The schema below supports both: every artifact carries an optional `scenario_id` (NULL = project-level), and scenarios live as a JSON list inside the project's `state_json` until you outgrow that and lift them into their own table.
 
-This is the storage layer underneath [`python-fastapi-railway.md`](python-fastapi-railway.md). The frontend pieces in [`../typescript/map-grid.md`](../typescript/map-grid.md) talk to it via HTTP.
+This is the storage layer underneath [`python-fastapi-app.md`](python-fastapi-app.md). The frontend pieces in [`../typescript/map-grid.md`](../typescript/map-grid.md) talk to it via HTTP.
 
 ## What you get
 
@@ -16,7 +16,7 @@ This is the storage layer underneath [`python-fastapi-railway.md`](python-fastap
 
 ## Target Stack
 
-- Python 3.11+, FastAPI (continues from [`python-fastapi-railway.md`](python-fastapi-railway.md)).
+- Python 3.11+, FastAPI (continues from [`python-fastapi-app.md`](python-fastapi-app.md)).
 - `sqlalchemy>=2.0` + `alembic` for schema; works against SQLite, Postgres, MySQL with one connection-string change.
 - `boto3` for S3-compatible blob storage (works for Railway Buckets, Backblaze B2, R2, Supabase Storage S3 endpoint).
 - Path A: nothing else. Path B: Railway. Path C: Supabase + `supabase-py`.
@@ -328,7 +328,7 @@ class CreditLedger(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 ```
 
-Deduct on sim run — wrap the existing wrapper from [`python-fastapi-railway.md`](python-fastapi-railway.md):
+Deduct on sim run — wrap the existing wrapper from [`python-fastapi-app.md`](python-fastapi-app.md):
 
 ```python
 # app/services/billing.py
@@ -481,7 +481,7 @@ Tradeoff: invoice-at-month-end UX instead of "you have 47 credits left." For hac
 
 ## See also
 
-- Backend the routes live in: [`python-fastapi-railway.md`](python-fastapi-railway.md)
+- Backend the routes live in: [`python-fastapi-app.md`](python-fastapi-app.md)
 - Frontend that consumes these routes: [`../typescript/map-grid.md`](../typescript/map-grid.md)
 - AI-generated frontend with auth wired up: [`../building-fast-apps.md`](../building-fast-apps.md)
 - Webhooks (Standard Webhooks v1 verification — same pattern as Stripe): [`https://infrared.city/docs/sdk/1.0/python/webhooks/index.md`](https://infrared.city/docs/sdk/1.0/python/webhooks/index.md)

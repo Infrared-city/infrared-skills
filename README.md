@@ -1,127 +1,90 @@
 <p align="center">
   <a href="https://infrared.city/">
-    <img src="docs/assets/header.svg" alt="Infrared Skills — agent skill + cookbook + notebooks for the Infrared SDK" />
+    <img src="docs/assets/header.svg" alt="Infrared Skills: agent skill and cookbook for the Infrared SDK" />
   </a>
 </p>
 
 <p align="center">
-  <a href="https://infrared.city/"><b>infrared.city</b></a>
-  &nbsp;·&nbsp;
-  <a href="https://infrared.city/simulations/">Simulations</a>
-  &nbsp;·&nbsp;
-  <a href="https://infrared.city/knowledge-base/">Knowledge base</a>
-  &nbsp;·&nbsp;
-  <a href="#install-the-skill">Install the skill</a>
-  &nbsp;·&nbsp;
-  <a href="cookbook/">Cookbook</a>
+  <a href="https://infrared.city/"><b>infrared.city</b></a> &nbsp;·&nbsp;
+  <a href="https://infrared.city/docs/sdk/">SDK docs</a> &nbsp;·&nbsp;
+  <a href="#install-the-plugin">Install</a> &nbsp;·&nbsp;
+  <a href="#what-do-you-want-to-build">Router</a> &nbsp;·&nbsp;
+  <a href="#cookbook">Cookbook</a>
 </p>
 
 ---
 
-> **What this is.** Two ways to use the [Infrared SDK](https://infrared.city/docs/sdk) without leaving the tools you already have:
->
-> 1. An **agent skill** that teaches Claude Code, Cursor, Codex CLI, GitHub Copilot, and Windsurf how to drive the SDK and read its results.
-> 2. A **Jupyter cookbook** that walks through every analysis end-to-end with embedded outputs.
->
-> Pick one. They share the same SDK, the same auth, the same conventions.
+## What this is
 
-## What you can simulate
+Tools to build with the [Infrared SDK](https://infrared.city/docs/sdk/) (urban microclimate: wind, sun, daylight, thermal comfort).
 
-The Infrared SDK runs eight microclimate analyses on any polygon you give it:
+1. An **agent skill** (`use-infrared`). It teaches your coding agent the SDK in Python and TypeScript, for scripts, web apps, and Grasshopper.
+2. A **cookbook**. Notebooks, scripts, and small apps. Each one answers one question about a real site.
 
-| Analysis | Output |
-|---|---|
-| Wind speed | m/s grid |
-| Pedestrian wind comfort (Lawson LDDC) | class 0–4 grid |
-| Solar radiation | kWh/m² grid |
-| Daylight availability | hours grid |
-| Direct sun hours | hours grid |
-| Sky view factor | 0–100 percent grid (100 = open sky, 0 = obstructed) |
-| Thermal comfort (UTCI) | °C grid |
-| Thermal comfort statistics | hours per UTCI band (derive % as `cell_hours / window_total_hours`) |
+The skill links to the docs site for API detail. It does not copy it.
 
-Polygons can span one tile or many — the SDK fans out, runs jobs concurrently, and merges results.
+## Install the plugin
 
-## What you can fetch
-
-Run an analysis with what's already on the ground, or use the same layers in your own pipeline:
-
-| Layer | Format |
-|---|---|
-| Buildings | DotBim mesh + per-building heights |
-| Trees / vegetation | GeoJSON Point Features keyed by OSM id (height, crown diameter, species) |
-| Ground materials | GeoJSON FeatureCollections keyed by material name (asphalt, concrete, soil, vegetation, water) |
-| Weather | Filtered EPW-style hourly fields |
-
-Layers are populated worldwide from OpenStreetMap-class sources; coverage and freshness vary by region.
-
-## Install the skill
-
-The agent skill lives at `plugins/infrared/skills/use-infrared/`. It's a [Claude Code plugin](https://docs.claude.com/en/docs/claude-code/plugins) and a [Cursor 2.5+ plugin](https://docs.cursor.com/) — same content, twin manifests.
-
-### Claude Code
+**Claude Code** and **Cursor**:
 
 ```text
 /plugin marketplace add Infrared-city/infrared-skills
 /plugin install infrared@infrared-skills
 ```
 
-### Cursor
+**Codex CLI, GitHub Copilot, Windsurf**: these read [`AGENTS.md`](AGENTS.md). Clone this repo into your workspace. Or copy `plugins/infrared/skills/use-infrared/` into your project's `.agents/skills/` folder.
 
-```text
-/plugin marketplace add Infrared-city/infrared-skills
-/plugin install infrared@infrared-skills
-```
+Get an API key at <https://infrared.city>. Set it as `INFRARED_API_KEY`. Never put it in code.
 
-### Codex CLI / GitHub Copilot / Windsurf
+## What do you want to build?
 
-These read `AGENTS.md` from the project root. Either clone this repo into your workspace, or copy `plugins/infrared/skills/use-infrared/` into your project's `.agents/skills/` directory.
+| Goal | SDK | Go to |
+|---|---|---|
+| Grasshopper or Rhino component | Python in Rhino 8 | [grasshopper](plugins/infrared/skills/use-infrared/references/recipes/grasshopper.md), [geometry and drawing](plugins/infrared/skills/use-infrared/references/recipes/grasshopper-geometry-and-drawing.md), [pitfalls](plugins/infrared/skills/use-infrared/references/recipes/grasshopper-pitfalls.md) |
+| Analysis, study or notebook for yourself | Python | [python/quickstart](plugins/infrared/skills/use-infrared/references/python/quickstart.md), [00_quickstart](cookbook/notebooks/00_quickstart.ipynb) |
+| Web app for yourself (browser, map, 3D facades) | TypeScript in the browser | [typescript/quickstart](plugins/infrared/skills/use-infrared/references/typescript/quickstart.md), [map-grid](plugins/infrared/skills/use-infrared/references/typescript/map-grid.md), [facades-3d](plugins/infrared/skills/use-infrared/references/typescript/facades-3d.md), [apps/map-grid](cookbook/apps/map-grid), [apps/facades-3d](cookbook/apps/facades-3d) |
+| Web app for many users (sign-in, secret key) | TypeScript front end + Cloudflare Worker proxy | [cloudflare-proxy](plugins/infrared/skills/use-infrared/references/typescript/cloudflare-proxy.md), [apps/cloudflare-proxy](cookbook/apps/cloudflare-proxy), [persistence-and-users](plugins/infrared/skills/use-infrared/references/recipes/persistence-and-users.md) |
+| High-throughput backend (many sites, queue, cache) | Python service | [python-fastapi-app](plugins/infrared/skills/use-infrared/references/recipes/python-fastapi-app.md), [apps/python-fastapi](cookbook/apps/python-fastapi) |
+| SketchUp or other CAD plugin | Ruby or Python, same API | [sketchup-plugin](plugins/infrared/skills/use-infrared/references/recipes/sketchup-plugin.md) |
+| Upload your own data to the platform (no code) | none | [platform-byo-upload](plugins/infrared/skills/use-infrared/references/platform-byo-upload.md) |
 
-The skill loads progressively — `SKILL.md` is a short router that the agent reads first, then it pulls per-topic references from `references/` only when needed (analysis specs, async/webhook patterns, merge strategies, error handling, geometry, weather, etc.).
+## Cookbook
 
-## Run the cookbook
+Each notebook uses your own model first. Public data (Overture) is the fallback. Preview a run before you send it: the preview is free.
 
-Two flavours under [`cookbook/`](cookbook/), both auto-synced from the SDK:
+| | |
+|---|---|
+| [![Sky view factor on a map](cookbook/apps/map-grid/screenshot.png)](cookbook/apps/map-grid) | [![Solar radiation on facades in 3D](cookbook/apps/facades-3d/screenshot.png)](cookbook/apps/facades-3d) |
+| **map-grid**: a result grid on a basemap, in the browser | **facades-3d**: sun on facades and roofs, in 3D |
 
-- [`cookbook/notebooks/`](cookbook/notebooks/) — ten pre-executed Jupyter notebooks against six preset cities (Munich, Vienna, New York, São Paulo, Tokyo, Sydney). Standalone, runnable in any order. Cells ship with embedded outputs from a real run — flip through without executing to see exactly what the SDK produces.
-- [`cookbook/scripts/`](cookbook/scripts/) — runnable `.py` examples covering wind, UTCI, multi-analysis, vegetation/ground, tiling, fetch-layers, and the async + webhook lifecycle.
+- [`cookbook/notebooks/`](cookbook/notebooks/): nine case studies, 00 to 08.
+- [`cookbook/scripts/`](cookbook/scripts/): three short Python scripts.
+- [`cookbook/apps/`](cookbook/apps/): runnable web apps and a Python backend.
+- [`cookbook/sample-data/`](cookbook/sample-data/): GeoJSON models for the examples.
 
-```bash
-git clone git@github.com:Infrared-city/infrared-skills.git
-cd infrared-skills/cookbook/notebooks   # or cookbook/scripts
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env   # paste your INFRARED_API_KEY
-jupyter lab            # for the notebooks
-```
+See [`cookbook/README.md`](cookbook/README.md) for how to run them.
 
-## SDK access
+## Docs for agents
 
-Request an API key at <https://infrared.city>, then install the SDK from PyPI:
+- Guide: <https://infrared.city/docs/sdk/>
+- The whole guide as one Markdown file: <https://infrared.city/docs/sdk/sdk.md>
+- Page index: <https://infrared.city/docs/sdk/llms.txt> and <https://infrared.city/docs/sdk/1.0/llms.txt>
+- Each page also exists as Markdown: add `index.md` to its URL.
 
-```bash
-pip install infrared-sdk
-export INFRARED_API_KEY=...
-```
+## Compatibility
 
-Full SDK reference: <https://infrared.city/docs/sdk>.
-
-## Learn more
-
-- **About the platform** — <https://infrared.city/>
-- **What the simulations do** — <https://infrared.city/simulations/>
-- **Validation, methods, model docs** — <https://infrared.city/knowledge-base/>
-- **SDK docs** — <https://infrared.city/docs/sdk>
+| Plugin | Python SDK | TypeScript SDK | Branch |
+|---|---|---|---|
+| 1.0.x | `infrared-sdk` 1.0.x | `@infrared-city/infrared-sdk-ts` 1.0.x | `main` |
+| 0.3.x | `infrared-sdk` 0.5.x | none | `sdk-0.5.x` (tag `sdk-0.5.x-final`, frozen) |
 
 ## Layout
 
 ```
 infrared-skills/
-├── plugins/infrared/skills/use-infrared/   # the agent skill
-│   ├── SKILL.md                            # short router
-│   └── references/                         # per-topic deep-dives
-├── cookbook/                               # 10 Jupyter notebooks (auto-mirrored from SDK)
-├── AGENTS.md                               # for Codex / Copilot / Windsurf
+├── plugins/infrared/skills/use-infrared/   # the agent skill (SKILL.md + references/)
+├── cookbook/                               # notebooks, scripts, apps, sample data
+├── AGENTS.md                               # for Codex, Copilot, Windsurf
 └── docs/assets/                            # README artwork
 ```
 

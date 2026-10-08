@@ -1,98 +1,32 @@
-# Infrared SDK — Public Demo Notebooks
+# Notebooks
 
-Hands-on Jupyter notebooks that walk through the Infrared SDK end-to-end:
-fetching urban geometry (buildings, vegetation, ground materials), pulling
-weather data, running the eight microclimate analyses, rendering results,
-and using the async / webhook flow.
+Nine case studies. Each notebook is standalone: run them in any order. They share the plot helpers in [`ir_plot.py`](ir_plot.py).
 
-Each notebook is **self-contained and runnable in any order**. Pick a city,
-import the SDK, hit the API.
+| # | Notebook | Question | Analyses | City |
+|---|---|---|---|---|
+| 00 | [`00_quickstart`](00_quickstart.ipynb) | How much open sky do people see in the streets? | Sky view factor | Hamburg |
+| 01 | [`01_design_variants`](01_design_variants.ipynb) | Which of four designs stays coolest on a hot afternoon? (your own GeoJSON model) | UTCI | Vienna |
+| 02 | [`02_summer_heat`](02_summer_heat.ipynb) | How much do street trees and light paving cool a dense block? | UTCI, thermal comfort statistics | Barcelona |
+| 03 | [`03_wind_comfort`](03_wind_comfort.ipynb) | Where is it too windy to sit, stand or walk? | Wind speed, pedestrian wind comfort | New York |
+| 04 | `04_solar_facades_3d` | Which facades and roofs get the most sun? | Solar radiation on surfaces | see notebook |
+| 05 | `05_sensors_3d` | How do I analyse my own sensor points? | Sky view factor, daylight availability | see notebook |
+| 06 | `06_interior` | How good is the daylight in a room? What does it need for heating and cooling? | Daylight factor, energy balance | see notebook |
+| 07 | `07_terrain_and_context` | How do hills and far buildings change the result? | Terrain and context geometry | see notebook |
+| 08 | [`08_scale_and_cost`](08_scale_and_cost.ipynb) | What does a run cost? How do I run several analyses fast? | Preview, several analyses on one geometry | Rotterdam |
 
-## Prerequisites
-
-- Python 3.11+
-- An Infrared API key. Request access at <https://infrared.city>.
-
-## Installation
-
-```bash
-git clone <this-folder>             # or download/extract the public-demos/ folder
-cd public-demos
-python -m venv .venv && source .venv/bin/activate   # or: .venv\Scripts\activate on Windows
-
-# Install the SDK and demo deps:
-pip install infrared-sdk
-pip install -r requirements.txt
-```
-
-## Configure your API key
+## Run
 
 ```bash
-cp .env.example .env
-# then edit .env and paste your INFRARED_API_KEY
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt     # SDK 1.0 with [geodata], maps, jupyter
+export INFRARED_API_KEY=...         # or copy .env.example to .env
+jupyter lab
 ```
 
-The notebooks call `python-dotenv` to load `.env` automatically.
+Python 3.11 or newer. The client reads `INFRARED_API_KEY` from the environment.
 
-## Pick a city
+## Cost
 
-`cities.py` ships with six preset cities, covering every continent:
+A real run uses tokens. Each notebook calls `preview_area` first (free, local). Read the preview before you run. Use a small polygon to try things.
 
-| Slug         | City        | Country   | Continent     |
-| ------------ | ----------- | --------- | ------------- |
-| `munich`     | Munich      | Germany   | Europe        |
-| `vienna`     | Vienna      | Austria   | Europe        |
-| `new_york`   | New York    | USA       | North America |
-| `sao_paulo`  | Sao Paulo   | Brazil    | South America |
-| `tokyo`      | Tokyo       | Japan     | Asia          |
-| `sydney`     | Sydney      | Australia | Oceania       |
-
-Each city has two polygons:
-
-- `polygon_small` — ~150 m square, fits in one solar tile (fast / cheap to run).
-- `polygon_large` — irregular pentagon ~1.2 km wide, generates 4-6 tiles
-  (used in the tiling notebook).
-
-You can switch city in any notebook by changing one line:
-
-```python
-from cities import get
-city = get("tokyo")  # try "munich", "vienna", "new_york", "sao_paulo", "tokyo", "sydney"
-```
-
-> **Coverage caveat.** Infrared's gridded layers are populated from
-> OpenStreetMap-style sources worldwide, but density and freshness vary
-> by region. If a fetch returns zero buildings for a given polygon, try
-> a different polygon or a different city.
-
-## Reading order
-
-The notebooks are numbered to suggest a path, but each is standalone:
-
-| # | Notebook                           | What it covers                                                 |
-|---|------------------------------------|----------------------------------------------------------------|
-| 0 | `00_quickstart.ipynb`              | Install, env, instantiate the client, run one analysis end-to-end |
-| 1 | `01_buildings.ipynb`               | `client.buildings.get_area`, DotBim mesh format, building heights |
-| 2 | `02_vegetation_and_ground.ipynb`   | `client.vegetation`, `client.ground_materials`, layer formats |
-| 3 | `03_weather_and_time_periods.ipynb`| Weather file lookup, `filter_weather_data`, `TimePeriod` semantics |
-| 4 | `04_tiling_and_area_api.ipynb`     | `preview_area`, rectangular vs. irregular polygons, tile geometry, `AreaResult` |
-| 5 | `05_analysis_types_tour.ipynb`     | All 8 analysis types with payload patterns and outputs |
-| 6 | `06_image_rendering.ipynb`         | `gen_grid_image`, orientation, colormap caveats |
-| 7 | `07_async_and_webhooks.ipynb`      | `run_area`, `check_area_state`, `merge_area_jobs`, webhooks |
-| 8 | `08_wind_merge_strategies.ipynb`   | `strategy="directional"` / `"directional_blend"` — seam elimination for multi-tile wind runs |
-| 9 | `09_error_handling_and_tuning.ipynb` | `BigPayloadError` family, retry-on-`REF_EXPIRED`, pre-flight diagnostics |
-| 10 | `10_real_world_map_overlay.ipynb`  | Overlay an analysis result image on an interactive OpenStreetMap basemap via `AreaResult.bounds` + `folium` |
-| 11 | `11_facade_and_terrain.ipynb`      | Facade/roof surface analysis (`analysis_surfaces` → `SurfaceAnalysisResult`), BYO `sensor_points`, terrain draping |
-| 12 | `12_surface_results_rendering.ipynb` | Rendering `SurfaceAnalysisResult`: texture-style (`values` grid + `imshow`) and exact-geometry (`cell_tris` → `Poly3DCollection`) routes, per-building aggregates, facade-vs-roof normalization |
-
-## Optional: webhook receiver
-
-`07_async_and_webhooks.ipynb` references `webhook_receiver.py`, a tiny
-Flask server that prints each webhook the Infrared dispatcher posts.
-See the docstring at the top of the file for setup instructions
-(including a one-liner for `cloudflared` to expose it publicly).
-
-## License
-
-The notebooks are distributed under the same Apache-2.0 license as the
-SDK (the full license ships with the `infrared-sdk` package).
+Public buildings, trees and ground come from Overture (`infrared-sdk[geodata]`). Source and heights vary by region.
