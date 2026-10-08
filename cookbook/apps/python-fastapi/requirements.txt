@@ -1,0 +1,7 @@
+# Pin the SDK: results and options are checked against this exact version.
+infrared-sdk==1.0.0
+# Use this line instead for the public-buildings fallback (Overture data):
+# infrared-sdk[geodata]==1.0.0
+fastapi>=0.115
+uvicorn[standard]>=0.32
+shapely>=2.1  # footprint -> mesh (constrained triangulation)
