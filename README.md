@@ -22,7 +22,7 @@
 
 ## New in 1.0
 
-- **SDK 1.0, Python and TypeScript.** The skill and every example use `infrared-sdk` 1.0 and `@infrared-city/infrared-sdk-ts` 1.0. All code ran against the live API.
+- **SDK 1.0, Python and TypeScript.** The skill and every example use `infrared-sdk` 1.0 and `@infrared-city/infrared-sdk-ts` 1.0. The notebooks, scripts and apps ran against the live API.
 - **Start from your goal.** A router sends you to the right path: Grasshopper, notebook, web app, app for many users, or backend.
 - **Nine case-study notebooks.** Real sites, basemaps, 3D facades, design variants. Your own model first, public data as the fallback.
 - **Web apps in minutes.** A map with a Run button, a 3D facade viewer, and a Cloudflare Worker that keeps your API key secret. Plus a FastAPI backend.
