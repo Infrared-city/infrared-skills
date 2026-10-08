@@ -70,24 +70,9 @@ Each file is **one data layer**; a multi-file drop is auto-classified by content
 
 If you redistribute derivatives, keep the OSM/ODbL and Stadt Wien attributions.
 
-## Regenerate / relocate
+## Snapshot
 
-```bash
-# default = this Karlsplatz block, fetches EPWs into ./vienna-demo/weather/
-python cookbook/scripts/demo_vienna_scenarios.py
+The files are a snapshot of open data, taken on 2026-07-03. They were checked
+against the platform upload: every building, tree and surface was accepted, with
+no fallbacks and no defaulted materials.
 
-# a different area (S W N E, WGS84) and no weather download
-python cookbook/scripts/demo_vienna_scenarios.py --bbox 48.20 16.36 48.21 16.38 --no-epw
-```
-
-OSM is live, so a regenerate reflects current mapping. The committed files are a
-snapshot taken + validated on 2026-07-03.
-
-## Validation
-
-Every file was fed through the platform's actual upload parsers on
-`forge-kit@origin/staging` (2026-07-03): content classification, per-layer deep
-validation (`prepareBuildingsUpload` / `prepareTreesUpload` /
-`prepareMaterialsUpload`), and the real EPW parse — all accepted, buildings
-`meshesOut == featuresIn`, `fallbackApplied == 0`, `defaultedMaterials == []`,
-`droppedOutside == 0` for every scenario.

@@ -5,7 +5,7 @@ so that platform.infrared.city accepts it at the first try.
 
 This is the **file** contract for the platform. For in-memory payloads in your
 own Python, read [byo-inputs.md](byo-inputs.md) — the two are not
-interchangeable. To get data out, read [platform-export.md](platform-export.md).
+interchangeable.
 
 Validated sample data: `cookbook/sample-data/platform-upload/` (synthetic,
 minimal) and `cookbook/sample-data/vienna-demo/` (real Vienna open data).
@@ -234,11 +234,6 @@ Inside the dialog:
    collapse into one row, and one click assigns the whole group.
 5. Select **Apply**.
 
-> **Known bug.** The dialog opens on "Unassigned objects". Assigning a category
-> removes that object from the list, and when the list empties, the whole
-> component disappears — taking the **Show all** link with it. You then cannot
-> change a category back. **Select "Show all (N)" before you assign anything.**
-> If the list is already gone, Cancel and import the file again.
 
 ## Coordinates and the site boundary
 
@@ -304,8 +299,7 @@ Do not truncate columns by hand.
 
 See [python/weather-and-time.md](python/weather-and-time.md).
 
-An uploaded EPW drives the simulation analyses. The AI-backed workflows choose
-their own weather: an EPW upload does not change them.
+An uploaded EPW drives the simulation analyses.
 
 ## Pitfalls
 
@@ -355,4 +349,3 @@ Silent corrections — no error, but the result looks wrong:
   1–30 / 1–20 gate, and untagged trees default to 6 m × 4 m. Do not carry a
   number between the two pages.
 - [geospatial-crs.md](geospatial-crs.md) — reprojection recipes.
-- [platform-export.md](platform-export.md) — getting data back out.

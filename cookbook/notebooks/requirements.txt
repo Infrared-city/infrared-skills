@@ -16,3 +16,6 @@ plotly>=5.20   # optional interactive HTML export
 
 # Run the notebooks.
 jupyter>=1.1
+
+# Optional: read INFRARED_API_KEY from a .env file.
+python-dotenv>=1.0

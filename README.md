@@ -63,7 +63,7 @@ jupyter lab 00_quickstart.ipynb
 **Run a web app.**
 
 ```bash
-cd infrared-skills/cookbook/apps/map-grid
+cd infrared-skills/cookbook/apps/map-grid   # from the folder where you cloned the repo
 npm install && npm run dev
 ```
 

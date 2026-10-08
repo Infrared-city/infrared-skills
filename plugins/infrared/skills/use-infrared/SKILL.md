@@ -116,7 +116,7 @@ Ground grid row 0 is south: flip the rows for an image. Facades and roofs: `surf
 - Cookbook notebooks in [`cookbook/`](https://github.com/Infrared-city/infrared-skills/tree/main/cookbook): `00_quickstart`,
   `01_design_variants`, `02_summer_heat`, `03_wind_comfort`, `04_solar_facades_3d`, `05_sensors_3d`,
   `06_interior`, `07_terrain_and_context`, `08_scale_and_cost`.
-- Platform files: [upload](references/platform-byo-upload.md), [export](references/platform-export.md) (ask: SDK data or platform files?).
+- Platform files: [upload](references/platform-byo-upload.md) (ask: SDK data or platform files?).
 - [Facade results on your model](references/surface-results-integration.md), [jobs](references/async-and-jobs.md), [recipes](references/recipes/hackathon-tools.md).
 
 ## Silent traps

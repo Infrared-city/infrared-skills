@@ -9,8 +9,7 @@ The cookbook notebooks use `cookbook/notebooks/ir_plot.py`; the TypeScript apps 
 
 ## 0. Read values with the helper, never the raw array
 
-Results are stored as half floats (SVF, solar radiation, TCS, wind speed, UTCI) or as
-32-bit floats (direct sun hours, daylight availability, PWC classes). A raw read gives wrong
+The stored type of a result can differ by analysis and can change. A raw read gives wrong
 numbers or raw bits. Always decode with the helper first:
 
 | Result | Python | TypeScript |
@@ -89,9 +88,8 @@ In a GPU pipeline, discard the cell. Test the validity bit of the render buffers
 ### The mirror image: real zeros treated as missing
 
 A surface can come back with `mean = peak = 0.0` and every cell present: a party wall, a light well,
-an elevation that a neighbour blocks. That is the answer. On one June run over 300 buildings, 555 of
-1,730 facades (32 %) were exact zeros. The scene mean was 3.62 h with them and 5.33 h without.
-Decide which you report, and say so:
+an elevation that a neighbour blocks. That is the answer. On a dense scene, a large share of facades can be exact
+zeros, and the scene mean changes a lot with or without them. Decide which you report, and say so:
 
 ```python
 means = result.columns.mean
@@ -189,9 +187,8 @@ valid = grid[~np.isnan(grid)]
 class_e_share = (valid == 4).mean()          # NOT np.nanmean(grid == 4)
 ```
 
-The platform `wind-comfort` entry is `colorInterpolation: "binned"` with one colour per class
-and `legendType: "equal_ranges"` — a stepped ramp, never a gradient. `wind-speed` is the
-only common config it renders `linear`.
+Draw wind comfort as discrete classes: one colour per class, a stepped legend, never a
+gradient. Wind speed is continuous and gets a gradient.
 
 ---
 
@@ -222,10 +219,8 @@ plt.imshow(delta, cmap="RdBu_r", origin="lower",
 Do **not** reuse `min_legend`/`max_legend` here: they are the range of absolute values, and deltas
 go negative.
 
-**The platform palette trick:** it extends each base palette by interpolation, with a *finer*
-factor for the mesh than for the legend (`resultSubdivisionFactor` vs
-`legendSubdivisionFactor`) — UTCI's 7 base colours become 21 mesh colours but only 14 legend
-swatches. The surface reads smooth; the legend stays countable. When a user filters by value
+**A palette trick:** interpolate the base palette more finely for the mesh than for the
+legend. The surface reads smooth; the legend stays countable. When a user filters by value
 range it sets **alpha 0** on the excluded cells rather than recolouring them, so the
 remaining colours keep their meaning.
 

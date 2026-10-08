@@ -14,7 +14,7 @@ Nine case studies. Each notebook is standalone: run them in any order. They shar
 | 07 | [`07_terrain_and_context`](07_terrain_and_context.ipynb) | How many winter sun hours does a hillside get, and what does a ridge take away? | Direct sun hours with terrain and context | example slope near Innsbruck |
 | 08 | [`08_scale_and_cost`](08_scale_and_cost.ipynb) | What does a run cost? How do I run several analyses fast? | Preview, several analyses on one geometry | Rotterdam |
 
-Notebooks 04 and 05 draw 3D views with [`ir_view3d.py`](ir_view3d.py). Site helpers are in [`ir_site.py`](ir_site.py).
+Notebooks 04 to 07 draw 3D views with [`ir_view3d.py`](ir_view3d.py). Site helpers are in [`ir_site.py`](ir_site.py).
 
 ## Run
 

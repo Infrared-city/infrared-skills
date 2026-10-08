@@ -12,7 +12,7 @@ Case studies for the [Infrared SDK](https://infrared.city/docs/sdk/). Each one a
 ## Run
 
 ```bash
-git clone git@github.com:Infrared-city/infrared-skills.git
+git clone https://github.com/Infrared-city/infrared-skills.git
 cd infrared-skills/cookbook/notebooks   # run from here: the notebooks import helpers in this folder
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
@@ -26,6 +26,6 @@ The apps have their own README with run steps.
 
 ## Cost
 
-Area runs use tokens. One job is one tile for one analysis. Always call `client.preview_area(...)` first: it is free and runs on your machine. Read `would_bill_jobs` and `estimated_cost_tokens`, then run. Notebook [08](notebooks/08_scale_and_cost.ipynb) shows how.
+Area runs use tokens. A ground analysis bills one job per tile; facade runs bill one job per building batch, and interior runs one job per part. Always call `client.preview_area(...)` first: it is free and runs on your machine. Read `would_bill_jobs` and `estimated_cost_tokens`, then run. Notebook [08](notebooks/08_scale_and_cost.ipynb) shows how.
 
 Feedback: <https://github.com/Infrared-city/infrared-skills/issues>
