@@ -4,7 +4,7 @@ Case studies for the [Infrared SDK](https://infrared.city/docs/sdk/). Each one a
 
 | Folder | What is in it |
 |---|---|
-| [`notebooks/`](notebooks/) | Nine Python notebooks, 00 to 08. Start here. |
+| [`notebooks/`](notebooks/) | Ten Python notebooks, 00 to 09. Start here. |
 | [`scripts/`](scripts/) | Three short Python scripts: `quickstart.py`, `own_geometry.py`, `comfort.py`. Each prints the preview cost and asks y/N. `--yes` skips the question. |
 | [`apps/`](apps/) | Runnable apps: map grid, 3D facades, Cloudflare key proxy (TypeScript), FastAPI backend (Python). |
 | [`sample-data/`](sample-data/) | GeoJSON models (Vienna scenarios, platform upload) used by the examples. |

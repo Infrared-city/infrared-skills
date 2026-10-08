@@ -1,6 +1,6 @@
 # Notebooks
 
-Nine case studies. Each notebook is standalone: run them in any order. They share the plot helpers in [`ir_plot.py`](ir_plot.py).
+Ten case studies. Each notebook is standalone: run them in any order. They share the plot helpers in [`ir_plot.py`](ir_plot.py).
 
 | # | Notebook | Question | Analyses | City |
 |---|---|---|---|---|
@@ -13,6 +13,7 @@ Nine case studies. Each notebook is standalone: run them in any order. They shar
 | 06 | [`06_interior`](06_interior.ipynb) | How much daylight reaches the rooms? How much heating and cooling do they need? (Beta) | Daylight factor, energy balance | example building |
 | 07 | [`07_terrain_and_context`](07_terrain_and_context.ipynb) | How many winter sun hours does a hillside get, and what does a ridge take away? | Direct sun hours with terrain and context | example slope near Innsbruck |
 | 08 | [`08_scale_and_cost`](08_scale_and_cost.ipynb) | What does a run cost? How do I run several analyses fast? | Preview, several analyses on one geometry | Rotterdam |
+| 09 | [`09_all_analyses`](09_all_analyses.ipynb) | What do all eight area analyses show for one district? How do I run them in one call? | All eight area analyses, one call, overview map | Amsterdam |
 
 Notebooks 04 to 07 draw 3D views with [`ir_view3d.py`](ir_view3d.py). Site helpers are in [`ir_site.py`](ir_site.py).
 
