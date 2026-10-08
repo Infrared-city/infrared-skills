@@ -3,13 +3,10 @@
 Run:
     pip install infrared-sdk matplotlib shapely
     export INFRARED_API_KEY=...
-    python comfort.py               # add --yes to skip the cost question
+    python comfort.py  # --yes: no cost question; --verbose: SDK progress
 
-Model: the Vienna Karlsplatz baseline (buildings, trees, ground surfaces) from
-`../sample-data/vienna-demo/scenarios/01-baseline`. Weather: the nearest
-station of the public weather catalog (a typical year). The script runs the
-UTCI (perceived temperature, in degrees C) for 15 July, 12-17 h, prints the
-heat-stress shares and saves `comfort_utci.png`.
+Vienna Karlsplatz baseline (own buildings, trees, ground) + the nearest public weather
+station. Runs UTCI (degrees C) for 15 July 12-17 h and saves `comfort_utci.png`.
 Docs: https://infrared.city/docs/sdk/#weather-and-time-period
 """
 
@@ -25,9 +22,13 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-from infrared_sdk import InfraredClient
-from infrared_sdk.analyses.types import AnalysesName, UtciModelBaseRequest, UtciModelRequest
-from infrared_sdk.models import Location, TimePeriod
+# SDK progress lines stay hidden unless you pass --verbose (set before the import).
+if "--verbose" not in sys.argv:
+    os.environ.setdefault("INFRARED_QUIET", "1")
+
+from infrared_sdk import InfraredClient  # noqa: E402
+from infrared_sdk.analyses.types import AnalysesName, UtciModelBaseRequest, UtciModelRequest  # noqa: E402
+from infrared_sdk.models import Location, TimePeriod  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "notebooks"))  # ir_site.py: GeoJSON -> SDK inputs

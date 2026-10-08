@@ -3,7 +3,7 @@
 Run:
     pip install "infrared-sdk[geodata]" matplotlib
     export INFRARED_API_KEY=...
-    python quickstart.py            # add --yes to skip the cost question
+    python quickstart.py  # --yes: no cost question, --verbose: SDK progress lines
 
 It reads the public buildings of a 400 m x 300 m area in Vienna, shows the
 jobs and the cost, runs the sky view factor (how much open sky each point
@@ -23,8 +23,12 @@ matplotlib.use("Agg")  # no window: write a file
 import matplotlib.pyplot as plt
 import numpy as np
 
-from infrared_sdk import InfraredClient, SvfModelRequest
-from infrared_sdk.analyses.types import AnalysesName
+# SDK progress lines stay hidden unless you pass --verbose (set before the import).
+if "--verbose" not in sys.argv:
+    os.environ.setdefault("INFRARED_QUIET", "1")
+
+from infrared_sdk import InfraredClient, SvfModelRequest  # noqa: E402
+from infrared_sdk.analyses.types import AnalysesName  # noqa: E402
 
 # 1. The area: a lon/lat polygon. Its south-west corner is the origin of the model.
 LON, LAT = 16.3505, 48.2015  # Vienna, Neubau (south-west corner)
