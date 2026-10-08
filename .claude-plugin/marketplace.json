@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "infrared-skills",
-  "description": "Agent skills and Python recipes for the Infrared SDK — urban microclimate analysis (wind, solar, thermal comfort) for Claude Code, Cursor, Codex, and Copilot.",
+  "description": "Agent skills and cookbook for the Infrared SDK: urban microclimate analysis (wind, sun, daylight, thermal comfort) in Python, TypeScript, web apps, and Grasshopper.",
   "owner": {
     "name": "Infrared City",
     "email": "support@infrared.city",
@@ -11,8 +11,12 @@
     {
       "name": "infrared",
       "source": "./plugins/infrared",
-      "description": "Use the Infrared SDK to run urban microclimate simulations — wind, solar, thermal comfort — and interpret the results.",
-      "category": "productivity"
+      "description": "Use the Infrared SDK (Python and TypeScript) to run urban microclimate simulations (wind, sun, daylight, thermal comfort), build web apps and Grasshopper tools, and interpret results.",
+      "category": "productivity",
+      "version": "1.0.0"
     }
-  ]
+  ],
+  "metadata": {
+    "version": "1.0.0"
+  }
 }

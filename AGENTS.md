@@ -1,26 +1,24 @@
 # AGENTS.md
 
-Repo: agent skills + Python recipes for the [Infrared SDK](https://infrared.city/docs/sdk) (`pip install infrared-sdk`).
+Repo: agent skill and cookbook for the [Infrared SDK](https://infrared.city/docs/sdk/) (Python `pip install infrared-sdk`, TypeScript `npm install @infrared-city/infrared-sdk-ts`).
 
 ## For agents working with the Infrared SDK in any project
 
 Read [`plugins/infrared/skills/use-infrared/SKILL.md`](plugins/infrared/skills/use-infrared/SKILL.md). It has:
-- Quick start (paste-ready Python)
-- Invariants (auth, coords, imports, enums)
-- Decision tree for picking an analysis
-- Pointers to per-analysis interpretation references
+- A router: "What do you want to build?"
+- Concepts: analyses, inputs, tiling, results, cost
+- Python and TypeScript quick starts
+- Links to the references and to the docs site
 
-That file is the canonical SDK-usage guide. Codex CLI / Copilot / Windsurf agents reading this AGENTS.md should also pull SKILL.md content into context.
+Codex CLI, Copilot, and Windsurf agents that read this file must also load SKILL.md.
 
 ## For contributors editing this repo
 
-- One file per recipe in `examples/`, prefixed `NN-name.py`. Reads `INFRARED_API_KEY` from env, never hardcoded.
-- Each reference under `plugins/infrared/skills/use-infrared/references/` is self-contained — keep them short.
-- `SKILL.md` is the router; keep it lean (target ≲100 lines). Push depth into `references/`.
-- Python 3.11+, ruff format, type hints. Public SDK only — no internal Infrared modules. No internal URLs (no `api-test.*`, no Lambda function names, etc).
-- No API keys in any file, ever.
-
-## Do not port from
-
-- Internal SDK contributor skills.
-- Internal async-jobs infrastructure docs.
+- Recipes live in `cookbook/notebooks/`, `cookbook/scripts/`, and `cookbook/apps/`. Read `INFRARED_API_KEY` from the environment. Never hardcode it.
+- Each reference under `plugins/infrared/skills/use-infrared/references/` is self-contained and short.
+- `SKILL.md` is the router. Keep it at 130 lines or fewer. Put depth in `references/`.
+- Link to the docs site (<https://infrared.city/docs/sdk/>). Do not copy API detail into this repo.
+- Every file is 400 lines or fewer. Split larger files.
+- Run code for real before you commit. Call `preview_area` first, and read the cost.
+- Write prose in ASD-STE100 Simplified Technical English. Python 3.11+, ruff format, type hints. Public SDK only.
+- No internal URLs (no staging or test hosts, no Lambda names, no internal repo paths). No API keys, no customer names.
