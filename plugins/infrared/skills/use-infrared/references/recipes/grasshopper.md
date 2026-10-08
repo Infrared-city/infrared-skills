@@ -79,7 +79,7 @@ def make_client(api_key=""):
     return InfraredClient(api_key=key)
 ```
 
-- One client for each thread (not thread-safe). Close it in `finally`, after you read the result.
+- Use one client for each thread (safe default). Close it in `finally`, after you read the result.
 
 ### Payloads
 
@@ -373,7 +373,7 @@ Make the parser forgiving (any case, `:` or `=`, `#` comments, month names, `6-8
 
 ## 5. Migrating a 0.5.1 script
 
-The full upgrade steps are in `UPGRADING.md` in the SDK repository. The docs home is https://infrared.city/docs/sdk/ (there is no separate upgrade page). Do these steps in order.
+The full upgrade steps are in `UPGRADING.md` in the installed package (`infrared_sdk-1.0.0.dist-info/UPGRADING.md`). The docs home is https://infrared.city/docs/sdk/ (there is no separate upgrade page). Do these steps in order.
 
 1. **Load path.** Use section 1. Make sure no 0.5.1 component stays in the same file.
 2. **Imports.** The modules `infrared_sdk.tiling.merger`, `merger_smart` and `terrain_envelope` are gone. So are the old `transforms` and `terrain_slice` helpers. Use `run_area_and_wait`, or `client.merge_area_jobs(schedule)`.

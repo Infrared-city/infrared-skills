@@ -18,7 +18,7 @@ triangles (normal z above 0.5) and drop the bottom cap and the skirt.
 
 Set `terrain_alignment` yourself: the field is unset by default.
 
-Which analyses take it: the four solar analyses and UTCI and TCS. Wind refuses terrain.
+Which analyses take it: the four solar analyses and UTCI and TCS. Wind refuses terrain: it has no `ground_geometry`.
 
 ## `terrain_alignment`
 
@@ -30,8 +30,8 @@ Which analyses take it: the four solar analyses and UTCI and TCS. Wind refuses t
 
 Wind and PWC accept `"to-ground"` and `"as-is"`. No mode moves the sensors: with terrain, the grid
 always drapes onto it. The modes change what happens to the solids.
-Do not compare modes by their mean: one run moved the mean by 0.03 kWh/m2 while 44 % of the facades
-moved by more than 1. Compare per surface.
+Do not compare modes by their mean: a small change of the mean can hide large changes on many
+facades. Compare per surface.
 
 ## Results on the ground, with terrain
 

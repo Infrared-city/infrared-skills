@@ -13,7 +13,7 @@ from infrared_sdk.analyses.types import AnalysesName
 request = WindModelRequest(
     analysis_type=AnalysesName.wind_speed,
     wind_speed=4.5,         # float, m/s, 0 or more. Do not round an EPW mean.
-    wind_direction=270,     # whole degrees 0 to 360, wind FROM this bearing (270 = from the west)
+    wind_direction=270,     # whole degrees (int), wind FROM this bearing (270 = from the west)
 )
 result = client.run_area_and_wait(request, polygon, buildings=buildings)
 speed = result.physical_grid()          # m/s, NaN = no value
@@ -24,10 +24,10 @@ speed = result.physical_grid()          # m/s, NaN = no value
 | Field | Type | Note |
 |---|---|---|
 | `wind_speed` | float | 0 or more (m/s). Rounding 3.9 to 3 shifts every cell by -23 % |
-| `wind_direction` | int | Meteorological: 0 = from north, 90 = from east. A fraction is refused |
+| `wind_direction` | int | Meteorological: 0 = from north, 90 = from east. Values outside 0-360 wrap. A fraction is refused |
 | `latitude`, `longitude` | optional | Ignored by wind |
 
-Wind takes buildings, trees and ground. It takes no terrain, no `context_geometry` and no facade sensors.
+Wind takes buildings, trees and ground. It has no `ground_geometry` (so `terrain_alignment` has no use), no `context_geometry` and no facade sensors.
 
 ## Tiles
 

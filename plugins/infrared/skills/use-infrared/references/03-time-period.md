@@ -52,6 +52,6 @@ January first. Do not split it. A full-year window is normal for pedestrian wind
 - Direct sun hours on the ground: keep the hours inside daylight
   ([analyses/04-direct-sun-hours.md](analyses/04-direct-sun-hours.md)).
 - `TimePeriod` is frozen. Build a new one to change it.
-- Impossible dates (31 April, 30 February), zero-length windows raise at construction (a window across the new year is valid).
+- Impossible dates (31 April, 30 February) raise at construction. A window across the new year is valid.
   29 February is accepted.
 - A gap in your EPW inside the window is an error before you pay. The SDK never fills a gap.

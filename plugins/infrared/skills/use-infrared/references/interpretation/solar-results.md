@@ -6,7 +6,7 @@ Grid layout (cell pitch, NaN, row/column orientation, legend bounds, scenario di
 
 Cumulative solar irradiance on the ground per pixel in **kWh/m²** over the requested `TimePeriod` (per-window — e.g. per-month if the window covers one month).
 
-| kWh/m² (monthly) | Class |
+| kWh/m² (summer month, mid-latitude) | Class |
 |---|---|
 | < 85 | Heavily shaded |
 | 85–100 | Partial |
@@ -19,14 +19,14 @@ Annual horizontal totals: ~1,000–1,200 kWh/m² (Central Europe), ~1,500–1,80
 
 ## daylight-availability
 
-The **share of the window with enough daylight** per pixel (percent, 0 to 100). Conceptually sDA-like — not lux. Classify it as a fraction of the window.
+The **share of the window with enough daylight** per pixel (percent, 0 to 100). Conceptually sDA-like — not lux. Classify it as a share of the window.
 
-| Fraction of window with daylight | Class |
+| Share of window with daylight (grid value, percent) | Class |
 |---|---|
-| < 0.30 | Poorly lit |
-| 0.30–0.50 | Adequate for transit |
-| 0.50–0.70 | Good for seating / casual use |
-| > 0.70 | Excellent — open or south-facing |
+| < 30 % | Poorly lit |
+| 30–50 % | Adequate for transit |
+| 50–70 % | Good for seating / casual use |
+| > 70 % | Excellent — open or south-facing |
 
 **Pitfalls:** not lux — don't compare to indoor lighting standards; absolute hours scale with the time window so don't compare runs with different `TimePeriod`s without normalising; an annual fraction hides huge winter/summer variation — pair with `direct-sun-hours` to disambiguate diffuse-only vs direct-sun coverage.
 
@@ -39,11 +39,11 @@ Cumulative hours of direct (un-occluded) sunlight per pixel, **summed across the
 | < 2 | Heavily shaded |
 | 2–5 | Partial sun |
 | 5–8 | Significant sun |
-| > 8 | Near-astronomical max (open rooftop, summer) |
+| > 8 | Long sun (the maximum depends on season and latitude) |
 
 `max_legend` is the exact maximum of this run, not the window length. For cross-run comparison, normalise first (hrs/day, fraction of run max, or fraction of theoretical daylight at `lat/lon`).
 
-**Pitfalls:** **night hours in the window count as sun on the grid path** — `grid.max()` reaching the window's sample count although the window includes night hours is the smell; see [`../analyses/04-direct-sun-hours.md`](../analyses/04-direct-sun-hours.md#keep-the-window-inside-daylight); astronomical, **not weather-corrected** — cloud cover not subtracted, so reported hours overstate cloudy regions; absolute values scale with the filtered hour count — never compare raw hour grids across different `TimePeriod`s; high summer values can be a heat-stress driver, not an amenity; **low sun angles on multi-tile polygons can show seam artefacts** because buildings outside a tile's 128 m context margin don't cast shadows across tile boundaries — avoid early-morning / late-afternoon hours and winter months when the polygon spans multiple tiles, or fall back to a single-tile polygon. Use `estimate_sun_context_loss(polygon, latitude, longitude, time_period)` from `infrared_sdk` to gauge the loss before submission. In 1.0 no layer adds shade from beyond 128 m.
+**Pitfalls:** **night hours in the window count as sun on the grid path** — `grid.max()` reaching the window's sample count although the window includes night hours is the smell; see [`../analyses/04-direct-sun-hours.md`](../analyses/04-direct-sun-hours.md#keep-the-window-inside-daylight); astronomical, **not weather-corrected** — cloud cover not subtracted, so reported hours overstate cloudy regions; absolute values scale with the filtered hour count — never compare raw hour grids across different `TimePeriod`s; high summer values can be a heat-stress driver, not an amenity; **low sun angles on multi-tile polygons can show seam artefacts** because buildings outside a tile's 128 m context margin don't cast shadows across tile boundaries — avoid early-morning / late-afternoon hours and winter months when the polygon spans multiple tiles, or fall back to a single-tile polygon. In 1.0 no layer adds shade from beyond 128 m.
 
 ## sky-view-factors
 

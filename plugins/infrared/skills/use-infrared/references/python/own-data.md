@@ -28,7 +28,7 @@ Rules that the SDK cannot check for you:
 
 ## Footprints (GeoJSON) to building meshes
 
-Plans give footprints and heights. This helper extrudes them into closed solids. It needs `shapely`.
+Plans give footprints and heights. This helper extrudes them into closed solids. It needs `shapely` 2.1 or later.
 
 ```python
 import math

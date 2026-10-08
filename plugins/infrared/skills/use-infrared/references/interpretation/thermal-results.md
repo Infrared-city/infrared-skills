@@ -18,7 +18,7 @@ temperature (computed inside the model), humidity and wind. The grid is one aggr
 | 0 to 9 | Slight cold stress |
 | below 0 | Moderate to extreme cold stress |
 
-Read values with `physical_grid()`. The stored type is f16 and the helper handles it.
+Read values with `physical_grid()`. The stored type can differ, so do not read the raw array.
 The model has a wall afterglow of about 3 hours and a ground lag of about 43 minutes, and no memory
 over several days. Do not call night values validated.
 
