@@ -1,0 +1,20 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "infrared-app",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-10-01",
+  // The static app. Build it first: (cd ../map-grid && npm run build).
+  // Point this at any other built front end.
+  "assets": {
+    "directory": "../map-grid/dist",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"]
+  },
+  // Extra origins that may call the proxy, comma-separated. The Worker's own origin always may.
+  "vars": { "ALLOWED_ORIGINS": "" },
+  // At most 60 write calls per minute per client IP. namespace_id: any number unique in your account.
+  "ratelimits": [
+    { "name": "RUN_LIMITER", "namespace_id": "1001", "simple": { "limit": 60, "period": 60 } }
+  ]
+  // The key is a secret, never a var: npx wrangler secret put INFRARED_API_KEY
+}

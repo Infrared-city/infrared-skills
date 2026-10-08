@@ -1,0 +1,22 @@
+{
+  "name": "infrared-facades-3d",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@infrared-city/infrared-sdk-ts": "1.0.0",
+    "hyparquet": "^1.31.0",
+    "hyparquet-compressors": "^1.1.0",
+    "three": "^0.186.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/three": "^0.186.0",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.0"
+  }
+}
