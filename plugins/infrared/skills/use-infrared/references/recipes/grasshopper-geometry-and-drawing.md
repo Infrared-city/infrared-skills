@@ -23,7 +23,7 @@ The SDK does not repair a bad mesh before it bills. A mesh with inward winding g
 - **Clean each building on its own.** Touching buildings must stay separate. `clean_mesh` joins vertices, drops degenerate and duplicate triangles, fixes the winding and turns closed parts outward. An open shell keeps its direction. Do not "fix" open shells and bake them back into the model.
 - **Clean once.** After `clean_mesh`, set `mesh_cleaning="off"` on the payload. Then the server does not clean again.
 - **Unique IDs.** Use the object name, add `__1`, `__2` for duplicates, and prefix design buildings with the variant name. Filter by the AOI box before you convert.
-- **Terrain** goes into `ground_geometry`. Far hills go into `context_geometry` (low poly). A building with more than 250,000 sensors is refused: use a coarser `surface_grid_size`.
+- **Terrain** goes into `ground_geometry`. Far hills go into `context_geometry` (low poly). A single building above about 250,000 sensors cannot be split and the server can refuse the job: use a coarser `surface_grid_size`.
 
 ### Recipe: Rhino mesh to numpy, in bulk
 ```python
@@ -102,13 +102,13 @@ Pass the entries as `buildings=` and set `mesh_cleaning="off"` on the payload.
 
 ### Wire types
 
-The raw array keeps the wire type (float16 or float32). It is **not** the real value. **Always use the helper.** It gives real values and NaN for "no value".
+The raw array keeps the wire type. It is **not** the real value. **Always use the helper.** It gives real values and NaN for "no value".
 
 ```python
 grid = result.physical_grid(np.float32)        # ground run: a new float32 array, NaN = no value
 ```
 
-- Use float32 for display and for maths. Float16 shifts LUT indices at the bin edges. A result grid is read-only.
+- Use float32 for display and for maths. Low-precision types shift LUT indices at the bin edges. A result grid is read-only.
 - Ground grid: row 0 is the **south** row. `result.bounds` is `(min_lon, min_lat, max_lon, max_lat)`.
 - `result.min_legend` and `result.max_legend` hold the data range (`None` for PWC class codes). One scale over variants: `infrared_sdk.shared_legend_range([res_a, res_b], mode="trimmed")`.
 
@@ -124,7 +124,7 @@ grid = result.physical_grid(np.float32)        # ground run: a new float32 array
 - `frames` (9 S,) f32: for each surface, the corner, u step and v step (relative to `anchor`).
 - `dims` (3 S,) u32: for each surface, `nu`, `nv` and the first cell index.
 - `outline` (6 T,) f32 and `outline_offsets` (S+1,) u32: outline triangles in cell units `(s, t)`. Surface `f` owns triangles `oo[f]:oo[f+1]`.
-- `values` (f16 or f32): one for each cell. An invalid cell holds 0. `validity`: u8 bitmap, 1 = has a value.
+- `values` (stored type can differ): one for each cell. An invalid cell holds 0. `validity`: u8 bitmap, 1 = has a value.
 - A world point of a surface: `p = anchor + corner + s * u_step + t * v_step`.
 - Cell `(i, j)` of surface `f` has the index `start_f + j * nu_f + i`.
 

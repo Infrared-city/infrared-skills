@@ -62,8 +62,7 @@ The quad of a surface starts at `origin - (u + v) * grid_size / 2` and runs to
 
 ## Exact outlines
 
-Set `emit_cell_tris=True` to get exact clipped cell triangles. They are about 96 % of the answer
-body. Use them for one selected building, or for an export. "Overview, then click" keeps the
+Set `emit_cell_tris=True` to get exact clipped cell triangles. They make the answer much larger. Use them for one selected building, or for an export. "Overview, then click" keeps the
 payload small:
 
 1. Run the whole scene with the default (no triangles). Draw render buffers or textures.
@@ -91,15 +90,14 @@ print(bearing(normal), "deg")
 ```
 
 A facade has `|n_z| <= 0.5`. Do not sort facade from roof by `v_axis[2]` alone.
-A June run in Munich ordered the area-weighted sun hours S, E, W, N: a check that the normal points out.
+Check the normals with a sun-hours run in summer: the area-weighted mean should fall in the order that you expect for the facing (south highest, north lowest in the northern hemisphere).
 
 ## Display
 
 - One shared colour scale for roofs and facades. The contrast between them is the reading.
   Isolate facades only with a labelled exception.
 - A surface at exactly 0.0 is data (party wall, light well). A masked cell is NaN. They are different.
-  On one Munich run, 32 % of the facades were exact zeros and moved the scene mean from 5.33 h to 3.62 h.
-  Say whether your mean includes them.
+  Exact zeros are data and they move the scene mean. Say whether your mean includes them.
 - Interpolation is a display choice. Keep the grid as the lossless result.
 - `result.aggregates["buildings"]` gives area, mean and peak for each building: use it for element
   colours, dashboards and ranking.

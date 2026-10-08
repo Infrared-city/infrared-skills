@@ -4,18 +4,11 @@ Every area analysis returns an `AreaResult`. The same rules hold for wind, solar
 
 ## Always read through the helper
 
-The server stores each result in the smallest accurate type. The raw array keeps that type.
+The server stores each result in a compact type. The raw array keeps that type. The stored type can
+differ by analysis and by run, and it is not the real value (it can be scaled or half-float bits).
 
-| Stored type | Analyses |
-|---|---|
-| f16 (half float) | solar radiation, sky view factor, TCS, wind speed, UTCI |
-| f32 | direct sun hours, daylight availability, PWC class codes |
-| int16 (scaled) | possible for scaled results: value = stored / `value_divisor` |
-| f64 | a JSON result, or a run that mixes types |
-
-Do not read `merged_grid` for values. UTCI arrives as f16 and the helper handles it. An int16 grid read
-without the divisor is 10 times too large. In TypeScript an f16 grid is a `Uint16Array` of
-half-float bits: a UTCI of 23.4 reads as 19930.
+Do not read `merged_grid` for values. Always read with `physical_grid()`, `has_value()` and
+`render_buffers()`. In TypeScript, use `areaGridValuesF32`. The helpers give real values.
 
 | | Python | TypeScript |
 |---|---|---|

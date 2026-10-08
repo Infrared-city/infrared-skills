@@ -21,8 +21,8 @@ result = client.run_area_and_wait(
 ### Buildings
 
 - Metres. Origin = south-west corner of the polygon bounding box. x east, y north, z up.
-- Flat lists: `[x0, y0, z0, x1, ...]`, not `[[x, y, z], ...]`. Each entry needs `coordinates` and `indices`:
-  a mesh without `indices` is refused.
+- Flat lists: `[x0, y0, z0, x1, ...]`, not `[[x, y, z], ...]`. Each entry needs `coordinates` and `indices`.
+  The service drops a mesh without `indices` without any error.
 - Each building is one closed solid with a bottom face. Open meshes give wrong shade.
 - Public data: `client.buildings.get_area(polygon)` returns an `AreaBuildings` object that records its
   frame. Pass the **object**, not `.buildings`. A bare map is read as "in the frame of the run polygon".
@@ -86,15 +86,18 @@ See [analyses/11-terrain-and-context.md](analyses/11-terrain-and-context.md).
 
 ## Meshes from OBJ, glTF and BIM: weld first
 
-Exporters write triangle soup: three vertices for each triangle, nothing shared. Weld and round to
-1 cm: the upload is about 5 times smaller. A request over 64 MiB is refused (413).
+Exporters write triangle soup: three vertices for each triangle, nothing shared. Round to
+1 cm, then weld: the upload gets smaller. A request over 64 MiB is refused (413).
 
 ```python
 import numpy as np
 from infrared_sdk.geometry import clean_mesh
 
-cleaned = clean_mesh(mesh["coordinates"], mesh["indices"])     # welds, drops bad triangles, orients outward
-mesh = {"coordinates": np.round(cleaned.coordinates, 2).tolist(),
+# Round first. clean_mesh joins only vertices at the exact same position,
+# so rounding after it would leave near-equal vertices split.
+rounded = np.round(np.asarray(mesh["coordinates"], dtype=float), 2)
+cleaned = clean_mesh(rounded.ravel().tolist(), mesh["indices"])   # welds, drops bad triangles, orients outward
+mesh = {"coordinates": cleaned.coordinates.tolist(),
         "indices": cleaned.indices.tolist()}
 print(cleaned.report)
 ```
@@ -104,7 +107,7 @@ Clean each building alone: two touching objects must stay apart.
 ## Dense or photogrammetric models
 
 The batch estimator for facades is `area / grid_size^2`. On finely triangulated meshes, each small
-facet rounds up to one cell, so the estimate is about 1.5 times low and the run is refused (422).
+facet rounds up to one cell, so the estimate is too low and the run is refused (422).
 Halve `max_sensors_per_job`, or raise `surface_grid_size`.
 
 ## Pitfalls

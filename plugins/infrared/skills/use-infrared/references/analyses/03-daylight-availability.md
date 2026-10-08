@@ -23,8 +23,7 @@ daylight = result.physical_grid()             # see the unit note below
 
 ## Unit
 
-The grid is the **percent of the window** with enough daylight (0 to 100). A one-day test on a
-single tower gave 28.6 to 100. Stored type: f32. Judge it as a share of the window, never in lux.
+The grid is the **percent of the window** with enough daylight (0 to 100). Judge it as a share of the window, never in lux.
 
 ## Pitfalls
 

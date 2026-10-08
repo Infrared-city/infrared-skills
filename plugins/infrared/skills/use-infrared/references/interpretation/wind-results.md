@@ -13,7 +13,7 @@ Returns a 2-D grid (`physical_grid()`) of wind magnitude in **m/s** at pedestria
 | 3.5–6 | Breezy |
 | > 6 | Strong / uncomfortable for sitting |
 
-`wind_speed` payload field is a **`float`** in m/s, `v ≥ 0` — pass an EPW-derived mean as-is; truncating 3.9 to 3 shifts every cell by −23 %. `wind_direction` is a whole-degree `int` `0–360`; a fractional bearing is rejected at construction.
+`wind_speed` payload field is a **`float`** in m/s, `v ≥ 0` — pass an EPW-derived mean as-is; truncating 3.9 to 3 shifts every cell by −23 %. `wind_direction` is a whole-degree `int`. Values outside 0–360 wrap. A fractional bearing is rejected at construction.
 
 **Pitfalls:** single-direction snapshot (run several to estimate annual exposure); `wind_direction=270` means wind **from** the west; NaN ≠ zero; **if you see grid-aligned discontinuities on multi-tile runs**, switch from the default centre-crop merge to `merge_area_jobs(strategy="directional_blend", wind_direction_deg=...)` — see [`../analyses/01-wind-speed.md`](../analyses/01-wind-speed.md).
 
@@ -27,11 +27,13 @@ Lawson LDDC is a good default to communicate to users.
 
 | Class | Index | Activity / feel |
 |---|---|---|
-| A | 0 | Sitting long (cafés, parks, plazas) — calm, suitable for prolonged stationary use |
-| B | 1 | Sitting short (waiting, brief stops) — light breeze |
-| C | 2 | Standing / strolling (entrances, transitions) — moderate flow |
-| D | 3 | Walking (sidewalks, busy routes) — windy, marginal for lingering |
-| E | 4 | Business walking — uncomfortable for stationary use; flags safety-level exposure |
+| A | 0 | Sitting: calm, suitable for prolonged stationary use |
+| B | 1 | Standing: light breeze, brief stops |
+| C | 2 | Strolling: moderate flow |
+| D | 3 | Business walking: windy, marginal for lingering |
+| E | 4 | Uncomfortable: not suitable for stationary use |
+
+The letters are the SDK class labels. The standard LDDC names above are for reading. The labels at run time are in `result.legend`: print them and use them in your legend.
 
 The SDK output range is `int 0–4` for PWC. **For default reporting, anything class E is flagged as a hotspot.**
 
