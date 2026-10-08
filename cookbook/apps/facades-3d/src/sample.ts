@@ -72,11 +72,12 @@ export interface GroupStats { id: string; area: number; mean: number; min: numbe
 
 /**
  * Area-weighted mean and p90, min and max of the cells with a value, per group.
- * Weight of a cell = gridSize² x its covered fraction (`cellArea`, 0..1; a cell cut by
- * the wall outline covers less). With `cutCells = false` every cell counts in full:
- * then `area` and `mean` equal the SDK's own `columns.area`/`mean` and `aggregates`.
+ * Default: every cell counts in full (gridSize²), so `area` and `mean` equal the
+ * SDK's own `columns.area`/`mean` and `aggregates`.
+ * `cutCells = true` weights each cell by its covered fraction (`cellArea`, 0..1):
+ * use it when you need the true wall area, for example kWh per m² of real facade.
  */
-export function surfaceStats(c: SurfaceColumns, by: "surface" | "building", cutCells = true): GroupStats[] {
+export function surfaceStats(c: SurfaceColumns, by: "surface" | "building", cutCells = false): GroupStats[] {
   const values = surfaceValuesF32(c);
   const cells = c.cellOffsets[c.surfaceCount];
   // Group index per surface row, then per cell.

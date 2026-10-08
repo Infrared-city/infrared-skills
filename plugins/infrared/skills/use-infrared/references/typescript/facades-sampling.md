@@ -61,12 +61,12 @@ const perSurface = surfaceStats(columns, "surface");
 - One pass over the typed arrays, then one sort by group and value. No object per cell.
   A result with 217,000 cells takes about 0.2 s in Node.
 - `mean` and `p90` are area-weighted. Cells with no value do not count.
-- A cell cut by the wall outline covers less than a full cell. `columns.cellArea`
-  gives the covered part (0 to 1), and the helper uses it by default.
-- The SDK's own `columns.mean`, `columns.area` and `columns.aggregates.buildings`
-  count every cell in full. `surfaceStats(columns, "building", false)` gives the
-  same numbers. On small buildings the two ways can differ a lot. Say which one
-  you show.
+- By default every cell counts in full. Then `area` and `mean` equal the SDK's
+  own `columns.area`, `columns.mean` and `columns.aggregates.buildings`.
+- `surfaceStats(columns, "building", true)` weights each cell by the part of it
+  that the wall covers (`columns.cellArea`, 0 to 1). Use it when you need the
+  true wall area, for example kWh per m² of real facade. On small buildings the
+  two ways can differ a lot.
 
 ## 4. Export
 
@@ -85,7 +85,7 @@ empty cell or `null`. In Node, write the text with `fs.writeFileSync`.
 Offline, on a saved solar radiation result (909 buildings, 10,031 surfaces,
 217,083 cells), no API call:
 
-- `surfaceStats(columns, "building", false)` equals `aggregates.buildings`
+- `surfaceStats(columns, "building")` (the default) equals `aggregates.buildings`
   (area, mean, peak) for all 909 buildings. Per surface it equals `columns.mean`.
 - 2,158 picks at triangle centres: `cellsAtPoints` at the same 3D points gave the
   same cell for 2,155 and the same value for 2,151 of 2,154 cells with a value.
