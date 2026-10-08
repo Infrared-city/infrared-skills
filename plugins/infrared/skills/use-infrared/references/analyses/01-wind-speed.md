@@ -7,6 +7,8 @@ Run: shape of the call is in [../python/weather-and-time.md](../python/weather-a
 Doc: <https://infrared.city/docs/sdk/1.0/python/analyses/index.md>
 
 ```python
+import time
+
 from infrared_sdk import WindModelRequest
 from infrared_sdk.analyses.types import AnalysesName
 
@@ -15,7 +17,13 @@ request = WindModelRequest(
     wind_speed=4.5,         # float, m/s, 0 or more. Do not round an EPW mean.
     wind_direction=270,     # whole degrees (int), wind FROM this bearing (270 = from the west)
 )
-result = client.run_area_and_wait(request, polygon, buildings=buildings)
+# Wind speed: ALWAYS merge with the directional blend. The default merge shows seams.
+schedule = client.run_area(request, polygon, buildings=buildings)
+known = {}                                   # job states, reused between checks
+while not client.check_area_state(schedule, known=known).is_complete:
+    time.sleep(1)
+result = client.merge_area_jobs(schedule, strategy="directional_blend",
+                                wind_direction_deg=request.wind_direction)
 speed = result.physical_grid()          # m/s, NaN = no value
 ```
 
@@ -31,15 +39,11 @@ Wind takes buildings, trees and ground. It has no `ground_geometry` (so `terrain
 
 ## Tiles
 
-Wind tiles are 512 m with a step of 256 m, so they overlap. The default merge keeps the centre of
-each tile. On a multi-tile area, `directional_blend` removes seams. It needs two steps:
-
-```python
-schedule = client.run_area(request, polygon, buildings=buildings)
-# ... wait until all jobs end (client.check_area_state(schedule)) ...
-result = client.merge_area_jobs(schedule, strategy="directional_blend",
-                                wind_direction_deg=270.0)   # same value as the request
-```
+Wind tiles are 512 m with a step of 256 m, so they overlap. Always merge wind speed with
+`strategy="directional_blend"` (Python `merge_area_jobs`, TypeScript `mergeAreaJobs`): it
+blends the overlaps along the wind direction. The default merge keeps the centre of each tile
+and leaves visible seams. `run_area_and_wait` uses the default merge, so use the three steps
+above for wind speed. Pedestrian wind comfort is a class map and uses the default merge.
 
 ## Pitfalls
 

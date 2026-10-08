@@ -125,6 +125,6 @@ None of these raise an error.
 - Weather left out of a thermal or solar request: billed, then fails. Use `from_weatherfile_payload`.
 - No `ground_geometry` means a flat plane. Terrain in `buildings` gives a shattered mesh.
 - Night hours in a `direct-sun-hours` window count as sun. Shade beyond 128 m past a tile is missing.
-- Interior entities must be nested. `preview_area` without `payload=` prices the wind grid.
+- Interior entities must be nested. `preview_area` without `payload=` prices the wind grid. Wind speed: always merge with `strategy="directional_blend"`, or tiles show seams.
 - Do not call UTCI night values validated.
 End of task: read [references/reflection-and-feedback.md](references/reflection-and-feedback.md) once.

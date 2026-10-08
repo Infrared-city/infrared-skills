@@ -65,6 +65,7 @@ Most expensive failures return HTTP 200 and a plausible result. Look at the pict
 
 ## Habits that find bugs early
 
+- **Merge wind speed with the directional blend.** Use `run_area`, wait with `check_area_state`, then `merge_area_jobs(schedule, strategy="directional_blend", wind_direction_deg=...)`. The default merge shows tile seams.
 - **Call `preview_area` before every paid run.** Read `would_bill_jobs` and `estimated_cost_tokens`.
 - **Log the numbers that hid the last bug:** triangle counts, payload size, entity counts, cache hits, elapsed seconds for each step.
 - **Write job IDs to a file** when the server accepts them. After a crash you still know what was billed.

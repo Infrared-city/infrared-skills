@@ -114,6 +114,8 @@ from infrared_sdk.models import extract_weather_fields
 # One speed and one direction. Use a float speed. Direction is a whole-degree int.
 wind = WindModelRequest(analysis_type=AnalysesName.wind_speed,
                         wind_speed=4.5, wind_direction=270)      # wind FROM the west
+# Run wind speed with the directional blend merge, not run_area_and_wait:
+# see ../analyses/01-wind-speed.md.
 
 # Pedestrian wind comfort: hourly speeds and directions of a full year.
 year_rows = client.weather.filter_weather_data(
