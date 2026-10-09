@@ -1,7 +1,7 @@
 # TypeScript quick start (Node)
 
 Package: `@infrared-city/infrared-sdk` 1.0.1 or later, on the public npm registry.
-The old name `@infrared-city/infrared-sdk-ts` gets no more updates.
+The old name `@infrared-city/infrared-sdk-ts` is no longer on npm.
 API detail: [TypeScript reference](https://infrared.city/docs/sdk/1.0/api/typescript/).
 Guide: [Quickstart](https://infrared.city/docs/sdk/1.0/#quickstart),
 [What comes back](https://infrared.city/docs/sdk/1.0/#what-comes-back).
