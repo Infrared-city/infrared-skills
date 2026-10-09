@@ -18,7 +18,7 @@ large facade runs. Do not run the SDK in many processes.
 ## Threaded core (Node 22 or later)
 
 ```ts
-import { initializeCore, InfraredClient } from "@infrared-city/infrared-sdk-ts";
+import { initializeCore, InfraredClient } from "@infrared-city/infrared-sdk";
 
 // Call once, before any other SDK call. A process holds one core,
 // so a second call with another thread count is refused.
@@ -28,7 +28,7 @@ const client = new InfraredClient({ apiKey: process.env.INFRARED_API_KEY });
 ```
 
 - `threads` above 1 loads the threaded core from `generated-threads/` in the
-  package (1.0.0 ships it). The SDK starts a pool of worker threads.
+  package (1.0.1 ships it). The SDK starts a pool of worker threads.
 - The results are byte-identical to the serial core.
 - Node 20 cannot start the pool. The call is refused there.
 - The browser and worker entry points refuse `threads` above 1.
@@ -88,15 +88,15 @@ An `async` function does not move CPU work off the page. A big area still
 freezes the UI if it runs on the main thread.
 
 Run the SDK in ONE Web Worker. The package has a helper for this
-(`@infrared-city/infrared-sdk-ts/worker`):
+(`@infrared-city/infrared-sdk/worker`):
 
 ```ts
 // sdk.worker.ts: the whole worker file
-import { serveSdkWorker } from "@infrared-city/infrared-sdk-ts/worker";
+import { serveSdkWorker } from "@infrared-city/infrared-sdk/worker";
 serveSdkWorker();
 
 // page
-import { createWorkerClient } from "@infrared-city/infrared-sdk-ts/worker";
+import { createWorkerClient } from "@infrared-city/infrared-sdk/worker";
 const sdk = createWorkerClient({
   worker: new Worker(new URL("./sdk.worker.ts", import.meta.url), { type: "module" }),
   module,              // WebAssembly.Module, compiled once on the page

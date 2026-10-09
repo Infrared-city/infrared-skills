@@ -5,12 +5,12 @@
 
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import coreUrl from "@infrared-city/infrared-sdk-ts/core.wasm?url";
+import coreUrl from "@infrared-city/infrared-sdk/core.wasm?url";
 import {
   InfraredClient, initializeCore, legendRange, surfaceRenderBuffers, surfaceValuesF32,
   type SurfaceColumns, type SurfaceRenderBuffers,
-} from "@infrared-city/infrared-sdk-ts";
-import type { Polygon } from "@infrared-city/infrared-sdk-ts/tiling";
+} from "@infrared-city/infrared-sdk";
+import type { Polygon } from "@infrared-city/infrared-sdk/tiling";
 import { createContextMesh } from "./context-mesh.ts";
 import { cellIsValid, createSurfaceMesh } from "./surface-mesh.ts";
 import { cellFromHit, cellInfo } from "./sample.ts";

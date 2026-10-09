@@ -4,7 +4,7 @@
 //
 // Ids: a surface id is "<building id>/<n>", so the building id is the part before the last "/".
 
-import { surfaceId, surfaceValuesF32, type SurfaceColumns } from "@infrared-city/infrared-sdk-ts";
+import { surfaceId, surfaceValuesF32, type SurfaceColumns } from "@infrared-city/infrared-sdk";
 import { cellIndex } from "./surface-mesh.ts";
 
 export interface CellInfo { cell: number; row: number; surfaceId: string; buildingId: string; value: number }

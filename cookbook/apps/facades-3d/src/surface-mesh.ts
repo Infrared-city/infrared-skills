@@ -8,7 +8,7 @@
 // Format: https://infrared.city/docs/sdk/1.0/sdk.md (section "Draw facade and roof results fast").
 
 import * as THREE from "three";
-import type { SurfaceRenderBuffers } from "@infrared-city/infrared-sdk-ts";
+import type { SurfaceRenderBuffers } from "@infrared-city/infrared-sdk";
 
 /** Width of the value and validity textures. Cell k sits at (k % W, floor(k / W)). */
 const TEX_WIDTH = 4096;

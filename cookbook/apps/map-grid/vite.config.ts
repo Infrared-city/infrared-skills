@@ -42,6 +42,6 @@ export default defineConfig(({ mode }) => {
     plugins: [infraredProxy(env.INFRARED_API_KEY ?? "")],
     build: { target: "es2022" }, // top-level await
     // The SDK loads its WASM core from a URL; do not pre-bundle it.
-    optimizeDeps: { exclude: ["@infrared-city/infrared-sdk-ts"] },
+    optimizeDeps: { exclude: ["@infrared-city/infrared-sdk"] },
   };
 });
