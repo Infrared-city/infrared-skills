@@ -23,7 +23,7 @@
 
 ## New in 1.0
 
-- **SDK 1.0, Python and TypeScript.** The skill and every example use `infrared-sdk` 1.0 and `@infrared-city/infrared-sdk` 1.0. The TypeScript package was `@infrared-city/infrared-sdk-ts` before 1.0.1; use the new name. The notebooks, scripts and apps ran against the live API.
+- **SDK 1.0, Python and TypeScript.** The skill and every example use `infrared-sdk` 1.0 and `@infrared-city/infrared-sdk` 1.0. The notebooks, scripts and apps ran against the live API.
 - **Start from your goal.** A router sends you to the right path: Grasshopper, notebook, web app, app for many users, or backend.
 - **Ten case-study notebooks.** Real sites, basemaps, 3D facades, design variants. Your own model first, public data as the fallback.
 - **Web apps in minutes.** A map with a Run button, a 3D facade viewer, and a Cloudflare Worker that keeps your API key secret. Plus a FastAPI backend.
@@ -129,7 +129,7 @@ See [`cookbook/README.md`](cookbook/README.md) for how to run them.
 
 | Plugin | Python SDK | TypeScript SDK | Branch |
 |---|---|---|---|
-| 1.0.x | `infrared-sdk` 1.0.x | `@infrared-city/infrared-sdk` 1.0.1+ (was `@infrared-city/infrared-sdk-ts` 1.0.0) | `main` |
+| 1.0.x | `infrared-sdk` 1.0.x | `@infrared-city/infrared-sdk` 1.0.1+ | `main` |
 | 0.3.x | `infrared-sdk` 0.5.x | none | `sdk-0.5.x` (tag `sdk-0.5.x-final`, frozen) |
 
 ## Layout
