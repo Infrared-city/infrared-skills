@@ -1,6 +1,6 @@
 # TypeScript quick start (Node)
 
-Package: `@infrared-city/infrared-sdk-ts` 1.0.0, on the public npm registry.
+Package: `@infrared-city/infrared-sdk` 1.0.1 or later, on the public npm registry.
 API detail: [TypeScript reference](https://infrared.city/docs/sdk/1.0/api/typescript/).
 Guide: [Quickstart](https://infrared.city/docs/sdk/1.0/#quickstart),
 [What comes back](https://infrared.city/docs/sdk/1.0/#what-comes-back).
@@ -8,13 +8,14 @@ Guide: [Quickstart](https://infrared.city/docs/sdk/1.0/#quickstart),
 ## Install
 
 ```bash
-npm install @infrared-city/infrared-sdk-ts
+npm install @infrared-city/infrared-sdk
 npm install hyparquet hyparquet-compressors   # only to read public Overture buildings
 npm install -D tsx
 ```
 
-If a global `~/.npmrc` maps `@infrared-city` to another registry, add a local
-`.npmrc` with `@infrared-city:registry=https://registry.npmjs.org`.
+If a global `~/.npmrc` maps `@infrared-city` to GitHub Packages, npm looks for
+the SDK there and not on npmjs.org. The install fails or gets an old version.
+Add a local `.npmrc` with `@infrared-city:registry=https://registry.npmjs.org`.
 
 ## The whole flow
 
@@ -24,7 +25,7 @@ Save as `quickstart.ts`, set `"type": "module"` in `package.json`, run
 ```ts
 import {
   InfraredClient, initializeCore, areaGridValuesF32, legendRange, type AreaResult,
-} from "@infrared-city/infrared-sdk-ts";
+} from "@infrared-city/infrared-sdk";
 
 // 1. Start the WASM core once per process (Node loads the packaged file).
 await initializeCore();

@@ -30,7 +30,7 @@ the network, a foreign page can pass its `Origin` check.
 ## Rules this app follows
 
 - `initializeCore({ url })` once, before any SDK call. Vite gives the WASM URL:
-  `import coreUrl from "@infrared-city/infrared-sdk-ts/core.wasm?url"`.
+  `import coreUrl from "@infrared-city/infrared-sdk/core.wasm?url"`.
 - `new InfraredClient({ baseUrl: "/api/ir" on your origin, auth: async () => ({}), fetch })`.
   The empty `auth` means "the proxy signs". The `fetch` sends the result download
   through the proxy relay, because the results bucket sends no CORS headers.

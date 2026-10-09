@@ -1,7 +1,7 @@
 # TypeScript app recipes
 
 Small, runnable web apps on the [Infrared TypeScript SDK](https://infrared.city/docs/sdk/1.0/api/typescript/)
-(`@infrared-city/infrared-sdk-ts` 1.0.0). Copy one and change it.
+(`@infrared-city/infrared-sdk` 1.0.1 or later). Copy one and change it.
 
 | App | What it shows |
 |---|---|
@@ -19,3 +19,5 @@ folders side by side.
 
 Requirements: Node 20 or later, an Infrared API key (<https://infrared.city>).
 Each folder has a local `.npmrc` that gets the SDK from the public npm registry.
+Keep it: a global `~/.npmrc` that maps `@infrared-city` to GitHub Packages makes
+npm look there and not on npmjs.org.

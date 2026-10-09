@@ -14,16 +14,16 @@
 </p>
 
 <p align="center">
-  <img alt="plugin 1.0.0" src="https://img.shields.io/badge/plugin-1.0.0-0b7285" />
+  <img alt="plugin 1.0.1" src="https://img.shields.io/badge/plugin-1.0.1-0b7285" />
   <a href="https://pypi.org/project/infrared-sdk/"><img alt="PyPI infrared-sdk" src="https://img.shields.io/pypi/v/infrared-sdk?label=infrared-sdk" /></a>
-  <a href="https://www.npmjs.com/package/@infrared-city/infrared-sdk-ts"><img alt="npm infrared-sdk-ts" src="https://img.shields.io/npm/v/@infrared-city/infrared-sdk-ts?label=infrared-sdk-ts" /></a>
+  <a href="https://www.npmjs.com/package/@infrared-city/infrared-sdk"><img alt="npm @infrared-city/infrared-sdk" src="https://img.shields.io/npm/v/@infrared-city/infrared-sdk?label=%40infrared-city%2Finfrared-sdk" /></a>
 </p>
 
 ---
 
 ## New in 1.0
 
-- **SDK 1.0, Python and TypeScript.** The skill and every example use `infrared-sdk` 1.0 and `@infrared-city/infrared-sdk-ts` 1.0. The notebooks, scripts and apps ran against the live API.
+- **SDK 1.0, Python and TypeScript.** The skill and every example use `infrared-sdk` 1.0 and `@infrared-city/infrared-sdk` 1.0. The notebooks, scripts and apps ran against the live API.
 - **Start from your goal.** A router sends you to the right path: Grasshopper, notebook, web app, app for many users, or backend.
 - **Ten case-study notebooks.** Real sites, basemaps, 3D facades, design variants. Your own model first, public data as the fallback.
 - **Web apps in minutes.** A map with a Run button, a 3D facade viewer, and a Cloudflare Worker that keeps your API key secret. Plus a FastAPI backend.
@@ -129,7 +129,7 @@ See [`cookbook/README.md`](cookbook/README.md) for how to run them.
 
 | Plugin | Python SDK | TypeScript SDK | Branch |
 |---|---|---|---|
-| 1.0.x | `infrared-sdk` 1.0.x | `@infrared-city/infrared-sdk-ts` 1.0.x | `main` |
+| 1.0.x | `infrared-sdk` 1.0.x | `@infrared-city/infrared-sdk` 1.0.1+ | `main` |
 | 0.3.x | `infrared-sdk` 0.5.x | none | `sdk-0.5.x` (tag `sdk-0.5.x-final`, frozen) |
 
 ## Layout

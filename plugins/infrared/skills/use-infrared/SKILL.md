@@ -1,6 +1,6 @@
 ---
 name: use-infrared
-description: Run Infrared urban microclimate simulations (wind, pedestrian wind comfort, solar radiation, sun hours, daylight, sky view factor, UTCI thermal comfort, comfort statistics, interior daylight factor and energy balance) from Python (`pip install infrared-sdk`) or TypeScript (`npm install @infrared-city/infrared-sdk-ts`), in scripts, web apps, Grasshopper or Rhino, and read the results. Also covers files in and out of the Infrared platform. Use when the user mentions Infrared, infrared.city, infrared-sdk, urban microclimate, wind / Lawson / PWC, solar / daylight / sun hours / SVF, UTCI / thermal comfort, facade or roof analysis, a map or 3D app that shows results, Grasshopper or Rhino with Infrared, or uploads, imports or exports GeoJSON, OBJ, EPW, GeoTIFF or ZIP.
+description: Run Infrared urban microclimate simulations (wind, pedestrian wind comfort, solar radiation, sun hours, daylight, sky view factor, UTCI thermal comfort, comfort statistics, interior daylight factor and energy balance) from Python (`pip install infrared-sdk`) or TypeScript (`npm install @infrared-city/infrared-sdk`), in scripts, web apps, Grasshopper or Rhino, and read the results. Also covers files in and out of the Infrared platform. Use when the user mentions Infrared, infrared.city, infrared-sdk, urban microclimate, wind / Lawson / PWC, solar / daylight / sun hours / SVF, UTCI / thermal comfort, facade or roof analysis, a map or 3D app that shows results, Grasshopper or Rhino with Infrared, or uploads, imports or exports GeoJSON, OBJ, EPW, GeoTIFF or ZIP.
 allowed-tools: Bash(pip:*), Bash(uv:*), Bash(python:*), Bash(python3:*), Bash(npm:*), Bash(node:*), Bash(curl:*)
 license: Apache-2.0
 ---
@@ -85,12 +85,12 @@ More in `references/python/`: [own-data](references/python/own-data.md), [weathe
 ## TypeScript
 
 ```bash
-npm install @infrared-city/infrared-sdk-ts   # Node 18+, from npmjs.org, no token
+npm install @infrared-city/infrared-sdk   # Node 18+, from npmjs.org, no token
 ```
 
-An `.npmrc` that maps `@infrared-city` to GitHub Packages keeps you on an old version: remove that line.
+If an `.npmrc` (also the global `~/.npmrc`) maps `@infrared-city` to GitHub Packages, npm looks there and not on npmjs.org. Remove that line, or add a local `.npmrc` with `@infrared-city:registry=https://registry.npmjs.org`.
 ```ts
-import { InfraredClient, initializeCore, areaGridValuesF32, type AreaResult } from "@infrared-city/infrared-sdk-ts";
+import { InfraredClient, initializeCore, areaGridValuesF32, type AreaResult } from "@infrared-city/infrared-sdk";
 
 await initializeCore();                                    // once, before any area run
 const client = new InfraredClient({ apiKey: process.env.INFRARED_API_KEY });

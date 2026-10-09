@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Repo: agent skill and cookbook for the [Infrared SDK](https://infrared.city/docs/sdk/) (Python `pip install infrared-sdk`, TypeScript `npm install @infrared-city/infrared-sdk-ts`).
+Repo: agent skill and cookbook for the [Infrared SDK](https://infrared.city/docs/sdk/) (Python `pip install infrared-sdk`, TypeScript `npm install @infrared-city/infrared-sdk`).
 
 ## For agents working with the Infrared SDK in any project
 

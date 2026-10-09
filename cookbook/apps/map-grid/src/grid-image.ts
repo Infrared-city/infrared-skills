@@ -7,7 +7,7 @@
 //   so flip the rows.
 // - Place the image with `result.bounds` = [west, south, east, north] (degrees).
 
-import { areaGridValuesF32, type AreaResult } from "@infrared-city/infrared-sdk-ts";
+import { areaGridValuesF32, type AreaResult } from "@infrared-city/infrared-sdk";
 
 export function gridToCanvas(
   result: AreaResult, lut: Uint8Array, range: readonly [number, number],

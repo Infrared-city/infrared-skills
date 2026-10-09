@@ -11,8 +11,8 @@ preview, **Run**, the result as a `BitmapLayer`, a legend with units, progress t
 ## Setup in the browser
 
 ```ts
-import coreUrl from "@infrared-city/infrared-sdk-ts/core.wasm?url";   // Vite: WASM as a URL
-import { InfraredClient, initializeCore } from "@infrared-city/infrared-sdk-ts";
+import coreUrl from "@infrared-city/infrared-sdk/core.wasm?url";   // Vite: WASM as a URL
+import { InfraredClient, initializeCore } from "@infrared-city/infrared-sdk";
 import { relayUrl } from "./proxy";   // from cookbook/apps/cloudflare-proxy/src/proxy.ts
 
 await initializeCore({ url: new URL(coreUrl, location.href) });       // once, before any SDK call
@@ -27,7 +27,7 @@ const client = new InfraredClient({
   in the app). In production, a Worker: [cloudflare-proxy.md](cloudflare-proxy.md).
 - The custom `fetch` sends the presigned result download through the proxy relay.
   Without it the browser blocks the download (no CORS on the results bucket).
-- Vite: `optimizeDeps.exclude: ["@infrared-city/infrared-sdk-ts"]` and `build.target: "es2022"`.
+- Vite: `optimizeDeps.exclude: ["@infrared-city/infrared-sdk"]` and `build.target: "es2022"`.
 
 ## Preview, then run
 
