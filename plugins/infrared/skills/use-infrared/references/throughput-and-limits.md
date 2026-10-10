@@ -91,6 +91,27 @@ How the time splits on the 40 km² cold run (total about 15 s):
 
 The warm run has no upload. It is almost half the time.
 
+### Facades and roofs, small site and city block (local Python SDK)
+
+Python SDK 1.0.0 on a 12-core laptop, staging API, `analysis_surfaces="all"`, Hong Kong
+city model. Time of `run_area_and_wait`, one client. "4 analyses" = SVF, solar radiation,
+daylight availability and direct sun hours in one call.
+
+| Site | Buildings | Cells | Sensors per analysis | Analyses | Jobs | Cold | Warm |
+|---|---|---|---|---|---|---|---|
+| 70 m x 70 m | 4 | 2 m | 11,788 | 1 | 1 | 1.9-5.6 s | 0.9 s |
+| 70 m x 70 m | 4 | 2 m | 11,788 | 4 | 4 | 2.8-4.2 s | 2.3 s |
+| 1.2 km x 1.2 km | 1,843 | 2 m | 2.5 million | 1 | 16 | 9.5-15 s | 7.5-10 s |
+| 1.2 km x 1.2 km | 1,843 | 4 m | 0.85 million | 4 | 36 | 12 s | 11.5 s |
+| 1.2 km x 1.2 km | 1,843 | 2 m | 2.5 million | 4 | 64 | 23-26 s | 16 s |
+| 1.2 km x 1.2 km | 1,843 | 1 m | 8.1 million | 4 | 228 | - | 33 s |
+
+- Cold = new client: first upload (about 20 MiB for the 1.2 km block), connections. Warm = same
+  client, the geometry is reused. A small site runs one real analysis in about 1 s warm.
+- Sensors drive jobs and price: about 250,000 sensors per job. 1 m costs 3.6 times 2 m.
+- From a new client, 4 analyses in one call took 23 s; one call each took 36 s. In 1.0.0, each
+  analysis plans its facade jobs again on your machine (1.4 s at 2 m, 3.5 s at 1 m, per analysis).
+
 ## Local planning is free
 
 Planning is local CPU work and costs no tokens. Measured on 2026-10-08,
