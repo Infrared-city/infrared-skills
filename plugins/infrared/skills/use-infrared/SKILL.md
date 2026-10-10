@@ -9,6 +9,19 @@ license: Apache-2.0
 
 Do not write SDK calls from memory. Read the page for your language, or fetch the docs (below).
 
+## Coordinates: read this before your first job (mandatory)
+
+A frame error does not raise. The job runs, bills, and gives a plausible result in the wrong place.
+
+| Data | Frame |
+|---|---|
+| `polygon`, `vegetation`, `ground_materials` | WGS84 degrees, `[lon, lat]`. Not `[lat, lon]`, not a projected CRS |
+| `buildings`, `context_geometry`, `ground_geometry` | Metres, x east, y north, z up. `(0, 0)` = south-west corner of the polygon's bounding box |
+| Ground result | 2-D grid, row 0 = south (flip rows for an image). Place it with `result.bounds` |
+| Facade and roof result | The metre frame of your meshes. `origin` = centre of cell `(0, 0)`, not a corner |
+
+Read [geospatial-crs](references/geospatial-crs.md) before a job, [grid-conventions](references/interpretation/grid-conventions.md) before a result.
+
 ## What do you want to build?
 
 | Goal | SDK | Go to |
@@ -34,15 +47,12 @@ Every row: read [building-fast-apps](references/building-fast-apps.md) for speed
 | What does it feel like outside? For how long is it comfortable, hot, cold? | `thermal-comfort-index` UTCI (degrees C), `thermal-comfort-statistics` (% of window) | [07](references/analyses/07-thermal-comfort-utci.md), [08](references/analyses/08-thermal-comfort-statistics.md) |
 | Daylight in a room? Heating and cooling need? (Beta) | `daylight-factor` (%), `energy-balance` (kWh/m2 a) | [10](references/analyses/10-interior-daylight-factor.md), [12](references/analyses/12-interior-energy-balance.md) |
 
-Reading results: [interpretation/](references/interpretation/grid-conventions.md).
-
 ### Inputs: your data first
 
 - Your own buildings, trees and ground are the main path ([byo-inputs](references/byo-inputs.md)). Ask what the user has
   (BIM, Rhino, IFC, GeoJSON). Public data (Overture, city data) is a fallback. Its source and heights vary: say so.
-- Frames: the area is a lon/lat polygon (`[lon, lat]`). Meshes are metres from the polygon's south-west corner, z up
-  ([crs](references/geospatial-crs.md)). Sensors: ground, facades and roofs, or own points ([09](references/analyses/09-facade-terrain.md)).
-  Terrain and far shade (128 m reach in 1.0): [11](references/analyses/11-terrain-and-context.md). Time: [03](references/03-time-period.md).
+- Sensors: ground, facades and roofs, or own points ([09](references/analyses/09-facade-terrain.md)). Terrain and far
+  shade (128 m reach in 1.0): [11](references/analyses/11-terrain-and-context.md). Time: [03](references/03-time-period.md).
 
 ### Area runs and results
 
@@ -50,8 +60,7 @@ The SDK cuts the area into 512 m tiles, uploads the geometry once, sends one job
 analysis, polls, and merges. A failed tile raises (no map with holes). A resend never bills twice.
 - Always read values with the helper: `result.physical_grid()` (Python), `areaGridValuesF32(result)` (TypeScript).
   Never read the raw array: its stored type differs by analysis. NaN means no value. A facade at 0.0 is real.
-- Row 0 is south. Place an overlay with `result.bounds`. Use a fixed colour scale for each analysis:
-  [grid-conventions](references/interpretation/grid-conventions.md), [rendering-results-well](references/recipes/rendering-results-well.md).
+- Use a fixed colour scale for each analysis: [rendering-results-well](references/recipes/rendering-results-well.md).
 - Cost: preview first (free, local). Price from `would_bill_jobs`: one job is one tile for one analysis.
 
 ## Python
@@ -67,8 +76,7 @@ from infrared_sdk.analyses.types import AnalysesName
 lon, lat = 16.371, 48.208                                  # [lon, lat], WGS84
 polygon = {"type": "Polygon", "coordinates": [[[lon, lat], [lon + 0.004, lat],
            [lon + 0.004, lat + 0.003], [lon, lat + 0.003], [lon, lat]]]}
-# Your own meshes: {id: {"coordinates": [x, y, z, ...], "indices": [...]}} in metres from the
-# polygon's south-west corner. See references/python/own-data.md. Stand-in: one 20 x 20 x 30 m box.
+# Your meshes {id: {"coordinates": [x, y, z, ...], "indices": [...]}}, metres from the SW corner (own-data.md).
 buildings = my_buildings
 
 client = InfraredClient()                                  # reads INFRARED_API_KEY
@@ -78,9 +86,8 @@ result = client.run_area_and_wait(request, polygon, buildings=buildings)
 grid = result.physical_grid()                              # real values, NaN = no value
 ```
 
-More in `references/python/`: [own-data](references/python/own-data.md), [weather-and-time](references/python/weather-and-time.md),
-[surfaces-and-sensors](references/python/surfaces-and-sensors.md), [interior](references/python/interior.md),
-[errors-and-retries](references/python/errors-and-retries.md).
+More: [own-data](references/python/own-data.md), [weather-and-time](references/python/weather-and-time.md), [surfaces-and-sensors](references/python/surfaces-and-sensors.md),
+[interior](references/python/interior.md), [errors-and-retries](references/python/errors-and-retries.md).
 
 ## TypeScript
 
@@ -102,29 +109,22 @@ console.log(plan.plannedJobCount);                         // free
 const result = await client.runAreaAndWait({ analysisType: "sky-view-factors" }, polygon, { buildings });
 const grid = areaGridValuesF32(result as AreaResult);      // Float32Array, NaN = no value
 ```
-TypeScript pages and apps: see the table above.
-
-Ground grid row 0 is south: flip the rows for an image. Facades and roofs: `surfaceRenderBuffers(columns)`.
+Facades and roofs: `surfaceRenderBuffers(columns)`. TypeScript pages and apps: see the table above.
 
 ## Docs for agents
 
 - Guide: <https://infrared.city/docs/sdk/>. The whole guide as one file: <https://infrared.city/docs/sdk/sdk.md>
-- Page index: <https://infrared.city/docs/sdk/llms.txt> and <https://infrared.city/docs/sdk/1.0/llms.txt>
-- Each page is Markdown too: add `index.md` (for example <https://infrared.city/docs/sdk/1.0/python/sdk/index.md>)
+- Page index: <https://infrared.city/docs/sdk/llms.txt>, <https://infrared.city/docs/sdk/1.0/llms.txt>. Each page is Markdown too: add `index.md` (for example <https://infrared.city/docs/sdk/1.0/python/sdk/index.md>)
 
 ## Other topics
-- Cookbook notebooks in [`cookbook/`](https://github.com/Infrared-city/infrared-skills/tree/main/cookbook): `00_quickstart`,
-  `01_design_variants`, `02_summer_heat`, `03_wind_comfort`, `04_solar_facades_3d`, `05_sensors_3d`,
-  `06_interior`, `07_terrain_and_context`, `08_scale_and_cost`, `09_all_analyses`.
+- Cookbook notebooks `00_quickstart` to `09_all_analyses` in [`cookbook/`](https://github.com/Infrared-city/infrared-skills/tree/main/cookbook).
 - Platform files: [upload](references/platform-byo-upload.md) (ask: SDK data or platform files?).
 - [Facade results on your model](references/surface-results-integration.md), [jobs](references/async-and-jobs.md), [recipes](references/recipes/hackathon-tools.md).
 
-## Silent traps
-None of these raise an error.
-- Lat and lon swapped, Y-up, centimetres, origin not at the south-west corner, an open mesh.
+## Silent traps (none of these raise an error)
+- A frame error (see Coordinates): lat/lon swapped, Y-up, centimetres, origin not at the south-west corner. An open mesh.
 - Weather left out of a thermal or solar request: billed, then fails. Use `from_weatherfile_payload`.
 - No `ground_geometry` means a flat plane. Terrain in `buildings` gives a shattered mesh.
-- Night hours in a `direct-sun-hours` window count as sun. Shade beyond 128 m past a tile is missing.
+- Night hours in a `direct-sun-hours` window count as sun. Shade beyond 128 m past a tile is missing. Do not call UTCI night values validated.
 - Interior entities must be nested. `preview_area` without `payload=` prices the wind grid. Wind speed: always merge with `strategy="directional_blend"`, or tiles show seams.
-- Do not call UTCI night values validated.
 End of task: read [references/reflection-and-feedback.md](references/reflection-and-feedback.md) once.
