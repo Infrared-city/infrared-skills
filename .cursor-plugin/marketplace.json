@@ -13,10 +13,10 @@
       "source": "./plugins/infrared",
       "description": "Use the Infrared SDK (Python and TypeScript) to run urban microclimate simulations (wind, sun, daylight, thermal comfort), build web apps and Grasshopper tools, and interpret results.",
       "category": "productivity",
-      "version": "1.0.1"
+      "version": "1.0.2"
     }
   ],
   "metadata": {
-    "version": "1.0.1"
+    "version": "1.0.2"
   }
 }
