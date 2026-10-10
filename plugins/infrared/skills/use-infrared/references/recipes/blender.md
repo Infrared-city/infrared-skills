@@ -1,34 +1,51 @@
 # Blender: facade and roof results on your 3D model
 
 How to show an `analysis_surfaces` run (facades and roofs) in Blender, fast and with exact cells.
-Runnable script: `cookbook/scripts/blender/blender_facade_results.py` (+ `legend_overlay.py`).
+Scripts in `cookbook/scripts/blender/`: `export_buffers.py` (SDK side), `blender_facade_results.py`
+(Blender), `legend_overlay.py` (any Python with Pillow).
 Tested: Blender 4.5.3 LTS (headless), `infrared-sdk` 1.0.0, Hong Kong, 1.2 km x 1.2 km:
-1,843 buildings, 276,934 frames, 3.2 million cells, 787k outline triangles.
-SDK run (16 jobs): 27 s. Blender: scene 3.3 s, three 1920 x 1200 renders 3.5 s, 8 s in total.
+1,843 buildings, 276,934 frames, 3.2 million cells, 787k outline triangles. Four analyses, two
+1920 x 1200 views each, and the `.blend`: 24 s. One analysis, three views: 8 s.
 
 ## The route
 
 Do not make one mesh per cell. Use the render buffers:
 
-1. Python (your SDK environment): run, then save `result.columns.render_buffers()`.
+1. Python (your SDK environment): run, then save the render buffers (`save_buffers`).
 2. Blender: pack every frame into ONE texture atlas, one texel for each cell.
 3. Blender: build ONE mesh from the outline triangles. Map each frame to its atlas block.
 4. Sample the atlas with `Closest` interpolation. The cells stay crisp.
 
 The mesh holds only the outline triangles (787k above), not 3.2 million cell quads.
 
+## Several analyses: one layout
+
+Analyses that ran on the same geometry and surface grid return the SAME layout: `anchor`,
+`frames`, `dims`, `outline` and `outline_offsets` are byte-identical. Only `values` change.
+So build the atlas packing and the mesh once, then add one atlas image and one material for
+each analysis. In the `.blend`, a change of analysis is a material swap. The script checks the
+layout of every file and stops on a mismatch. Cost on the area above: the shared part about
+1.6 s once, about 1.2 s for each extra analysis.
+
 ## Step 1: save the buffers (SDK side)
 
 ```python
-import numpy as np
-cols = result.columns
-buf = cols.render_buffers()
-valid = np.unpackbits(buf.validity, bitorder="little")[: len(buf.values)].astype(bool)
-np.savez_compressed("facade_buffers.npz", anchor=buf.anchor, frames=buf.frames, dims=buf.dims,
-                    outline=buf.outline, outline_offsets=buf.outline_offsets,
-                    values=buf.values.astype(np.float32), valid=valid,
-                    polygon_sw_local=np.array([sw_x, sw_y]),   # see "Frames" below
-                    names=np.array(list(buildings)))           # the ids you sent
+from export_buffers import save_buffers
+
+svf, solar = client.run_area_and_wait([svf_request, solar_request], polygon, buildings=buildings)
+sw = (sw_x, sw_y)  # the polygon's south-west corner in YOUR model frame, metres
+save_buffers(svf, "svf.npz", buildings, frame_offset=sw)
+save_buffers(solar, "solar.npz", buildings, frame_offset=sw)
+```
+
+Then, in Blender (each `--analysis` is `file|label|vmin|vmax`, with a fixed domain):
+
+```bash
+Blender -b --factory-startup --python-exit-code 1 --python blender_facade_results.py -- \
+  --analysis "svf.npz|Sky view factor (%)|0|100" \
+  --analysis "solar.npz|Solar radiation (kWh/m2)|0|140" \
+  --context model.obj --trees trees.json --out renders/
+python legend_overlay.py renders/
 ```
 
 Blender's Python has `numpy`, but no `pyproj` and no `PIL`. Convert lon/lat (trees) to metres,
@@ -58,7 +75,7 @@ and draw legends, outside Blender.
 |---|---|---|
 | Invalid cells hold `0`, not NaN | Gaps paint as the lowest colour | Test `valid`. Paint gaps a neutral grey that is not on the scale |
 | Filmic / AgX view transform | The colour scale shifts, the legend lies | `scene.view_settings.view_transform = "Standard"` |
-| Frames are in the polygon-SW frame | Results sit off your model | Add the polygon SW corner (in your model frame) to every vertex |
+| Frames are in the polygon-SW frame | Results sit off your model | Add the polygon SW corner (in your model frame) to every vertex: `frame_offset` |
 | Results and source buildings at the same place | Z-fighting | Remove the analysed buildings from the context. Keep only the others in grey |
 | Camera `clip_end` is 100 m by default | Half the city is missing | `cam.data.clip_end = 20000` |
 | Script error, exit code 0 | A failed build looks green | `Blender -b --factory-startup --python-exit-code 1 --python script.py -- args` |

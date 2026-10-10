@@ -1,51 +1,38 @@
-"""Infrared facade + roof results in Blender (headless, Blender 4.5 LTS).
+"""Infrared facade and roof results in Blender (headless, Blender 4.5 LTS).
 
-Run:
-  Blender -b --factory-startup --python-exit-code 1 --python cookbook/scripts/blender/blender_facade_results.py -- \
-      <facade_buffers.npz> <context.obj> <trees_local.json> <out_dir> [label] [vmin] [vmax]
+    Blender -b --factory-startup --python-exit-code 1 \\
+        --python blender_facade_results.py -- \\
+        --analysis "svf.npz|Sky view factor (%)|0|100" \\
+        --analysis "solar.npz|Solar radiation (kWh/m2)|0|140" \\
+        [--context model.obj] [--trees trees.json] --out renders/
 
-facade_buffers.npz = `result.columns.render_buffers()` of an `analysis_surfaces` run, saved as in
-references/recipes/blender.md (+ `valid` unpacked, `polygon_sw_local` = polygon SW in the OBJ frame).
+Each `--analysis` is a file from `export_buffers.save_buffers` plus a label and a FIXED colour
+domain. All files must share one layout (same geometry and surface grid). The layout is built
+once: one texture atlas (one texel per cell, sampled "Closest") and one mesh of the frame
+outlines. Each analysis adds only its own atlas image and material.
 
-How it stays fast: no mesh per cell. Every frame (one planar surface, nu x nv cells) gets a block
-in ONE texture atlas, one texel per cell, sampled with "Closest" so cells stay crisp. The mesh is
-only the outline triangles of the frames, UV-mapped into their block. Context buildings (not
-analysed) and trees are each merged into a single mesh.
+`--context`: an OBJ in your model frame (z up). Objects whose names were analysed are removed,
+the rest is joined into one grey mesh. `--trees`: JSON list of [x, y, height, crown_diameter]
+in the same frame. Output: `<slug>_hero.png`, `<slug>_aerial.png`, `legend_<slug>.json` and
+`ir_facade_results.blend` (switch analyses by changing the material of `IR_results`).
 """
 
+import argparse
 import json
 import math
 import os
 import sys
-import time
-
+from dataclasses import dataclass
 
 import bpy
 import numpy as np
 from mathutils import Vector
 
-_T0 = _T = time.perf_counter()
-
-
-def lap(what):
-    global _T
-    now = time.perf_counter()
-    print(f"[t] {what:28s} {now - _T:6.2f} s   (total {now - _T0:6.2f})", flush=True)
-    _T = now
-
-
-A = sys.argv[sys.argv.index("--") + 1 :]
-NPZ, CTX_OBJ, TREES, OUT = A[:4]
-LABEL = A[4] if len(A) > 4 else "Sky view factor (%)"
-VMIN, VMAX = (
-    (float(A[5]), float(A[6])) if len(A) > 6 else (0.0, 100.0)
-)  # fixed per-analysis domain
-os.makedirs(OUT, exist_ok=True)
 ATLAS_W, PAD = 4096, 1
-
+LAYOUT_KEYS = ("anchor", "frames", "dims", "outline", "outline_offsets")
 VIRIDIS = (
     np.array(
-        [  # 11 stops of matplotlib viridis (sRGB)
+        [
             [68, 1, 84],
             [72, 36, 117],
             [65, 68, 135],
@@ -61,98 +48,126 @@ VIRIDIS = (
     )
     / 255.0
 )
-NO_VALUE = np.array(
-    [0.42, 0.42, 0.44]
-)  # masked cell: neutral grey, never a colour of the scale
+NO_VALUE = (
+    0.42,
+    0.42,
+    0.44,
+)  # cells without a value: neutral grey, not a colour of the scale
 
 
-def colormap(x):
-    x = np.clip(x, 0, 1) * (len(VIRIDIS) - 1)
+@dataclass
+class Analysis:
+    slug: str
+    path: str
+    label: str
+    vmin: float
+    vmax: float
+
+
+def parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser()
+    p.add_argument(
+        "--analysis", action="append", required=True, help="npz|label|vmin|vmax"
+    )
+    p.add_argument("--context")
+    p.add_argument("--trees")
+    p.add_argument("--out", required=True)
+    args = p.parse_args(sys.argv[sys.argv.index("--") + 1 :])
+    analyses = []
+    for spec in args.analysis:
+        path, label, vmin, vmax = spec.split("|")
+        slug = os.path.splitext(os.path.basename(path))[0]
+        analyses.append(Analysis(slug, path, label, float(vmin), float(vmax)))
+    args.analyses = analyses
+    return args
+
+
+def colormap(x: np.ndarray) -> np.ndarray:
+    x = np.clip(x, 0.0, 1.0) * (len(VIRIDIS) - 1)
     i = np.minimum(x.astype(int), len(VIRIDIS) - 2)
     f = (x - i)[:, None]
     return VIRIDIS[i] * (1 - f) + VIRIDIS[i + 1] * f
 
 
-# ----------------------------------------------------------------- load buffers
-d = np.load(NPZ)
-anchor = d["anchor"].astype(np.float64)
-frames = (
-    d["frames"].reshape(-1, 9).astype(np.float64)
-)  # corner, u_step, v_step (rel. anchor)
-dims = d["dims"].reshape(-1, 3).astype(np.int64)  # nu, nv, cell start
-outline = d["outline"].reshape(-1, 3, 2).astype(np.float64)  # (s, t) in cell units
-offs = d["outline_offsets"].astype(np.int64)
-values, valid = d["values"], d["valid"]
-shift = np.r_[d["polygon_sw_local"], 0.0]  # polygon-SW frame -> OBJ frame
-S = len(dims)
-lap("load npz")
-print(
-    f"{S} frames, {len(values)} cells, {len(outline)} outline tris, {int(valid.sum())} valid"
-)
+class Layout:
+    """Frames, outline triangles and the atlas position of every frame and cell."""
 
-# ----------------------------------------------------------------- shelf-pack the atlas
-nu, nv = dims[:, 0], dims[:, 1]
-order = np.argsort(-nv, kind="stable")
-px, py = np.zeros(S, np.int64), np.zeros(S, np.int64)
-x = y = shelf_h = 0
-for f in order:
-    w, h = nu[f] + 2 * PAD, nv[f] + 2 * PAD
-    if x + w > ATLAS_W:
-        x, y, shelf_h = 0, y + shelf_h, 0
-    px[f], py[f] = x + PAD, y + PAD
-    x += w
-    shelf_h = max(shelf_h, h)
-ATLAS_H = int(y + shelf_h)
-lap("shelf pack")
-print(f"atlas {ATLAS_W} x {ATLAS_H}")
+    def __init__(self, data):
+        self.anchor = data["anchor"].astype(np.float64)
+        self.frames = (
+            data["frames"].reshape(-1, 9).astype(np.float64)
+        )  # corner, u_step, v_step
+        self.dims = data["dims"].reshape(-1, 3).astype(np.int64)  # nu, nv, first cell
+        self.outline = (
+            data["outline"].reshape(-1, 3, 2).astype(np.float64)
+        )  # (s, t), cell units
+        self.offsets = data["outline_offsets"].astype(np.int64)
+        self.offset = np.r_[data["frame_offset"], 0.0]
+        nu, nv = self.dims[:, 0], self.dims[:, 1]
+        self.px, self.py, self.height = self._shelf_pack(nu, nv)
+        # cell k of frame f is (i, j) with k = start + j * nu + i  ->  texel (px + i, py + j)
+        frame = np.repeat(np.arange(len(nu)), nu * nv)
+        k = np.arange(int((nu * nv).sum())) - self.dims[frame, 2]
+        i, j = k % nu[frame], k // nu[frame]
+        self.tx, self.ty = self.px[frame] + i, self.py[frame] + j
+        # border cells, copied into the 1-texel padding so no texel reads a neighbour frame
+        self.borders = [
+            (0, -1, j == 0),
+            (0, 1, j == nv[frame] - 1),
+            (-1, 0, i == 0),
+            (1, 0, i == nu[frame] - 1),
+        ]
 
-# texel of every cell: frame f, cell k = j * nu + i  ->  (px + i, py + j)
-cell_frame = np.repeat(np.arange(S), nu * nv)
-k = np.arange(len(values)) - dims[cell_frame, 2]
-ci, cj = k % nu[cell_frame], k // nu[cell_frame]
-rgb = np.where(valid[:, None], colormap((values - VMIN) / (VMAX - VMIN)), NO_VALUE)
-pix = np.zeros((ATLAS_H, ATLAS_W, 4), np.float32)
-pix[..., :3] = NO_VALUE
-pix[..., 3] = 1
-pix[py[cell_frame] + cj, px[cell_frame] + ci, :3] = rgb
-# bleed each frame's border cells into its padding so edge texels never pick up a neighbour
-for dy, dx in ((-1, 0), (1, 0), (0, -1), (0, 1)):
-    edge = (
-        ((cj == 0) if dy < 0 else (cj == nv[cell_frame] - 1))
-        if dy
-        else ((ci == 0) if dx < 0 else (ci == nu[cell_frame] - 1))
-    )
-    pix[
-        py[cell_frame][edge] + cj[edge] + dy, px[cell_frame][edge] + ci[edge] + dx, :3
-    ] = rgb[edge]
+    @staticmethod
+    def _shelf_pack(nu, nv):
+        px, py = np.zeros(len(nu), np.int64), np.zeros(len(nu), np.int64)
+        x = y = shelf = 0
+        for f in np.argsort(-nv, kind="stable"):  # tallest first: tight shelves
+            w, h = nu[f] + 2 * PAD, nv[f] + 2 * PAD
+            if x + w > ATLAS_W:
+                x, y, shelf = 0, y + shelf, 0
+            px[f], py[f] = x + PAD, y + PAD
+            x, shelf = x + w, max(shelf, h)
+        return px, py, int(y + shelf)
 
-lap("atlas pixels (numpy)")
-bpy.ops.wm.read_factory_settings(use_empty=True)
-img = bpy.data.images.new("ir_atlas", ATLAS_W, ATLAS_H, alpha=False)
-img.colorspace_settings.name = "sRGB"
-img.pixels.foreach_set(pix.ravel())
-img.filepath_raw = os.path.join(OUT, "ir_atlas.png")
-img.file_format = "PNG"
-img.save()
+    def mesh_arrays(self):
+        """Vertices (model frame) and atlas UVs of every outline triangle."""
+        tri_frame = np.repeat(np.arange(len(self.dims)), np.diff(self.offsets))
+        fr = self.frames[tri_frame]
+        s, t = self.outline[..., 0], self.outline[..., 1]
+        co = (
+            self.anchor
+            + self.offset
+            + fr[:, None, 0:3]
+            + s[..., None] * fr[:, None, 3:6]
+            + t[..., None] * fr[:, None, 6:9]
+        ).reshape(-1, 3)
+        uv = np.stack(
+            [
+                (self.px[tri_frame][:, None] + s) / ATLAS_W,
+                (self.py[tri_frame][:, None] + t) / self.height,
+            ],
+            -1,
+        ).reshape(-1, 2)
+        return co, uv
 
-lap("atlas image + png save")
-# ----------------------------------------------------------------- outline mesh with atlas UVs
-tri_frame = np.repeat(np.arange(S), np.diff(offs))
-fr = frames[tri_frame]  # (T, 9)
-s, t = outline[..., 0], outline[..., 1]  # (T, 3)
-co = (
-    anchor
-    + shift
-    + fr[:, None, 0:3]
-    + s[..., None] * fr[:, None, 3:6]
-    + t[..., None] * fr[:, None, 6:9]
-).reshape(-1, 3)
-uv = np.stack(
-    [(px[tri_frame][:, None] + s) / ATLAS_W, (py[tri_frame][:, None] + t) / ATLAS_H], -1
-).reshape(-1, 2)
+    def atlas(self, name, values, valid, vmin, vmax):
+        rgb = np.where(
+            valid[:, None], colormap((values - vmin) / (vmax - vmin)), NO_VALUE
+        )
+        pix = np.empty((self.height, ATLAS_W, 4), np.float32)
+        pix[...] = (*NO_VALUE, 1.0)
+        pix[self.ty, self.tx, :3] = rgb
+        for dx, dy, edge in self.borders:
+            pix[self.ty[edge] + dy, self.tx[edge] + dx, :3] = rgb[edge]
+        img = bpy.data.images.new(name, ATLAS_W, self.height, alpha=False)
+        img.pixels.foreach_set(pix.ravel())
+        img.pack()
+        return img
 
 
 def mesh_object(name, verts, tris, uvs=None):
+    """One mesh from flat arrays (foreach_set: much faster than from_pydata at this size)."""
     me = bpy.data.meshes.new(name)
     me.vertices.add(len(verts))
     me.vertices.foreach_set("co", verts.astype(np.float32).ravel())
@@ -165,148 +180,187 @@ def mesh_object(name, verts, tris, uvs=None):
             "uv", uvs.astype(np.float32).ravel()
         )
     me.update(calc_edges=True)
-    me.validate(clean_customdata=False)
     ob = bpy.data.objects.new(name, me)
     bpy.context.scene.collection.objects.link(ob)
     return ob
 
 
-results = mesh_object("IR_results", co, np.arange(len(co)).reshape(-1, 3), uv)
-
-
-def material(name, color=None, image=None, emit=0.0):
-    """Diffuse (+ emission from the atlas). Principled BSDF made the first EEVEE frame
-    compile for ~10 s; this pair compiles in ~1 s and reads the same at city scale."""
+def material(name, color=None, image=None, emission=0.35):
+    """Diffuse, plus emission from the atlas so the scale stays readable in shade.
+    A Principled BSDF makes the first EEVEE frame compile for ~10 s; this takes ~1 s."""
     m = bpy.data.materials.new(name)
     m.use_nodes = True
-    nt = m.node_tree
-    nt.nodes.remove(nt.nodes["Principled BSDF"])
-    out = nt.nodes["Material Output"]
-    dif = nt.nodes.new("ShaderNodeBsdfDiffuse")
+    nodes, links = m.node_tree.nodes, m.node_tree.links
+    nodes.remove(nodes["Principled BSDF"])
+    out, diffuse = nodes["Material Output"], nodes.new("ShaderNodeBsdfDiffuse")
     if image is None:
-        dif.inputs["Color"].default_value = (*color, 1)
-        nt.links.new(dif.outputs[0], out.inputs["Surface"])
+        diffuse.inputs["Color"].default_value = (*color, 1.0)
+        links.new(diffuse.outputs[0], out.inputs["Surface"])
         return m
-    tex = nt.nodes.new("ShaderNodeTexImage")
+    tex = nodes.new("ShaderNodeTexImage")
     tex.image, tex.interpolation = image, "Closest"
-    em = nt.nodes.new("ShaderNodeEmission")
-    em.inputs["Strength"].default_value = emit  # keeps the scale readable in shade
-    add = nt.nodes.new("ShaderNodeAddShader")
-    nt.links.new(tex.outputs["Color"], dif.inputs["Color"])
-    nt.links.new(tex.outputs["Color"], em.inputs["Color"])
-    nt.links.new(dif.outputs[0], add.inputs[0])
-    nt.links.new(em.outputs[0], add.inputs[1])
-    nt.links.new(add.outputs[0], out.inputs["Surface"])
+    glow, add = nodes.new("ShaderNodeEmission"), nodes.new("ShaderNodeAddShader")
+    glow.inputs["Strength"].default_value = emission
+    links.new(tex.outputs["Color"], diffuse.inputs["Color"])
+    links.new(tex.outputs["Color"], glow.inputs["Color"])
+    links.new(diffuse.outputs[0], add.inputs[0])
+    links.new(glow.outputs[0], add.inputs[1])
+    links.new(add.outputs[0], out.inputs["Surface"])
     return m
 
 
-lap("outline mesh")
-results.data.materials.append(material("ir_result", image=img, emit=0.35))
-
-# ----------------------------------------------------------------- context buildings (grey)
-analysed = set(str(n) for n in d["names"])
-with open(
-    CTX_OBJ
-) as fh:  # name scan (~0.1 s): skip the import when nothing is left as context
-    names = {ln[2:].strip() for ln in fh if ln.startswith("o ")}
-if names - analysed:
+def add_context(path, analysed):
+    """Import the OBJ only if some object was not analysed; join the rest into one mesh."""
+    with open(path) as fh:
+        names = {line[2:].strip() for line in fh if line.startswith("o ")}
+    if not names - analysed:
+        return
+    before = set(bpy.context.scene.objects)
     bpy.ops.wm.obj_import(
-        filepath=CTX_OBJ, forward_axis="Y", up_axis="Z", use_split_objects=True
+        filepath=path, forward_axis="Y", up_axis="Z", use_split_objects=True
     )
-lap("context import")
-ctx = [
-    o for o in bpy.context.scene.objects if o.type == "MESH" and o.name != "IR_results"
-]
-for o in ctx:
-    if o.name.split(".")[0] in analysed:
-        bpy.data.objects.remove(o, do_unlink=True)
-ctx = [
-    o for o in bpy.context.scene.objects if o.type == "MESH" and o.name != "IR_results"
-]
-if ctx:  # empty when every building was analysed
-    with bpy.context.temp_override(active_object=ctx[0], selected_editable_objects=ctx):
+    new = [o for o in bpy.context.scene.objects if o not in before]
+    keep = []
+    for ob in new:
+        if ob.name.split(".")[0] in analysed:  # the results already draw this building
+            bpy.data.objects.remove(ob, do_unlink=True)
+        else:
+            keep.append(ob)
+    with bpy.context.temp_override(
+        active_object=keep[0], selected_editable_objects=keep
+    ):
         bpy.ops.object.join()
-    context = ctx[0]
-    context.name = "Context_buildings"
-    context.data.materials.clear()
-    context.data.materials.append(material("context", color=(0.36, 0.37, 0.4)))
-
-# ----------------------------------------------------------------- trees (one merged mesh)
-trees = json.load(open(TREES))
-lo, hi = co[:, :2].min(0) - 400, co[:, :2].max(0) + 400
-tv, tf = [], []
-for x, y, h, c in trees:
-    if not (lo[0] < x < hi[0] and lo[1] < y < hi[1]):
-        continue
-    r, n0 = c / 2, len(tv)
-    crown_z = max(h - r, 1.5)
-    for i in range(8):  # 8-gon double cone: cheap, reads as a canopy from above
-        a = 2 * math.pi * i / 8
-        tv.append((x + r * math.cos(a), y + r * math.sin(a), crown_z))
-    tv += [(x, y, h), (x, y, max(crown_z - r * 0.6, 0.5))]
-    for i in range(8):
-        j = (i + 1) % 8
-        tf += [(n0 + i, n0 + j, n0 + 8), (n0 + j, n0 + i, n0 + 9)]
-canopy = mesh_object("Trees", np.array(tv), np.array(tf))
-canopy.data.materials.append(material("tree", color=(0.16, 0.42, 0.18)))
-
-lap("trees")
-# ----------------------------------------------------------------- ground, light, world
-centre = Vector(co.mean(0).tolist())
-bpy.ops.mesh.primitive_plane_add(size=6000, location=(centre.x, centre.y, -0.05))
-bpy.context.object.data.materials.append(material("ground", color=(0.09, 0.09, 0.1)))
-
-sun = bpy.data.objects.new("Sun", bpy.data.lights.new("Sun", "SUN"))
-sun.data.energy, sun.data.angle = 3.2, math.radians(3)
-sun.rotation_euler = (math.radians(40), 0, math.radians(35))
-bpy.context.scene.collection.objects.link(sun)
-
-sc = bpy.context.scene
-sc.world = bpy.data.worlds.new("sky")
-sc.world.use_nodes = True
-bg = sc.world.node_tree.nodes["Background"]
-bg.inputs["Color"].default_value = (0.55, 0.62, 0.75, 1)
-bg.inputs["Strength"].default_value = 0.9
-
-lap("ground/light/world")
-sc.render.engine = "BLENDER_EEVEE_NEXT"
-try:
-    sc.eevee.use_shadows = True
-    sc.eevee.use_raytracing = True
-except AttributeError:
-    pass
-sc.view_settings.view_transform = "Standard"  # AgX/Filmic would shift the colour scale
-sc.render.resolution_x, sc.render.resolution_y = 1920, 1200
-sc.render.film_transparent = False
-
-cam = bpy.data.objects.new("Camera", bpy.data.cameras.new("Camera"))
-sc.collection.objects.link(cam)
-sc.camera = cam
-cam.data.clip_end = 20000
+    keep[0].name = "Context"
+    keep[0].data.materials.clear()
+    keep[0].data.materials.append(material("context", color=(0.36, 0.37, 0.4)))
 
 
-def shoot(name, eye, look, lens):
+def add_trees(path, lo, hi):
+    """Each tree as an 8-sided double cone: cheap, reads as a canopy from above."""
+    verts, tris = [], []
+    for x, y, h, crown in json.load(open(path)):
+        if not (lo[0] < x < hi[0] and lo[1] < y < hi[1]):
+            continue
+        r, n = crown / 2, len(verts)
+        z = max(h - r, 1.5)
+        verts += [
+            (x + r * math.cos(a), y + r * math.sin(a), z)
+            for a in np.linspace(0, 2 * math.pi, 8, endpoint=False)
+        ]
+        verts += [(x, y, h), (x, y, max(z - 0.6 * r, 0.5))]
+        for i in range(8):
+            j = (i + 1) % 8
+            tris += [(n + i, n + j, n + 8), (n + j, n + i, n + 9)]
+    if verts:
+        ob = mesh_object("Trees", np.array(verts), np.array(tris))
+        ob.data.materials.append(material("tree", color=(0.16, 0.42, 0.18)))
+
+
+def setup_scene(centre):
+    sc = bpy.context.scene
+    bpy.ops.mesh.primitive_plane_add(size=6000, location=(centre.x, centre.y, -0.05))
+    bpy.context.object.data.materials.append(
+        material("ground", color=(0.09, 0.09, 0.1))
+    )
+    sun = bpy.data.objects.new("Sun", bpy.data.lights.new("Sun", "SUN"))
+    sun.data.energy, sun.data.angle = 3.2, math.radians(3)
+    sun.rotation_euler = (math.radians(40), 0, math.radians(35))
+    sc.collection.objects.link(sun)
+    sc.world = bpy.data.worlds.new("sky")
+    sc.world.use_nodes = True
+    sc.world.node_tree.nodes["Background"].inputs["Color"].default_value = (
+        0.55,
+        0.62,
+        0.75,
+        1,
+    )
+    sc.render.engine = "BLENDER_EEVEE_NEXT"
+    sc.view_settings.view_transform = (
+        "Standard"  # AgX / Filmic would shift the colour scale
+    )
+    sc.render.resolution_x, sc.render.resolution_y = 1920, 1200
+    cam = bpy.data.objects.new("Camera", bpy.data.cameras.new("Camera"))
+    cam.data.clip_end = 20000  # the default 100 m cuts a city off
+    sc.collection.objects.link(cam)
+    sc.camera = cam
+    return sc, cam
+
+
+def render(sc, cam, path, eye, target, lens):
     cam.location, cam.data.lens = eye, lens
-    cam.rotation_euler = (look - eye).to_track_quat("-Z", "Y").to_euler()
-    sc.render.filepath = os.path.join(OUT, name)
+    cam.rotation_euler = (target - eye).to_track_quat("-Z", "Y").to_euler()
+    sc.render.filepath = path
     bpy.ops.render.render(write_still=True)
 
 
-lap("scene setup")
-top = co[np.argmax(co[:, 2])]
-tower = Vector((top[0], top[1], top[2] * 0.45))  # aim at the tallest analysed surface
-shoot("hero.png", tower + Vector((210, -330, 260)), tower, 32)
-lap("render hero")
-shoot("street.png", tower + Vector((-140, -170, 60)), tower + Vector((0, 0, 40)), 24)
-lap("render street")
-shoot("aerial.png", centre + Vector((0, -380, 900)), centre, 35)
+def main():
+    args = parse_args()
+    os.makedirs(args.out, exist_ok=True)
+    bpy.ops.wm.read_factory_settings(use_empty=True)
 
-lap("render aerial")
-json.dump(
-    {"label": LABEL, "vmin": VMIN, "vmax": VMAX, "stops": VIRIDIS.tolist()},
-    open(os.path.join(OUT, "legend.json"), "w"),
-)
-img.pack()
-bpy.ops.wm.save_as_mainfile(filepath=os.path.join(OUT, "ir_facade_results.blend"))
-lap("pack + save .blend")
-print("done")
+    first = np.load(args.analyses[0].path)
+    layout = Layout(first)
+    co, uv = layout.mesh_arrays()
+    results = mesh_object("IR_results", co, np.arange(len(co)).reshape(-1, 3), uv)
+    print(
+        f"{len(layout.dims)} frames, {len(layout.tx)} cells, {len(co) // 3} outline triangles, "
+        f"atlas {ATLAS_W} x {layout.height}"
+    )
+
+    mats = []
+    for a in args.analyses:
+        data = np.load(a.path)
+        if not all(np.array_equal(first[k], data[k]) for k in LAYOUT_KEYS):
+            raise SystemExit(f"{a.path}: other layout than {args.analyses[0].path}")
+        img = layout.atlas(
+            f"ir_{a.slug}", data["values"], data["valid"], a.vmin, a.vmax
+        )
+        mats.append(material(f"ir_{a.slug}", image=img))
+    results.data.materials.append(mats[0])
+
+    if args.context:
+        add_context(args.context, {str(n) for n in first["building_ids"]})
+    if args.trees:
+        add_trees(args.trees, co[:, :2].min(0) - 400, co[:, :2].max(0) + 400)
+    centre = Vector(co.mean(0).tolist())
+    sc, cam = setup_scene(centre)
+
+    top = co[np.argmax(co[:, 2])]
+    hero = Vector(
+        (top[0], top[1], 0.45 * top[2])
+    )  # aim at the tallest analysed surface
+    for a, mat in zip(args.analyses, mats):
+        results.data.materials[0] = mat  # same mesh and UVs: only the atlas changes
+        render(
+            sc,
+            cam,
+            os.path.join(args.out, f"{a.slug}_hero.png"),
+            hero + Vector((210, -330, 260)),
+            hero,
+            32,
+        )
+        render(
+            sc,
+            cam,
+            os.path.join(args.out, f"{a.slug}_aerial.png"),
+            centre + Vector((0, -380, 900)),
+            centre,
+            35,
+        )
+        with open(os.path.join(args.out, f"legend_{a.slug}.json"), "w") as fh:
+            json.dump(
+                {
+                    "label": a.label,
+                    "vmin": a.vmin,
+                    "vmax": a.vmax,
+                    "stops": VIRIDIS.tolist(),
+                },
+                fh,
+            )
+    results.data.materials[0] = mats[0]
+    bpy.ops.wm.save_as_mainfile(
+        filepath=os.path.join(args.out, "ir_facade_results.blend")
+    )
+
+
+main()
