@@ -18,7 +18,7 @@ Do not write SDK calls from memory. Read the page for your language, or fetch th
 | Web app for yourself (browser, map, 3D facades) | TypeScript in the browser | [typescript/quickstart](references/typescript/quickstart.md), [map-grid](references/typescript/map-grid.md), [facades-3d](references/typescript/facades-3d.md), [facades-sampling](references/typescript/facades-sampling.md), `cookbook/apps/map-grid`, `cookbook/apps/facades-3d` |
 | Web app for many users (sign-in, secret key) | TypeScript front end + Cloudflare Worker proxy | [cloudflare-proxy](references/typescript/cloudflare-proxy.md), `cookbook/apps/cloudflare-proxy`, [persistence-and-users](references/recipes/persistence-and-users.md) |
 | High-throughput backend (many sites, queue, cache) | Python service | [python-fastapi-app](references/recipes/python-fastapi-app.md), `cookbook/apps/python-fastapi` |
-| SketchUp or other CAD plugin | Ruby or Python, same API | [sketchup-plugin](references/recipes/sketchup-plugin.md) |
+| SketchUp, Blender or other CAD | Ruby or Python, same API | [sketchup-plugin](references/recipes/sketchup-plugin.md), [blender](references/recipes/blender.md) |
 | Upload your own data to the platform (no code) | none | [platform-byo-upload](references/platform-byo-upload.md) |
 
 Every row: read [building-fast-apps](references/building-fast-apps.md) for speed.
