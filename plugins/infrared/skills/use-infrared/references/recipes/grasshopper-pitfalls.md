@@ -39,7 +39,7 @@ Most expensive failures return HTTP 200 and a plausible result. Look at the pict
 ## Geometry
 
 24. **A mesh with inward winding gives a paid, wrong result.** Clean each building on its own with `clean_mesh`. Do not weld touching buildings together.
-25. **Clean once.** After `clean_mesh`, set `mesh_cleaning="off"` on the payload.
+25. **Clean once.** After `clean_mesh`, set `mesh_cleaning="off"` on the payload. Check that facade results still return an outline: if not, leave cleaning on.
 26. **Open shells stay open.** Do not "fix" them by welding and baking them back into the model.
 27. **Check the units and the axes.** The SDK reads numbers as metres, z up. A Y-up or centimetre model gives a billed, wrong result. The origin is the south-west corner of the polygon bounding box, not the centre.
 28. **Wind and PWC on terrain:** set `terrain_alignment="to-ground"`. These models refuse `ground_geometry`.
@@ -48,6 +48,9 @@ Most expensive failures return HTTP 200 and a plausible result. Look at the pict
 31. **Mesh a flat shape by hand.** `MeshingParameters.Default` can split a flat quad into many triangles. Log triangle counts: they show a slow job that nothing else shows.
 32. **`FindByLayer(str)` matches the layer name, not the path.** For nested layers pass the `Layer` object.
 33. **Geometry inputs without a type hint arrive as Guids** in `ghdoc`. Look them up in `scriptcontext.doc`, then in `RhinoDoc.ActiveDoc`.
+
+45. **Run heavy geometry outside Rhino.** A boolean over thousands of elements can take tens of GB inside Rhino. Run it in a separate Python process with a memory and time cap; load only the result.
+46. **Many facade cells at exactly 0 are not a bug by default.** Covered faces (touching elements) and north facades (no direct sun) are 0. Group the stored values by orientation before you change the geometry.
 
 ## Drawing and baking
 
@@ -62,6 +65,12 @@ Most expensive failures return HTTP 200 and a plausible result. Look at the pict
 42. **Keep the result before you bake.** A bake error must not lose a paid result.
 43. **`AddMesh` returns `Guid.Empty`** for an invalid mesh. One degenerate face is enough. Check the result and call `IsValidWithLog()`.
 44. **`Cmd+S` in Rhino saves the `.3dm`, not the `.gh`.**
+
+## Driving Rhino from an agent
+
+- `rhinocode script <absolute path>`. A relative path or an open Rhino start screen runs nothing, with no error.
+- Change the canvas on the UI thread; write results to a file and poll it. Copied components keep their wires and parameter ids: give new ids and rewire.
+- Push code with `SetSource`, refresh changed panels, and save the `.gh`. What is not in the saved file is not delivered.
 
 ## Habits that find bugs early
 

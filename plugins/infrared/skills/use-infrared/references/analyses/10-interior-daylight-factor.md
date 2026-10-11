@@ -39,6 +39,10 @@ and the room reads wrong. Convert with `to_interior_entity` and `interior_entiti
 
 - Metres. Finite coordinates. Indices inside the array. Triangulated. One frame for all parts.
 - Enclose the room. A missing wall is a hole that the sky pours through.
+- Close it by vertex index: weld the room mesh. A room of separate, unwelded faces reads as open
+  (values near the open-sky level, tens of percent), with no error.
+- End the room at the inner face of the walls and slabs. A room that contains wall solids gives
+  closed-cavity warnings and wrong values.
 - Cover the floor with one pitch of points, and keep all points inside the room.
   The floor area is inferred from the points. A few stray points shift the mean.
 - `get_area()` buildings are in the frame of the polygon corner. Your room may use another frame.
