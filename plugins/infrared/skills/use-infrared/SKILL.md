@@ -51,20 +51,9 @@ Every row: read [building-fast-apps](references/building-fast-apps.md) for speed
 
 - Your own buildings, trees and ground are the main path ([byo-inputs](references/byo-inputs.md)). Ask what the user has
   (BIM, Rhino, IFC, GeoJSON). Public data (Overture, city data) is a fallback. Its source and heights vary: say so.
+  Getting data and shaping it for the SDK are two separate jobs: read [shaping-data](references/shaping-data.md) first.
 - Sensors: ground, facades and roofs, or own points ([09](references/analyses/09-facade-terrain.md)). Terrain and far
   shade (128 m reach in 1.0): [11](references/analyses/11-terrain-and-context.md). Time: [03](references/03-time-period.md).
-
-### Two jobs: get data, then shape it
-
-They are independent; combine them or not.
-1. **Get data**: your own (BIM, Rhino, IFC, GeoJSON) or fetched with the SDK (buildings, trees, ground, weather).
-2. **Shape it** into what the SDK expects, and the results back into what your tool needs.
-
-For the second job: read the contract both ways (what each input accepts, what each result returns) before
-you write code. Map what exists 1:1; assume only what is missing and say so; a look-alike gives confident,
-wrong numbers. Look at what you send next to the source before the first paid run. When a result looks
-wrong, measure the stored result before you change the pipeline or re-run. Use what the SDK already
-does (batching, render buffers, merges) before you build your own.
 
 ### Area runs and results
 
@@ -72,6 +61,7 @@ The SDK cuts the area into 512 m tiles, uploads the geometry once, sends one job
 analysis, polls, and merges. A failed tile raises (no map with holes). A resend never bills twice.
 - Always read values with the helper: `result.physical_grid()` (Python), `areaGridValuesF32(result)` (TypeScript).
   Never read the raw array: its stored type differs by analysis. NaN means no value. A facade at 0.0 is real.
+  Ground cells under buildings can be 0.0: mask them with the footprints before a mean or a minimum.
 - Use a fixed colour scale for each analysis: [rendering-results-well](references/recipes/rendering-results-well.md).
 - Cost: preview first (free, local). Price from `would_bill_jobs`: one job is one tile for one analysis.
 
@@ -138,6 +128,5 @@ Facades and roofs: `surfaceRenderBuffers(columns)`. TypeScript pages and apps: s
 - Weather left out of a thermal or solar request: billed, then fails. Use `from_weatherfile_payload`.
 - No `ground_geometry` means a flat plane. Terrain in `buildings` gives a shattered mesh.
 - Night hours in a `direct-sun-hours` window count as sun. Shade beyond 128 m past a tile is missing. Do not call UTCI night values validated.
-- Ground cells under buildings can read 0.0, not NaN: mask them with the footprints before a mean or a minimum.
 - Interior entities must be nested. `preview_area` without `payload=` prices the wind grid. Wind speed: always merge with `strategy="directional_blend"`, or tiles show seams.
 End of task: read [references/reflection-and-feedback.md](references/reflection-and-feedback.md) once.
