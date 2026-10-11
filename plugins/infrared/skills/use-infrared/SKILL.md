@@ -50,7 +50,7 @@ Every row: read [building-fast-apps](references/building-fast-apps.md) for speed
 ### Inputs: your data first
 
 - Your own buildings, trees and ground are the main path ([byo-inputs](references/byo-inputs.md)). Ask what the user has
-  (BIM, Rhino, IFC, GeoJSON). Public data (Overture, city data) is a fallback. Its source and heights vary: say so.
+  (BIM, Rhino, IFC, GeoJSON). Public data (Overture, city data) is a fallback. Its source and heights vary: say so. Getting data and shaping it for the SDK are two separate jobs: read [shaping-data](references/shaping-data.md) first.
 - Sensors: ground, facades and roofs, or own points ([09](references/analyses/09-facade-terrain.md)). Terrain and far
   shade (128 m reach in 1.0): [11](references/analyses/11-terrain-and-context.md). Time: [03](references/03-time-period.md).
 
@@ -59,7 +59,7 @@ Every row: read [building-fast-apps](references/building-fast-apps.md) for speed
 The SDK cuts the area into 512 m tiles, uploads the geometry once, sends one job for each tile and
 analysis, polls, and merges. A failed tile raises (no map with holes). A resend never bills twice.
 - Always read values with the helper: `result.physical_grid()` (Python), `areaGridValuesF32(result)` (TypeScript).
-  Never read the raw array: its stored type differs by analysis. NaN means no value. A facade at 0.0 is real.
+  Never read the raw array: its stored type differs by analysis. NaN means no value. A facade at 0.0 is real. Ground cells under buildings can be 0.0: mask them with the footprints before a mean or a minimum.
 - Use a fixed colour scale for each analysis: [rendering-results-well](references/recipes/rendering-results-well.md).
 - Cost: preview first (free, local). Price from `would_bill_jobs`: one job is one tile for one analysis.
 
