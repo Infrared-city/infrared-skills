@@ -1,0 +1,280 @@
+# CesiumJS: Infrared tiles in your own app
+
+Infrared gives you the data as standard tiles. This recipe is the last step: show the tiles in your CesiumJS app.
+Tested with CesiumJS 1.146 and a static host. The export needs the SDK release that adds `export_3d_tiles`.
+For deck.gl, see [deckgl-tiles](deckgl-tiles.md).
+
+## 1. Make the folder (Python)
+
+```python
+from infrared_sdk import export_3d_tiles
+
+export_3d_tiles(result, "out/", "svf", schedule=schedule)  # result: a facade or roof result
+```
+
+Call it again with a new id for each analysis. The folder holds:
+- `manifest.json`: `analyses[]`. Each entry has `facades.tileset`, `legend`, `stats`, `height` and `value`.
+- `g/<sha256>.bin`: shared geometry. A new analysis on the same buildings writes no new geometry.
+- `analyses/<id>/facades/tileset.json` and the GLB tiles.
+
+## 2. Load the tileset
+
+No Cesium ion token is needed. Load the CSS too, or the canvas is 300 x 150.
+
+```html
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cesium@1.146.0/Build/Cesium/Widgets/widgets.css">
+<script src="https://cdn.jsdelivr.net/npm/cesium@1.146.0/Build/Cesium/Cesium.js"></script>
+```
+
+```js
+const viewer = new Cesium.Viewer("view", { baseLayer: false }); // or your own base layer
+const manifestUrl = new URL("manifest.json", document.baseURI).href;
+const manifest = await (await fetch(manifestUrl)).json();
+const analysis = manifest.analyses.find((a) => a.id === "svf");
+const tileset = await Cesium.Cesium3DTileset.fromUrl(new URL(analysis.facades.tileset, manifestUrl).href);
+tileset.infrared = analysis;
+viewer.scene.primitives.add(tileset);
+await viewer.zoomTo(tileset, new Cesium.HeadingPitchRange(0, -0.5, tileset.boundingSphere.radius * 2.2));
+```
+
+The default look is the baked colour page. You need no more code to show the result.
+
+## 3. Your own palette
+
+Each tile has a value page with the property `value`. Cesium applies the offset and scale,
+so `fsInput.metadata.value` is already in the units of the analysis. Use a `CustomShader`.
+The stops are `[[r, g, b], ...]` (0 to 255). The range is fixed per analysis, not per view.
+The legend of the analysis gives defaults: `analysis.facades.legend.config.colors`, `vmin` and `vmax`.
+
+```js
+function paletteShader(palette, [lo, hi]) {
+  const n = palette.length;
+  const stops = palette.map((c) => `vec3(${c.map((v) => (v / 255).toFixed(5)).join(",")})`).join(",");
+  return new Cesium.CustomShader({
+    lightingModel: Cesium.LightingModel.UNLIT,
+    fragmentShaderText: `void fragmentMain(FragmentInput fsInput, inout czm_modelMaterial material) {
+      const vec3 S[${n}] = vec3[${n}](${stops});
+      float t = clamp((float(fsInput.metadata.value) - ${lo.toFixed(6)}) / ${(hi - lo || 1).toFixed(6)}, 0.0, 1.0) * ${n - 1}.0;
+      int i = int(min(floor(t), ${n - 2}.0));
+      vec3 c = mix(S[i], S[i + 1], t - float(i)); // blended as sRGB colours; the shader writes linear
+      material.diffuse = mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), c));
+    }`,
+  });
+}
+const { vmin, vmax, config } = analysis.facades.legend;
+const tileset = await Cesium.Cesium3DTileset.fromUrl(url, { customShader: paletteShader(config.colors, [vmin, vmax]) });
+```
+
+Cells without data keep the alpha of the colour page, so they stay cut out.
+CesiumJS 1.146 cannot draw a tile with two value pages (shader compile error: one uniform for each texture).
+Use the baked colour for such a tile.
+
+## 4. Click to value
+
+**Do not use `scene.pickMetadata`.** In CesiumJS 1.146 it returns wrong values for this `UINT16` property.
+Read the value from the GLB of the clicked tile:
+
+1. Pick the tile and the 3D point. Move the point into the tile frame.
+2. Fetch the GLB (and its `g/<sha256>.bin` buffer). Read positions, `TEXCOORD_0` and the value PNG.
+3. Find the triangle at the point and get its uv. Read the nearest texel with data.
+4. Decode the texel (see the table).
+
+| Item | Value |
+|---|---|
+| Code | `R + 256 * G` (R is the LOW byte) |
+| Value | `offset + scale * code / 65535`; `offset` and `scale` come from `analysis.facades.value` |
+| No data | code `65535`, or alpha `0` |
+
+The byte order is the opposite of the ground tiles below. Do not copy one decoder to the other.
+
+Decode the PNG with `premultiplyAlpha: "none"` and `colorSpaceConversion: "none"`. Without them the codes change.
+
+```js
+async function decodeValues(png, prop, cls) { // prop: property texture entry; cls: class property (offset, scale, noData)
+  const bmp = await createImageBitmap(new Blob([png], { type: "image/png" }), { premultiplyAlpha: "none", colorSpaceConversion: "none" });
+  const cv = new OffscreenCanvas(bmp.width, bmp.height), cx = cv.getContext("2d", { willReadFrequently: true });
+  cx.drawImage(bmp, 0, 0);
+  const px = cx.getImageData(0, 0, bmp.width, bmp.height).data;
+  const [c0, c1] = prop.channels ?? [0, 1];
+  const value = new Float32Array(bmp.width * bmp.height);
+  for (let i = 0; i < value.length; i++) {
+    const code = px[i * 4 + c0] + 256 * px[i * 4 + c1];
+    value[i] = px[i * 4 + 3] === 0 || code === cls.noData ? NaN : cls.offset + cls.scale * code / 65535;
+  }
+  return { value, w: bmp.width, h: bmp.height };
+}
+```
+
+The pick, as tested (about 45 clicks agreed with an independent decode within one codec step):
+
+```js
+async function readGlb(url) { // returns one entry per mesh primitive: { pos, uv, value, w, h }
+  const bytes = new Uint8Array(await (await fetch(url)).arrayBuffer());
+  const dv = new DataView(bytes.buffer), jl = dv.getUint32(12, true);
+  const json = JSON.parse(new TextDecoder().decode(bytes.subarray(20, 20 + jl)));
+  const bin = bytes.subarray(28 + jl);
+  const buffers = await Promise.all(json.buffers.map(async (b) =>
+    b.uri ? new Uint8Array(await (await fetch(new URL(b.uri, url).href)).arrayBuffer()) : bin));
+  const view = (i) => { const v = json.bufferViews[i]; return buffers[v.buffer].subarray(v.byteOffset ?? 0, (v.byteOffset ?? 0) + v.byteLength); };
+  const floats = (i, n) => {
+    const a = json.accessors[i], v = view(a.bufferView), from = v.byteOffset + (a.byteOffset ?? 0);
+    return new Float32Array(v.buffer.slice(from, from + a.count * n * 4));
+  };
+  const meta = json.extensions.EXT_structural_metadata, cls = Object.values(meta.schema.classes)[0].properties.value;
+  const pages = [];
+  for (const node of json.nodes) {
+    if (node.mesh === undefined) continue;
+    const t = node.translation ?? [0, 0, 0];
+    for (const prim of json.meshes[node.mesh].primitives) {
+      const pos = Float64Array.from(floats(prim.attributes.POSITION, 3)), uv = floats(prim.attributes.TEXCOORD_0, 2);
+      for (let i = 0; i < pos.length; i += 3) for (let c = 0; c < 3; c++) pos[i + c] += t[c];
+      const prop = meta.propertyTextures[prim.extensions.EXT_structural_metadata.propertyTextures[0]].properties.value;
+      const png = view(json.images[json.textures[prop.index].source].bufferView);
+      pages.push({ pos, uv, ...(await decodeValues(png, prop, cls)) });
+    }
+  }
+  return pages;
+}
+
+// Point (x, y, z) in glTF coordinates: nearest triangle within 2 m, barycentric uv, nearest texel with data.
+function lookup(pages, x, y, z) {
+  let best = 2, g = null, u = 0, v = 0;
+  for (const page of pages) {
+    const P = page.pos, U = page.uv;
+    for (let i = 0; i < P.length; i += 9) {
+      const e1 = [P[i + 3] - P[i], P[i + 4] - P[i + 1], P[i + 5] - P[i + 2]], e2 = [P[i + 6] - P[i], P[i + 7] - P[i + 1], P[i + 8] - P[i + 2]];
+      const n = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
+      const n2 = n[0] * n[0] + n[1] * n[1] + n[2] * n[2];
+      if (n2 < 1e-12) continue;
+      const d = [x - P[i], y - P[i + 1], z - P[i + 2]];
+      const dist = Math.abs(d[0] * n[0] + d[1] * n[1] + d[2] * n[2]) / Math.sqrt(n2);
+      if (dist >= best) continue;
+      const b = (d[0] * (n[2] * e2[1] - n[1] * e2[2]) + d[1] * (n[0] * e2[2] - n[2] * e2[0]) + d[2] * (n[1] * e2[0] - n[0] * e2[1])) / n2;
+      const c = (e1[0] * (d[1] * n[2] - d[2] * n[1]) + e1[1] * (d[2] * n[0] - d[0] * n[2]) + e1[2] * (d[0] * n[1] - d[1] * n[0])) / n2;
+      const a = 1 - b - c;
+      if (a < -0.03 || b < -0.03 || c < -0.03) continue;
+      const k = (i / 3) * 2;
+      best = dist; g = page;
+      u = a * U[k] + b * U[k + 2] + c * U[k + 4];
+      v = a * U[k + 1] + b * U[k + 3] + c * U[k + 5];
+    }
+  }
+  if (!g) return null;
+  const tx = Math.min(g.w - 1, Math.max(0, Math.floor(u * g.w))), ty = Math.min(g.h - 1, Math.max(0, Math.floor(v * g.h)));
+  for (let r = 0; r <= 2; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+    const xx = tx + dx, yy = ty + dy;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) !== r || xx < 0 || yy < 0 || xx >= g.w || yy >= g.h) continue;
+    const val = g.value[yy * g.w + xx];
+    if (Number.isFinite(val)) return val;
+  }
+  return null;
+}
+
+async function pickValue(viewer, windowPosition) {
+  const scene = viewer.scene, picked = scene.pick(windowPosition), p = scene.pickPosition(windowPosition);
+  const tile = picked?.content?.tile ?? picked?.primitive?.content?.tile;
+  if (!p || !tile?.content?.url || !tile.tileset?.infrared) return null;
+  const world = Cesium.Matrix4.multiply(tile.tileset.modelMatrix, tile.computedTransform, new Cesium.Matrix4());
+  const l = Cesium.Matrix4.multiplyByPoint(Cesium.Matrix4.inverse(world, new Cesium.Matrix4()), p, new Cesium.Cartesian3());
+  return lookup(await readGlb(tile.content.url), l.x, l.z, -l.y); // tile frame (z up) -> glTF frame (y up)
+}
+
+new Cesium.ScreenSpaceEventHandler(viewer.canvas).setInputAction(async (m) => {
+  const value = await pickValue(viewer, m.position);
+  console.log(value === null ? "no value here" : `${value} ${analysis.units ?? ""}`);
+}, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+```
+
+Cache the result of `readGlb` for each tile URL in a real app. The test page did, and kept the last 8.
+
+## 5. Terrain and height
+
+- The tiles carry `extras.height` (`root.extras.height` of the tileset). The base height of the tiles is the EGM2008
+  geoid height N plus `h0`. For Hong Kong N is about -2.3 m. A flat base of 0 puts the tiles on the ellipsoid,
+  not on the ground.
+- Use the terrain of the same run, not a provider terrain. The terrain export is a `heightmap-1.0` folder with
+  `layer.json`. It has the same base height as the tiles, so walls meet the ground.
+
+```js
+viewer.terrainProvider = await Cesium.CesiumTerrainProvider.fromUrl("https://your.host/terrain/");
+viewer.scene.globe.depthTestAgainstTerrain = true;
+```
+
+Not tested with a viewer: the terrain snippet above and the fit of tiles on the terrain.
+Check it on your data. A provider terrain such as world terrain has another datum and another resolution. Buildings then float or sink.
+Serve `.terrain` files as `application/octet-stream` with no `Content-Encoding`.
+
+## 6. Ground layers as imagery (2D PMTiles)
+
+A ground layer is two PMTiles archives: `colour.pmtiles` (display) and `value.pmtiles` (numbers).
+Both are PNG tiles of 512 px in Web Mercator. Add the colour archive as a custom imagery provider.
+`UrlTemplateImageryProvider` is not enough: PMTiles needs HTTP Range requests, so use the `pmtiles` library.
+
+```html
+<script src="https://unpkg.com/pmtiles@3.2.1/dist/pmtiles.js"></script>
+```
+
+```js
+class PmtilesImagery {
+  constructor(archive, { minzoom, maxzoom, bounds }) {
+    this._a = archive; this._min = minzoom;
+    this.tilingScheme = new Cesium.WebMercatorTilingScheme();
+    this.tileWidth = this.tileHeight = 512;
+    this.minimumLevel = 0; this.maximumLevel = maxzoom;
+    this.rectangle = Cesium.Rectangle.fromDegrees(...bounds);
+    this.errorEvent = new Cesium.Event(); this.hasAlphaChannel = true;
+  }
+  get ready() { return true; }
+  getTileCredits() { return []; }
+  pickFeatures() { return undefined; }
+  async requestImage(x, y, level) {
+    const empty = () => Object.assign(document.createElement("canvas"), { width: 1, height: 1 });
+    if (level < this._min) return empty();
+    const r = await this._a.getZxy(level, x, y); // z, x, y
+    if (!r) return empty();
+    const bmp = await createImageBitmap(new Blob([r.data], { type: "image/png" }));
+    const c = Object.assign(document.createElement("canvas"), { width: bmp.width, height: bmp.height });
+    c.getContext("2d").drawImage(bmp, 0, 0);
+    return c; // a canvas, not the ImageBitmap: the bitmap left gaps on terrain tiles in 1.146
+  }
+}
+const colour = new pmtiles.PMTiles(new URL("temp/colour.pmtiles", location.href).href);
+viewer.imageryLayers.addImageryProvider(new PmtilesImagery(colour, { minzoom: m.minzoom, maxzoom: m.maxzoom, bounds: m.bounds }));
+```
+
+`m` is the layer entry of the ground manifest (`minzoom`, `maxzoom`, `bounds`, `encoding`, `lo`, `step`).
+The imagery snippet was tested without terrain. The canvas remark for terrain is from an earlier project note, not from a test here.
+
+For a click value, read the `value.pmtiles` tile at the maximum zoom, at the clicked longitude and latitude
+(`viewer.camera.pickEllipsoid`). Decode with the same options as above, then:
+
+| Item | Value |
+|---|---|
+| Value | `lo + step * (R * 256 + G)` (R is the HIGH byte) |
+| No data | alpha `0` |
+| Sampling | the NEAREST pixel. Never interpolate value tiles |
+
+```js
+const code = d[i] * 256 + d[i + 1];                // d: RGBA bytes of the pixel; R is the HIGH byte here
+const value = d[i + 3] === 0 ? null : m.lo + m.step * code;
+```
+
+Tested: 20 of 20 clicks inside the codec error, 2 of 2 no-data clicks returned null.
+
+## 7. Host the folder
+
+- Any static host works. The page must run on `http(s)`, not `file://`. A simple dev server that ignores `Range`
+  breaks PMTiles ("no content-length header"). Use a server that answers `206` with `Accept-Ranges: bytes`.
+- CORS: `Access-Control-Allow-Origin` for your page. For PMTiles on another origin add
+  `Access-Control-Allow-Headers: Range`. `Access-Control-Expose-Headers: ETag` is good practice.
+- Content types: `.glb` `model/gltf-binary`; `.bin` and `.pmtiles` `application/octet-stream`.
+- Cache: `g/` and `analyses/` are content-addressed, so use `public, max-age=31536000, immutable`.
+  Use `no-cache` for `manifest.json`. The export writes a `_headers` file with these rules for hosts that read it.
+
+## Silent traps
+
+- `scene.pickMetadata` returns wrong values for this property in 1.146. Decode the GLB.
+- Two value pages in one tile: shader compile error in 1.146. Use the baked colour.
+- Interpolated sampling of value tiles gives codes that mean nothing. Use NEAREST.
+- Ground tiles and 3D tiles have different byte order (HIGH-first and LOW-first).
+- A base height of 0 or a provider terrain: tiles float or sink.

@@ -28,7 +28,7 @@ Read [geospatial-crs](references/geospatial-crs.md) before a job, [grid-conventi
 |---|---|---|
 | Grasshopper or Rhino component | Python in Rhino 8 | [grasshopper](references/recipes/grasshopper.md), [geometry and drawing](references/recipes/grasshopper-geometry-and-drawing.md), [pitfalls](references/recipes/grasshopper-pitfalls.md) |
 | Analysis, study or notebook for yourself | Python | [python/quickstart](references/python/quickstart.md), `cookbook/notebooks/00_quickstart.ipynb` |
-| Web app for yourself (browser, map, 3D facades) | TypeScript in the browser | [typescript/quickstart](references/typescript/quickstart.md), [map-grid](references/typescript/map-grid.md), [facades-3d](references/typescript/facades-3d.md), [facades-sampling](references/typescript/facades-sampling.md), `cookbook/apps/map-grid`, `cookbook/apps/facades-3d` |
+| Web app for yourself (browser, map, 3D facades) | TypeScript in the browser | [typescript/quickstart](references/typescript/quickstart.md), [map-grid](references/typescript/map-grid.md), [facades-3d](references/typescript/facades-3d.md), [facades-sampling](references/typescript/facades-sampling.md), `cookbook/apps/map-grid`, `cookbook/apps/facades-3d`; tile exports in your own app: [cesium-tiles](references/recipes/cesium-tiles.md), [deckgl-tiles](references/recipes/deckgl-tiles.md) |
 | Web app for many users (sign-in, secret key) | TypeScript front end + Cloudflare Worker proxy | [cloudflare-proxy](references/typescript/cloudflare-proxy.md), `cookbook/apps/cloudflare-proxy`, [persistence-and-users](references/recipes/persistence-and-users.md) |
 | High-throughput backend (many sites, queue, cache) | Python service | [python-fastapi-app](references/recipes/python-fastapi-app.md), `cookbook/apps/python-fastapi` |
 | SketchUp, Blender or other CAD | Ruby or Python, same API | [sketchup-plugin](references/recipes/sketchup-plugin.md), [blender](references/recipes/blender.md) |
@@ -119,7 +119,7 @@ Facades and roofs: `surfaceRenderBuffers(columns)`. TypeScript pages and apps: s
 ## Other topics
 - Cookbook notebooks `00_quickstart` to `09_all_analyses` in [`cookbook/`](https://github.com/Infrared-city/infrared-skills/tree/main/cookbook).
 - Platform files: [upload](references/platform-byo-upload.md) (ask: SDK data or platform files?).
-- [Facade results on your model](references/surface-results-integration.md), [jobs](references/async-and-jobs.md), [recipes](references/recipes/hackathon-tools.md).
+- [Facade results on your model](references/surface-results-integration.md), [jobs](references/async-and-jobs.md), [recipes](references/recipes/hackathon-tools.md), [3D tiles in CesiumJS](references/recipes/cesium-tiles.md) and [deck.gl](references/recipes/deckgl-tiles.md).
 
 ## Silent traps (none of these raise an error)
 - A frame error (see Coordinates): lat/lon swapped, Y-up, centimetres, origin not at the south-west corner. An open mesh.
