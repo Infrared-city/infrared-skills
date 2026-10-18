@@ -225,87 +225,36 @@ Cache the result of `readGlb` for each tile URL in a real app. The test page did
 - Use the terrain of the same run, not a provider terrain. The terrain export is a `heightmap-1.0` folder with
   `layer.json`. It has the same base height as the tiles, so walls meet the ground.
 
-```js
-viewer.terrainProvider = await Cesium.CesiumTerrainProvider.fromUrl("https://your.host/terrain/");
-viewer.scene.globe.depthTestAgainstTerrain = true;
-```
-
-Not tested with a viewer: the terrain snippet above and the fit of tiles on the terrain.
-Check it on your data. A provider terrain such as world terrain has another datum and another resolution. Buildings then float or sink.
+The terrain code and the test result are in [cesium-tiles-layers](cesium-tiles-layers.md) (section 2).
+A provider terrain such as world terrain has another datum and another resolution. Buildings then float or sink.
 Serve `.terrain` files as `application/octet-stream` with no `Content-Encoding`.
 
-## 6. Ground layers as imagery (2D PMTiles)
+## 6. Ground, terrain and trees
 
-A ground layer is two PMTiles archives: `colour.pmtiles` (display) and `value.pmtiles` (numbers).
-Both are PNG tiles of 512 px in Web Mercator. Add the colour archive as a custom imagery provider.
-`UrlTemplateImageryProvider` is not enough: PMTiles needs HTTP Range requests, so use the `pmtiles` library.
-
-```html
-<script src="https://unpkg.com/pmtiles@3.2.1/dist/pmtiles.js"></script>
-```
-
-```js
-class PmtilesImagery {
-  constructor(archive, { minzoom, maxzoom, bounds }) {
-    this._a = archive; this._min = minzoom;
-    this.tilingScheme = new Cesium.WebMercatorTilingScheme();
-    this.tileWidth = this.tileHeight = 512;
-    this.minimumLevel = 0; this.maximumLevel = maxzoom;
-    this.rectangle = Cesium.Rectangle.fromDegrees(...bounds);
-    this.errorEvent = new Cesium.Event(); this.hasAlphaChannel = true;
-  }
-  get ready() { return true; }
-  getTileCredits() { return []; }
-  pickFeatures() { return undefined; }
-  async requestImage(x, y, level) {
-    const empty = () => Object.assign(document.createElement("canvas"), { width: 1, height: 1 });
-    if (level < this._min) return empty();
-    const r = await this._a.getZxy(level, x, y); // z, x, y
-    if (!r) return empty();
-    const bmp = await createImageBitmap(new Blob([r.data], { type: "image/png" }));
-    const c = Object.assign(document.createElement("canvas"), { width: bmp.width, height: bmp.height });
-    c.getContext("2d").drawImage(bmp, 0, 0);
-    return c; // a canvas, not the ImageBitmap: the bitmap left gaps on terrain tiles in 1.146
-  }
-}
-const colour = new pmtiles.PMTiles(new URL("temp/colour.pmtiles", location.href).href);
-viewer.imageryLayers.addImageryProvider(new PmtilesImagery(colour, { minzoom: m.minzoom, maxzoom: m.maxzoom, bounds: m.bounds }));
-```
-
-`m` is the layer entry of the ground manifest (`minzoom`, `maxzoom`, `bounds`, `encoding`, `lo`, `step`).
-The imagery snippet was tested without terrain. The canvas remark for terrain is from an earlier project note, not from a test here.
-
-Ground layers exist only when the export wrote them. A folder with 3D tiles only has no ground manifest. Check first.
-
-For a click value, read the `value.pmtiles` tile at the maximum zoom, at the clicked longitude and latitude
-(`viewer.camera.pickEllipsoid`). Decode with the same options as above, then:
-
-| Item | Value |
-|---|---|
-| Value | `lo + step * (R * 256 + G)` (R is the HIGH byte) |
-| No data | alpha `0` |
-| Sampling | the NEAREST pixel. Never interpolate value tiles |
-
-```js
-const code = d[i] * 256 + d[i + 1];                // d: RGBA bytes of the pixel; R is the HIGH byte here
-const value = d[i + 3] === 0 ? null : m.lo + m.step * code;
-```
-
-Tested: 20 of 20 clicks inside the codec error, 2 of 2 no-data clicks returned null.
+These layers are in [cesium-tiles-layers](cesium-tiles-layers.md): the ground layer as PMTiles imagery with a click value, terrain from manifest `terrain`, and trees from manifest `trees.tileset`.
 
 ## 7. Hosting
 
+- A bucket: pass `S3Target(client, bucket, prefix)` as the target (`client` is a boto3 S3 client; R2 and MinIO work too).
+  It sets `ContentType` and `CacheControl` on each object. CORS is a bucket setting, not a key setting: set it yourself.
 - `_headers` works on Cloudflare Pages (put the folder in the deploy root).
-- R2 and S3 do not read `_headers`. Set these by hand:
+- R2 and S3 do not read `_headers`. `S3Target` sets the two header fields per object; the bucket CORS stays by hand:
   - CORS: allow `GET` and `HEAD` from your page origin, allow the header `Range`, expose `ETag`.
-  - `Content-Type`: `.glb` `model/gltf-binary`; `.bin` and `.pmtiles` `application/octet-stream`.
-  - `Cache-Control`: `manifest.json` `no-cache`; `g/` and `analyses/` `public, max-age=31536000, immutable`.
+  - `Content-Type` (`S3Target` sets it): `.glb` `model/gltf-binary`; `.bin` and `.pmtiles` `application/octet-stream`.
+  - `Cache-Control` (`S3Target` sets it): `manifest.json` `no-cache`; `g/` and `analyses/` `public, max-age=31536000, immutable`.
 - Any other host must answer `206` with `Accept-Ranges: bytes` if you use PMTiles.
 - The page must run on `http(s)`, not `file://`.
 
 ## Add an analysis later
 
-See the SDK docs.
+No code change in the app. Export a new id into the same folder (or the same `S3Target`). The export rebuilds
+`manifest.json`; the app reads it again and lists the new entry. `manifest.json` is `no-cache`, so a reload sees it.
+
+```python
+export_3d_tiles(result2, "out/", "utci", schedule=schedule)   # or: S3Target(client, bucket, prefix)
+```
+
+An id that exists is refused. The old `terrain` and `trees` entries stay in the manifest.
 
 ## Silent traps
 

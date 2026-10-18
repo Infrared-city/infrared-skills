@@ -72,7 +72,6 @@ Tested: every tile loaded and the console showed no error. The default look is t
 
 Not yet covered, because no test ran:
 - Your own palette on the 3D tiles. `Tile3DLayer` has no `CustomShader`. Show the baked colour for now.
-- Terrain from the export. deck.gl `TerrainLayer` reads other formats than the export (`heightmap-1.0`).
 
 ### Click to value on the 3D tiles
 
@@ -110,95 +109,34 @@ The tiles carry `extras.height` (`root.extras.height` of the tileset). The base 
 height N plus `h0`. For Hong Kong N is about -2.3 m. The tiles stand at ellipsoidal height. A basemap with no terrain
 shows them at that base height. Use the DTM of the same run for terrain, not a provider DEM:
 the datum and the resolution of a provider DEM differ, and buildings float or sink.
-Not tested with a viewer: the fit on a deck.gl basemap.
+Terrain: see [deckgl-tiles-layers](deckgl-tiles-layers.md) (section 2). Not tested: the fit on a deck.gl basemap with no terrain.
 
-## 4. Ground layers (2D PMTiles)
+## 4. Ground, terrain and trees
 
-Ground layers exist only when the export wrote them. A 3D-only folder has no ground manifest and no PMTiles.
-Check that the file exists before you build this layer.
-
-A ground layer is two PMTiles archives: `colour.pmtiles` (display) and `value.pmtiles` (numbers).
-Both are 512 px PNG tiles in Web Mercator. Read them with the `pmtiles` library (HTTP Range requests).
-
-```html
-<script src="https://unpkg.com/pmtiles@3.2.1/dist/pmtiles.js"></script>
-```
-
-```js
-// m: one layer of the ground manifest (minzoom, maxzoom, bounds, encoding, lo, step, file, colour_file)
-const colour = new pmtiles.PMTiles(new URL(m.colour_file, dataBase).href);
-const value = new pmtiles.PMTiles(new URL(m.file, dataBase).href);
-
-const layer = new deck.TileLayer({
-  id: "ground", tileSize: 512, minZoom: m.minzoom, maxZoom: m.maxzoom, extent: m.bounds,
-  // deck tile index {x, y, z}: y counts from the NORTH, the same as PMTiles getZxy(z, x, y). No flip.
-  getTileData: async ({ index: { x, y, z }, signal }) => {
-    const r = await colour.getZxy(z, x, y, signal);
-    return r ? createImageBitmap(new Blob([r.data], { type: "image/png" })) : null;
-  },
-  renderSubLayers: (p) => {
-    const [[west, south], [east, north]] = p.tile.boundingBox; // an array in 9.3.4, not an object
-    return p.data ? new deck.BitmapLayer(p, { data: null, image: p.data, bounds: [west, south, east, north],
-      textureParameters: { minFilter: "nearest", magFilter: "nearest" } }) : null;
-  },
-  onClick: async (info) => console.log(await valueAt(info.coordinate)), // [lon, lat]
-});
-```
-
-Set `minZoom`, `maxZoom` and `extent` from the manifest. Without them deck.gl asks for tiles outside the archive.
-
-Click to value: read the `value.pmtiles` tile at the maximum zoom. Decode without premultiply or colour conversion,
-and take the NEAREST pixel.
-
-| Item | Value |
-|---|---|
-| Value | `lo + step * (R * 256 + G)` (R is the HIGH byte) |
-| No data | alpha `0` |
-| Sampling | NEAREST. Never interpolate value tiles |
-
-```js
-const cache = new Map();
-function pixels(x, y) {
-  const key = `${x}/${y}`;
-  if (!cache.has(key)) cache.set(key, (async () => {
-    const r = await value.getZxy(m.maxzoom, x, y);
-    if (!r) return null;
-    const bmp = await createImageBitmap(new Blob([r.data], { type: "image/png" }), { premultiplyAlpha: "none", colorSpaceConversion: "none" });
-    const g = new OffscreenCanvas(bmp.width, bmp.height).getContext("2d", { willReadFrequently: true });
-    g.drawImage(bmp, 0, 0);
-    return { w: bmp.width, d: g.getImageData(0, 0, bmp.width, bmp.height).data };
-  })());
-  return cache.get(key);
-}
-async function valueAt([lon, lat]) {
-  const n = 2 ** m.maxzoom, fx = (lon + 180) / 360 * n, fy = (1 - Math.asinh(Math.tan(lat * Math.PI / 180)) / Math.PI) / 2 * n;
-  const x = Math.floor(fx), y = Math.floor(fy), t = await pixels(x, y);
-  if (!t) return null;
-  const px = Math.min(t.w - 1, Math.floor((fx - x) * t.w)), py = Math.min(t.w - 1, Math.floor((fy - y) * t.w)), i = (py * t.w + px) * 4;
-  if (t.d[i + 3] === 0) return null;                 // no data
-  return m.lo + m.step * (t.d[i] * 256 + t.d[i + 1]);
-}
-```
-
-Tested: 20 of 20 clicks inside the codec error, 2 of 2 no-data clicks returned null, with data on the same origin and on
-another origin.
-
-The byte order of the 3D tiles is the opposite (R is the LOW byte: `offset + scale * (R + 256 * G) / 65535`).
-Do not copy one decoder to the other.
+These layers are in [deckgl-tiles-layers](deckgl-tiles-layers.md): the ground layer with a click value, terrain from manifest `terrain`, and trees from manifest `trees.tileset`.
 
 ## 5. Hosting
 
+- A bucket: pass `S3Target(client, bucket, prefix)` as the target (`client` is a boto3 S3 client; R2 and MinIO work too).
+  It sets `ContentType` and `CacheControl` on each object. CORS is a bucket setting, not a key setting: set it yourself.
 - `_headers` works on Cloudflare Pages (put the folder in the deploy root).
-- R2 and S3 do not read `_headers`. Set these by hand:
+- R2 and S3 do not read `_headers`. `S3Target` sets the two header fields per object; the bucket CORS stays by hand:
   - CORS: allow `GET` and `HEAD` from your page origin, allow the header `Range`, expose `ETag`.
-  - `Content-Type`: `.glb` `model/gltf-binary`; `.bin` and `.pmtiles` `application/octet-stream`.
-  - `Cache-Control`: `manifest.json` `no-cache`; `g/` and `analyses/` `public, max-age=31536000, immutable`.
+  - `Content-Type` (`S3Target` sets it): `.glb` `model/gltf-binary`; `.bin` and `.pmtiles` `application/octet-stream`.
+  - `Cache-Control` (`S3Target` sets it): `manifest.json` `no-cache`; `g/` and `analyses/` `public, max-age=31536000, immutable`.
 - Any other host must answer `206` with `Accept-Ranges: bytes` if you use PMTiles.
 - The page must run on `http(s)`, not `file://`.
 
 ## Add an analysis later
 
-See the SDK docs.
+No code change in the app. Export a new id into the same folder (or the same `S3Target`). The export rebuilds
+`manifest.json`; the app reads it again and lists the new entry. `manifest.json` is `no-cache`, so a reload sees it.
+
+```python
+export_3d_tiles(result2, "out/", "utci", schedule=schedule)   # or: S3Target(client, bucket, prefix)
+```
+
+An id that exists is refused. The old `terrain` and `trees` entries stay in the manifest.
 
 ## Silent traps
 
