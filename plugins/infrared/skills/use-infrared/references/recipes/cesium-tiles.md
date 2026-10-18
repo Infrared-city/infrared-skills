@@ -19,7 +19,7 @@ Call it again with a new id for each analysis. The folder holds:
 
 ## 2. Load the tileset
 
-No Cesium ion token is needed. Load the CSS too, or the canvas is 300 x 150.
+Load the CSS too, or the canvas is 300 x 150.
 
 ```html
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cesium@1.146.0/Build/Cesium/Widgets/widgets.css">
@@ -27,7 +27,10 @@ No Cesium ion token is needed. Load the CSS too, or the canvas is 300 x 150.
 ```
 
 ```js
-const viewer = new Cesium.Viewer("view", { baseLayer: false }); // or your own base layer
+const viewer = new Cesium.Viewer("view", {
+  baseLayer: false, baseLayerPicker: false, geocoder: false, // no ion widgets
+  animation: false, timeline: false, homeButton: false, navigationHelpButton: false,
+});
 const manifestUrl = new URL("manifest.json", document.baseURI).href;
 const manifest = await (await fetch(manifestUrl)).json();
 const analysis = manifest.analyses.find((a) => a.id === "svf");
@@ -38,6 +41,33 @@ await viewer.zoomTo(tileset, new Cesium.HeadingPitchRange(0, -0.5, tileset.bound
 ```
 
 The default look is the baked colour page. You need no more code to show the result.
+
+**Ion.** The tiles need no ion token. But `baseLayer: false` alone is not enough: in a test with 1.146 the page still
+showed ion imagery and the banner "default ion access token". The default `baseLayerPicker` and `geocoder` use ion.
+Turn them off as above, and give a base layer of your own if you want one
+(`baseLayer: new Cesium.ImageryLayer(new Cesium.UrlTemplateImageryProvider({ url: "https://your.tiles/{z}/{x}/{y}.png" }))`).
+Not tested with this exact option set: open the network tab and check that no request goes to `cesium.com`.
+
+## Read `analysis.json` (what the UI needs)
+
+Every analysis has `analyses/<id>/analysis.json`. The same entry is in `manifest.json` (`analyses[]`). Read these fields:
+
+| Field | Use |
+|---|---|
+| `id`, `label`, `units` | The switcher text and the unit after a value |
+| `facades.tileset` | Path to the tileset, relative to the manifest |
+| `facades.legend.vmin`, `vmax` | The value range of the whole analysis (not of the view) |
+| `facades.legend.config` | `colors` (stops, 0 to 255), `unit`, `info`, `colorInterpolation`, `legendType`, `legendMinHandling`, `legendMaxHandling` |
+| `facades.value` | `offset`, `scale`, `noData` (65535) for the click decoder |
+| `facades.stats` | `mean`, `p10`, `p50`, `p90`, `histogram` (20 bins) |
+| `facades.height` | The base height of the run |
+
+Legend format: `legendType: "equal_ranges"` splits `vmin..vmax` in equal steps. `colorInterpolation: "binned"` gives
+one flat colour to each step (no blend between stops). `legendMinHandling` and `legendMaxHandling` are `closed`:
+a value equal to `vmin` or `vmax` stays in the first or last step. Draw a legend from these fields; do not guess the steps.
+
+No-data rule: a cell with no value has code `65535` and alpha `0` in the value page. Show it as "no value" and keep it
+out of your own statistics.
 
 ## 3. Your own palette
 
@@ -245,6 +275,8 @@ viewer.imageryLayers.addImageryProvider(new PmtilesImagery(colour, { minzoom: m.
 `m` is the layer entry of the ground manifest (`minzoom`, `maxzoom`, `bounds`, `encoding`, `lo`, `step`).
 The imagery snippet was tested without terrain. The canvas remark for terrain is from an earlier project note, not from a test here.
 
+Ground layers exist only when the export wrote them. A folder with 3D tiles only has no ground manifest. Check first.
+
 For a click value, read the `value.pmtiles` tile at the maximum zoom, at the clicked longitude and latitude
 (`viewer.camera.pickEllipsoid`). Decode with the same options as above, then:
 
@@ -261,15 +293,19 @@ const value = d[i + 3] === 0 ? null : m.lo + m.step * code;
 
 Tested: 20 of 20 clicks inside the codec error, 2 of 2 no-data clicks returned null.
 
-## 7. Host the folder
+## 7. Hosting
 
-- Any static host works. The page must run on `http(s)`, not `file://`. A simple dev server that ignores `Range`
-  breaks PMTiles ("no content-length header"). Use a server that answers `206` with `Accept-Ranges: bytes`.
-- CORS: `Access-Control-Allow-Origin` for your page. For PMTiles on another origin add
-  `Access-Control-Allow-Headers: Range`. `Access-Control-Expose-Headers: ETag` is good practice.
-- Content types: `.glb` `model/gltf-binary`; `.bin` and `.pmtiles` `application/octet-stream`.
-- Cache: `g/` and `analyses/` are content-addressed, so use `public, max-age=31536000, immutable`.
-  Use `no-cache` for `manifest.json`. The export writes a `_headers` file with these rules for hosts that read it.
+- `_headers` works on Cloudflare Pages (put the folder in the deploy root).
+- R2 and S3 do not read `_headers`. Set these by hand:
+  - CORS: allow `GET` and `HEAD` from your page origin, allow the header `Range`, expose `ETag`.
+  - `Content-Type`: `.glb` `model/gltf-binary`; `.bin` and `.pmtiles` `application/octet-stream`.
+  - `Cache-Control`: `manifest.json` `no-cache`; `g/` and `analyses/` `public, max-age=31536000, immutable`.
+- Any other host must answer `206` with `Accept-Ranges: bytes` if you use PMTiles.
+- The page must run on `http(s)`, not `file://`.
+
+## Add an analysis later
+
+See the SDK docs.
 
 ## Silent traps
 

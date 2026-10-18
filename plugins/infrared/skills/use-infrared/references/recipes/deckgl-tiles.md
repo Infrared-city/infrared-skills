@@ -2,7 +2,7 @@
 
 Infrared gives you the data as standard tiles. This recipe is the last step: show the tiles in your deck.gl app.
 Tested with deck.gl 9.3.4 and loaders.gl 4.4.3. The export needs the SDK release that adds `export_3d_tiles`.
-For CesiumJS, see [cesium-tiles](cesium-tiles.md). It has the click-to-value decoder for 3D tiles.
+For CesiumJS, see [cesium-tiles](cesium-tiles.md).
 
 ## 1. Make the folder (Python)
 
@@ -15,6 +15,27 @@ export_3d_tiles(result, "out/", "svf", schedule=schedule)  # result: a facade or
 The folder holds `manifest.json` (`analyses[]` with `facades.tileset`, `legend`, `stats`, `height`, `value`),
 `g/<sha256>.bin` (shared geometry) and `analyses/<id>/facades/tileset.json` with the GLB tiles.
 Serve it from any static host (see the last section).
+
+## Read `analysis.json` (what the UI needs)
+
+Every analysis has `analyses/<id>/analysis.json`. The same entry is in `manifest.json` (`analyses[]`). Read these fields:
+
+| Field | Use |
+|---|---|
+| `id`, `label`, `units` | The switcher text and the unit after a value |
+| `facades.tileset` | Path to the tileset, relative to the manifest |
+| `facades.legend.vmin`, `vmax` | The value range of the whole analysis (not of the view) |
+| `facades.legend.config` | `colors` (stops, 0 to 255), `unit`, `info`, `colorInterpolation`, `legendType`, `legendMinHandling`, `legendMaxHandling` |
+| `facades.value` | `offset`, `scale`, `noData` (65535) for the click decoder |
+| `facades.stats` | `mean`, `p10`, `p50`, `p90`, `histogram` (20 bins) |
+| `facades.height` | The base height of the run |
+
+Legend format: `legendType: "equal_ranges"` splits `vmin..vmax` in equal steps. `colorInterpolation: "binned"` gives
+one flat colour to each step (no blend between stops). `legendMinHandling` and `legendMaxHandling` are `closed`:
+a value equal to `vmin` or `vmax` stays in the first or last step. Draw a legend from these fields; do not guess the steps.
+
+No-data rule: a cell with no value has code `65535` and alpha `0` in the value page. Show it as "no value" and keep it
+out of your own statistics.
 
 ## 2. 3D tiles with Tile3DLayer
 
@@ -51,8 +72,37 @@ Tested: every tile loaded and the console showed no error. The default look is t
 
 Not yet covered, because no test ran:
 - Your own palette on the 3D tiles. `Tile3DLayer` has no `CustomShader`. Show the baked colour for now.
-- Click to value on the 3D tiles. Use [cesium-tiles](cesium-tiles.md) if you need it.
 - Terrain from the export. deck.gl `TerrainLayer` reads other formats than the export (`heightmap-1.0`).
+
+### Click to value on the 3D tiles
+
+`Tile3DLayer` has no metadata pick. Decode the value from the GLB of the clicked tile. This is the method of the
+Cesium recipe, with the same decoder:
+
+1. Pick: `info.object` is the clicked `Tile3D`; `info.coordinate` is `[lon, lat, alt]`. The tile GLB url is
+   `info.object.contentUrl` (check the field name in your loaders.gl 4.4.3 console).
+2. Move the point into the tile frame. The tileset root `transform` is ENU to ECEF and each GLB has a node
+   translation. Take the ECEF point of the click, apply the inverse of `tileset.transform * tile.transform`,
+   then change axes: tile frame (z up) to glTF (y up) is `(x, y, z) -> (x, z, -y)`.
+3. Fetch the GLB and its `g/<sha256>.bin` buffer (cache both). Read `POSITION`, `TEXCOORD_0` and the value PNG.
+4. Find the triangle at the point, get its uv, read the nearest texel with data.
+5. Decode: code `= R + 256 * G` (R is the LOW byte); value `= offset + scale * code / 65535`, with `offset` and
+   `scale` from `analysis.facades.value`. No data: code `65535` or alpha `0`.
+6. Decode the PNG with `premultiplyAlpha: "none"` and `colorSpaceConversion: "none"`.
+
+Use `readGlb`, `decodeValues` and `lookup` from section 4 of [cesium-tiles](cesium-tiles.md) unchanged. They do not
+need Cesium. Only steps 1 and 2 are deck.gl specific:
+
+```js
+// ecef(lon, lat, alt) -> ECEF metres (WGS84); tileWorld = tileset.transform * tile.transform (4x4)
+const l = applyMatrix(invert(tileWorld), ecef(...info.coordinate)); // point in the tile frame (z up)
+const value = lookup(await readGlbCached(info.object.contentUrl), l[0], l[2], -l[1]);
+console.log(value === null ? "no value here" : `${value} ${analysis.units}`);
+```
+
+Not tested in deck.gl: the `contentUrl` field and the matrix chain. The decoder is the tested one (about 45 clicks
+inside one codec step). If the chain is wrong, `lookup` returns `null` for every click (no triangle within 2 m).
+Check a few values against `analysis.facades.stats` (`p10` to `p90`).
 
 ## 3. Base height
 
@@ -63,6 +113,9 @@ the datum and the resolution of a provider DEM differ, and buildings float or si
 Not tested with a viewer: the fit on a deck.gl basemap.
 
 ## 4. Ground layers (2D PMTiles)
+
+Ground layers exist only when the export wrote them. A 3D-only folder has no ground manifest and no PMTiles.
+Check that the file exists before you build this layer.
 
 A ground layer is two PMTiles archives: `colour.pmtiles` (display) and `value.pmtiles` (numbers).
 Both are 512 px PNG tiles in Web Mercator. Read them with the `pmtiles` library (HTTP Range requests).
@@ -133,16 +186,19 @@ another origin.
 The byte order of the 3D tiles is the opposite (R is the LOW byte: `offset + scale * (R + 256 * G) / 65535`).
 Do not copy one decoder to the other.
 
-## 5. Host the folder
+## 5. Hosting
 
-- Any static host works. The page must run on `http(s)`.
-- PMTiles needs HTTP Range. A simple dev server that ignores `Range` fails ("no content-length header"). Use a server
-  that answers `206` with `Accept-Ranges: bytes`.
-- CORS: `Access-Control-Allow-Origin` for your page. For PMTiles on another origin add
-  `Access-Control-Allow-Headers: Range`. `Access-Control-Expose-Headers: ETag` is good practice.
-- Content types: `.glb` `model/gltf-binary`; `.bin` and `.pmtiles` `application/octet-stream`.
-- Cache: `g/` and `analyses/` are content-addressed: `public, max-age=31536000, immutable`.
-  `manifest.json`: `no-cache`. The export writes a `_headers` file with these rules for hosts that read it.
+- `_headers` works on Cloudflare Pages (put the folder in the deploy root).
+- R2 and S3 do not read `_headers`. Set these by hand:
+  - CORS: allow `GET` and `HEAD` from your page origin, allow the header `Range`, expose `ETag`.
+  - `Content-Type`: `.glb` `model/gltf-binary`; `.bin` and `.pmtiles` `application/octet-stream`.
+  - `Cache-Control`: `manifest.json` `no-cache`; `g/` and `analyses/` `public, max-age=31536000, immutable`.
+- Any other host must answer `206` with `Accept-Ranges: bytes` if you use PMTiles.
+- The page must run on `http(s)`, not `file://`.
+
+## Add an analysis later
+
+See the SDK docs.
 
 ## Silent traps
 
