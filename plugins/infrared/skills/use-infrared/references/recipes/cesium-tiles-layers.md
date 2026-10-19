@@ -6,23 +6,46 @@ Each layer exists only when the export wrote it. Check the manifest before you b
 
 ## Make the layers (Python)
 
-```python
-from infrared_sdk import export_ground_tiles, export_terrain_tiles
+The easy way is one run. `TileExport` writes the facades, the ground, the terrain and the trees:
 
-export_ground_tiles(area_result, "out/", "svf_ground")           # analyses/svf_ground/ground/*
-export_terrain_tiles(payload.ground_geometry, "out/", site_origin=(lon, lat))  # terrain/*, one for each folder
+```python
+from infrared_sdk import TileExport
+
+export = TileExport(
+    "out/",
+    ids={0: "svf", 1: "svf_ground"},        # a facade payload and a ground payload of one type: key by index
+    terrain=payload.ground_geometry,        # terrain/*, one for each folder
+    trees=vegetation,                       # trees/<key>/*
+    h0_orthometric_m=0.0,                   # one base height for all parts
+)
+client.run_area_and_wait([facade_payload, ground_payload], polygon, buildings=buildings,
+                         vegetation=vegetation, export=export)
 ```
 
-Use the same `h0_orthometric_m` in `export_3d_tiles` and `export_terrain_tiles`, so the walls meet the terrain.
-Ground and facades of one run are two ids (for example `svf` and `svf_ground`). The trees export is not released yet
-(a call is in work); this page covers the viewer side only.
+For results you already hold, call the parts one by one with the same `h0_orthometric_m`:
+
+```python
+from infrared_sdk import export_ground_tiles, export_terrain_tiles, export_trees
+
+export_ground_tiles(area_result, "out/", "svf_ground")                           # analyses/svf_ground/ground/*
+export_terrain_tiles(payload.ground_geometry, "out/", site_origin=(lon, lat))    # terrain/*
+export_trees(vegetation, "out/", site_origin=(lon, lat), terrain=payload.ground_geometry)  # trees/<key>/*
+```
+
+`site_origin` is the south-west corner of the bounding box of the run polygon: `(min lon, min lat)` of its ring.
+`TileExport` takes it from the run. A wrong value moves the terrain by metres with no error.
+Ground and facades of one run are two ids (for example `svf` and `svf_ground`).
+Each layer exists only when you exported it. A block run (`area_blocks`) writes one ground overview at the root of the
+analysis (low zoom levels over all blocks, no COG). `ground.parts[]` in `analysis.json` lists the full-resolution
+files of each block, each with its `key`.
 
 ## 1. Ground layer (2D PMTiles as imagery)
 
-`analyses/<id>/analysis.json` has a `ground` object: `minzoom`, `maxzoom`, `bounds` (`[west, south, east, north]`),
-`encoding`, `lo`, `step`. The files are `analyses/<id>/ground/colour.pmtiles` (display) and `value.pmtiles` (numbers).
-Both are 512 px PNG tiles in Web Mercator. PMTiles needs HTTP Range requests, so use the `pmtiles` library.
-Not tested: the exact key names inside `ground.files`. Build the two paths from the id as shown.
+`analyses/<id>/analysis.json` has a `ground` object: `files` (`value`, `colour`, `cog`: paths from the folder root),
+`kind`, `minzoom`, `maxzoom`, `bounds` (`[west, south, east, north]`), `encoding`, `lo`, `step`, `stats`, `legend`.
+`files.colour` (display) and `files.value` (numbers) are 512 px PNG tiles in Web Mercator. PMTiles needs HTTP Range
+requests, so use the `pmtiles` library. The key names of `files` are from the export code; the viewer code below is
+the spike code, not run again on a final export.
 
 ```html
 <script src="https://unpkg.com/pmtiles@3.2.1/dist/pmtiles.js"></script>
@@ -30,8 +53,8 @@ Not tested: the exact key names inside `ground.files`. Build the two paths from 
 
 ```js
 const g = (await (await fetch(new URL(`analyses/${id}/analysis.json`, manifestUrl))).json()).ground;
-const base = new URL(`analyses/${id}/ground/`, manifestUrl).href;
-const colour = new pmtiles.PMTiles(base + "colour.pmtiles"), value = new pmtiles.PMTiles(base + "value.pmtiles");
+const colour = new pmtiles.PMTiles(new URL(g.files.colour, manifestUrl).href);
+const value = new pmtiles.PMTiles(new URL(g.files.value, manifestUrl).href);
 const empty = Object.assign(document.createElement("canvas"), { width: 1, height: 1 });
 const prov = new Cesium.UrlTemplateImageryProvider({
   url: "pmtiles://{z}/{x}/{y}", tilingScheme: new Cesium.WebMercatorTilingScheme(), tileWidth: 512, tileHeight: 512,
@@ -78,11 +101,13 @@ opposite byte order (R is LOW). Do not copy one decoder to the other.
 
 ## 2. Terrain
 
-Use manifest `terrain` (the folder has one terrain). `terrain.cesium` is the path of the `heightmap-1.0` folder
-(`layer.json` and `{z}/{x}/{y}.terrain`).
+Use manifest `terrain` (the folder has one terrain). `terrain.cesium` is the path of `layer.json` (`terrain/layer.json`)
+of the `heightmap-1.0` pyramid, which has the tiles `{z}/{x}/{y}.terrain` beside it. `fromUrl` wants the FOLDER of
+`layer.json`, so cut the file name off:
 
 ```js
-viewer.terrainProvider = await Cesium.CesiumTerrainProvider.fromUrl(new URL(manifest.terrain.cesium, manifestUrl).href);
+const layerUrl = new URL(manifest.terrain.cesium, manifestUrl).href;
+viewer.terrainProvider = await Cesium.CesiumTerrainProvider.fromUrl(new URL(".", layerUrl).href);
 viewer.scene.globe.depthTestAgainstTerrain = true;
 const facades = await Cesium.Cesium3DTileset.fromUrl(facadeUrl); // as in the facade recipe
 viewer.scene.primitives.add(facades);
@@ -91,11 +116,11 @@ viewer.scene.primitives.add(facades);
 Tested (synthetic terrain): 5 hill points, terrain vs source model at most 0.064 m (limit 0.5 m); 5 building bases vs
 terrain at most 0.080 m (the `heightmap-1.0` step is 0.2 m). Read heights with `Cesium.sampleTerrainMostDetailed`.
 Serve `.terrain` as `application/octet-stream` with no `Content-Encoding`. The spike path was a bare `terrain/`
-folder; the use of `manifest.terrain.cesium` as the path is untested.
+folder; the cut of `manifest.terrain.cesium` to its folder is not run in a browser.
 
 ## 3. Trees (i3dm tileset)
 
-Manifest `trees.tileset` is the path of `trees/tileset.json`; `trees.count` is the number of trees. It loads like the
+Manifest `trees.tileset` is the path of `trees/<key>/tileset.json`; `trees.count` is the number of trees. It loads like the
 facade tileset:
 
 ```js
@@ -105,7 +130,7 @@ viewer.scene.primitives.add(trees);
 
 Tested on a spike tileset of 100 trees: all 100 instances load (`content.featuresLength`), the batch property
 `height` reads (`getFeature(5).getProperty("height")` was 11), and picks on a tree axis and above its apex fit
-position, up axis and scale. No console error. The trees from the final export call are untested.
+position, up axis and scale. No console error. The trees from `export_trees` or `TileExport(trees=...)` are not run in a browser.
 
 ## Silent traps
 
@@ -113,3 +138,4 @@ position, up axis and scale. No console error. The trees from the final export c
 - Ground `value.pmtiles`: NEAREST pixel only, no premultiply, no colour conversion.
 - Terrain and facades need the same base height (`h0_orthometric_m`). Another base: buildings float or sink.
 - The folder has one terrain. Another terrain, or another base, is refused by the SDK.
+- `manifest.terrain.cesium` is the path of `layer.json`; `CesiumTerrainProvider.fromUrl` wants its folder.

@@ -1,21 +1,52 @@
 # CesiumJS: Infrared tiles in your own app
 
 Infrared gives you the data as standard tiles. This recipe is the last step: show the tiles in your CesiumJS app.
-Tested with CesiumJS 1.146 and a static host. The export needs the SDK release that adds `export_3d_tiles`.
+Tested with CesiumJS 1.146 and a static host. The export needs `infrared-sdk` with `TileExport` and `export_3d_tiles`.
 For deck.gl, see [deckgl-tiles](deckgl-tiles.md).
 
 ## 1. Make the folder (Python)
 
-```python
-from infrared_sdk import export_3d_tiles
+**Small area (about 4 km²): one call.** The results go to the folder while the run goes on.
 
-export_3d_tiles(result, "out/", "svf", schedule=schedule)  # result: a facade or roof result
+```python
+from infrared_sdk import TileExport
+
+export = TileExport("out/", ids={0: "svf"})          # or an S3Target, see "Hosting"
+client.run_area_and_wait(payload, polygon, buildings=buildings, export=export)
+print(export.summaries["svf"].files)
 ```
 
-Call it again with a new id for each analysis. The folder holds:
-- `manifest.json`: `analyses[]`. Each entry has `facades.tileset`, `legend`, `stats`, `height` and `value`.
+A streamed analysis gives `None` in the result list. Its summary is in `export.summaries[analysis_id]`.
+
+**Large city (hundreds of km²): one run for each block, one layer in the viewer.** Use blocks above about 50 km²,
+or when the area result does not fit in memory. Tiles appear block by block.
+
+```python
+from infrared_sdk import TileExport, area_blocks
+
+export = TileExport("out/")
+for block in area_blocks(polygon):
+    client.run_area_and_wait(payload, block, buildings=buildings_of(block), export=export)
+```
+
+Pass the `Block` as it is. `buildings_of(block)` reads the buildings of the window plus a margin of at least
+`context_reach_m` (default 600 m). The ground of the loop is the ground of one run, wind included.
+For a saved result, a crash, ground, terrain and trees, see the Python SDK README, section "Export to 3D Tiles".
+
+**Export again after a crash, with no new job.** Save `schedule.to_dict()` as JSON after `client.run_area(...)`.
+Later: `client.export_run(payload, polygon, "out/", schedule=AreaSchedule.from_dict(saved), buildings=buildings)`
+with the same inputs. The server keeps results about 7 days; after that the analysis needs a new run.
+
+**A saved result (notebook).** `export_3d_tiles(columns, "out/", "svf", layout=layout)`, with `columns` from
+`SurfaceColumns.from_bytes` and `layout` from `FacadeLayout.from_bytes`. One layout serves all analyses of a run.
+
+The folder holds (format `infrared-3d-export/2`):
+- `manifest.json`: `analyses[]`, `terrain`, `trees`. Each analysis has `facades.tileset`, `legend`, `stats`, `height` and `value`.
+- `analyses/<id>/analysis.json`: the same entry. It is written last, so a folder without it is no analysis.
 - `g/<sha256>.bin`: shared geometry. A new analysis on the same buildings writes no new geometry.
-- `analyses/<id>/facades/tileset.json` and the GLB tiles.
+- `analyses/<id>/facades/tileset.json` and the GLB tiles. A block run has `analyses/<id>/parts/<block key>/`
+  for each block; `facades.tileset` of the analysis is the root that points to all of them. Load that one.
+- `analyses/<id>/ground/`, `terrain/`, `trees/<key>/` when you exported them (sections 6 and below).
 
 ## 2. Load the tileset
 
@@ -231,17 +262,22 @@ Serve `.terrain` files as `application/octet-stream` with no `Content-Encoding`.
 
 ## 6. Ground, terrain and trees
 
-These layers are in [cesium-tiles-layers](cesium-tiles-layers.md): the ground layer as PMTiles imagery with a click value, terrain from manifest `terrain`, and trees from manifest `trees.tileset`.
+These layers are in [cesium-tiles-layers](cesium-tiles-layers.md): the ground layer as PMTiles imagery with a click value, terrain from manifest `terrain`, and trees from manifest `trees.tileset`. They are in the folder when you pass `terrain=` and `trees=` to `TileExport`, or call `export_ground_tiles`, `export_terrain_tiles` and `export_trees`.
 
 ## 7. Hosting
 
-- A bucket: pass `S3Target(client, bucket, prefix)` as the target (`client` is a boto3 S3 client; R2 and MinIO work too).
-  It sets `ContentType` and `CacheControl` on each object. CORS is a bucket setting, not a key setting: set it yourself.
+- A bucket: pass `S3Target(client, bucket, prefix)` as the target (`client` is a boto3 S3 client; R2, S3 and MinIO work).
+  `TileExport(S3Target(client, "my-bucket", "tiles/site1"))` writes the run to it. `S3Target` sets `ContentType` and
+  `CacheControl` on each object, and writes `analysis.json` last, only when the key is absent (conditional write),
+  so of two writers of one id one wins. CORS is a bucket setting, not a key setting: set it yourself.
+- A plain host that ignores `_headers` sends no `Cache-Control` for `manifest.json`: a browser can show an old list
+  for a while. Set `no-cache` for `manifest.json` on that host.
 - `_headers` works on Cloudflare Pages (put the folder in the deploy root).
 - R2 and S3 do not read `_headers`. `S3Target` sets the two header fields per object; the bucket CORS stays by hand:
   - CORS: allow `GET` and `HEAD` from your page origin, allow the header `Range`, expose `ETag`.
-  - `Content-Type` (`S3Target` sets it): `.glb` `model/gltf-binary`; `.bin` and `.pmtiles` `application/octet-stream`.
-  - `Cache-Control` (`S3Target` sets it): `manifest.json` `no-cache`; `g/` and `analyses/` `public, max-age=31536000, immutable`.
+  - `Content-Type` (`S3Target` sets it): `.glb` `model/gltf-binary`; `.bin`, `.pmtiles`, `.terrain` and `.i3dm` `application/octet-stream`; `.png` `image/png`; `.tif` `image/tiff`.
+  - `Cache-Control` (`S3Target` sets it): `g/` and `trees/` `public, max-age=31536000, immutable` (named by content);
+    `analyses/`, `terrain/` and `manifest.json` `no-cache` (named by position).
 - Any other host must answer `206` with `Accept-Ranges: bytes` if you use PMTiles.
 - The page must run on `http(s)`, not `file://`.
 
@@ -251,10 +287,16 @@ No code change in the app. Export a new id into the same folder (or the same `S3
 `manifest.json`; the app reads it again and lists the new entry. `manifest.json` is `no-cache`, so a reload sees it.
 
 ```python
-export_3d_tiles(result2, "out/", "utci", schedule=schedule)   # or: S3Target(client, bucket, prefix)
+export_3d_tiles(result2, "out/", "utci")                       # a live result: no other argument
+export_3d_tiles(columns2, "out/", "utci", layout=layout)       # a saved result: add the saved layout
+# or a new run into the same folder:
+# client.run_area_and_wait(payload, polygon, buildings=buildings, export=TileExport("out/", ids={0: "utci"}))
 ```
 
-An id that exists is refused. The old `terrain` and `trees` entries stay in the manifest.
+An id that exists is refused before any tile is written (`ValueError`), and a published id is never reused: its files
+are cached. To replace an analysis in a folder, delete `analyses/<id>/` and export again, or use a new id. An export
+that was killed leaves no analysis (no `analysis.json`) and blocks no id. The `terrain` and `trees` entries stay in the
+manifest.
 
 ## Silent traps
 
