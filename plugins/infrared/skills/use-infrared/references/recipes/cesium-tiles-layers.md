@@ -171,11 +171,8 @@ Tested on a spike tileset of 100 trees: all 100 instances load (`content.feature
 `height` reads (`getFeature(5).getProperty("height")` was 11), and picks on a tree axis and above its apex fit
 position, up axis and scale. No console error. The trees from `export_tiles(trees=...)` or `TileExport(trees=...)` are not run in a browser.
 
-**Trees of a block loop.** `manifest.trees.tileset` is then `trees/blocks-<sha256>.json`: a root with one external
-tileset per block (`trees.parts[]` lists them: `block`, `key`, `tileset`, `count`, `region`). Load it as above, as one
-tileset. Tested (CesiumJS 1.146 and deck.gl 9.3.4 with loaders.gl 4.4.3, synthetic exports of 2 and 25 blocks):
-the i3dm tiles of every block load (2 of 2, 25 of 25), 0 failed. A block tile has the load event too (its content is a
-`tileset.json`): count i3dm tiles only.
+**Trees of a block loop.** Give the trees of the whole area to every block: the first block writes them, the later
+blocks write nothing. `manifest.trees.tileset` is one tileset of the whole area: load it as above, as one tileset.
 
 ## Silent traps
 

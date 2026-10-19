@@ -43,8 +43,8 @@ A block that the folder or bucket holds is never written again. Run it again wit
 after a failed root rebuild): no file of the block is written and the call is a success. Other results for a held
 block raise `ValueError` ("exists with other results") and change no file: export the blocks into a new id. Run the
 blocks of one id one after the other, from one process (the root is rebuilt after each block). Give
-`TileExport(trees=...)` the trees of the whole area: each block keeps the trees in its own window, and
-`manifest.trees.tileset` is one root over the trees of all blocks.
+`TileExport(trees=...)` the trees of the whole area: the first block writes them, the later blocks write nothing,
+and `manifest.trees.tileset` is one tileset of the whole area.
 
 **Export again after a crash, with no new job.** Save `schedule.to_dict()` as JSON (temp file, fsync, rename) right
 after `client.run_area(...)`. Later: `client.export_run(payload, polygon, "out/", schedule=AreaSchedule.from_dict(saved),

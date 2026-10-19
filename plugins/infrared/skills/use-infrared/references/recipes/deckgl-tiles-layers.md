@@ -143,10 +143,9 @@ and the instance matrices that deck draws with put base, apex and crown edge at 
 6 mm). No console error. Not proven: picking of the trees. `pickObject` found no tree after a view change.
 The trees from `export_tiles(trees=...)` or `TileExport(trees=...)` are not run in a browser.
 
-**Trees of a block loop.** `manifest.trees.tileset` is then `trees/blocks-<sha256>.json`, one root over the tree set of
-each block (`trees.parts[]`). Load it in ONE `Tile3DLayer` as above. Tested (synthetic exports of 2 and 25 blocks): the
-i3dm tiles of every block load (2 of 2, 25 of 25), 0 failed, when the view holds the area (tiles out of the view do not load). `onTileLoad` is also called for a block tile (`contentUrl`
-ends with `.json`): count only the other tiles.
+**Trees of a block loop.** Give the trees of the whole area to every block: the first block writes them, the later
+blocks write nothing. `manifest.trees.tileset` is one tileset of the whole area: load it in ONE `Tile3DLayer` as above,
+with a view that holds the area (tiles out of the view do not load).
 
 ## Silent traps
 
