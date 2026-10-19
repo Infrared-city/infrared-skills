@@ -39,8 +39,7 @@ result = client.run_area_and_wait(
   Or set `rho-solar` (0 to 1), `emissivity` (0 to 1) and `pv-efficiency` (0 to 0.4). A field beats the preset.
 - `glass` is an opaque, diffuse equivalent. It does not predict a curtain wall.
 - An unknown or invalid value is removed or set to `default`, with a warning. The run does not fail.
-- UTCI and TCS (`standard`) read it. Light facades show only the cooler wall today: the reflected
-  shortwave is not modelled yet, and a warning says so.
+- UTCI and TCS (`standard`) read it. The model includes the shortwave that a wall reflects.
 - Preview, in the next SDK release: `roof-material` (same object) on the entry sets the roof, and the
   `installations` group (below) holds thin pieces.
 
@@ -62,7 +61,8 @@ result = client.run_area_and_wait(
 - UTCI, TCS and solar radiation read them. Solar radiation uses the ground reflectance of each
   material (0.2 without one).
 - A feature can carry `albedo` (0 to 1) and `dt-max` (0 to 50 K) in its properties. They beat the
-  value of the material for that feature. `ground_albedo` on the request sets one value for the
+  value of the material for that feature. `irrigated: true` or `soil-moisture` marks a wet ground
+  surface (preview, in the next SDK release). `ground_albedo` on the request sets one value for the
   whole run. An invalid value is ignored with a warning. The run does not fail.
 - Make layers mutually exclusive. If two overlap, the model picks the top one and a tie can turn
   a lake into asphalt. Fetched layers come pre-cleaned. When you override, replace one key:
@@ -104,7 +104,9 @@ See [analyses/11-terrain-and-context.md](analyses/11-terrain-and-context.md).
 
 Preview, in the next SDK release: `installations` takes thin pieces, such as green panels, window
 strips, fins, roof PV and PV canopies, in the same mesh shape (`material` allowed). They shade the
-sun and light analyses and SVF. They get no sensors. Thermal comfort reads them later. Wind ignores them.
+sun and light analyses, SVF and UTCI (every tier). They get no sensors. Wind ignores them.
+Python request models take `installations` directly. A `pv` piece adds `pv_yield` to the area or
+surface result, grouped by entry id and side.
 
 ## Meshes from OBJ, glTF and BIM: weld first
 
