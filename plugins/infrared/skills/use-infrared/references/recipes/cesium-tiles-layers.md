@@ -107,11 +107,12 @@ new Cesium.ScreenSpaceEventHandler(viewer.canvas).setInputAction(async (m) => {
 Tested: 8 real mouse clicks, largest error 0.046 (limit 0.0501 = step / 2). The facade value decoder has the
 opposite byte order (R is LOW). Do not copy one decoder to the other.
 
-**A block analysis (a block loop): the overview and one layer per block.** The root `files` of the ground are an
-overview: the low zoom levels over all blocks (`maxzoom` is low, there is no `cog`). `ground.parts[]` has one
-`ground` object per block (`key`, `files` with `cog`, `minzoom`, `maxzoom`, `bounds`, `lo`, `step`): the full
-resolution. Add one imagery layer per part ABOVE the overview (added later), and read a click from the part whose
-`bounds` hold the point:
+**A block analysis (a block loop): the overview chunks and one layer per block.** The root `ground` has no `files`.
+`ground.overview[]` is the overview, the low zoom levels over all blocks, in chunks of the area (about 8 km on a
+side; each chunk: `key`, `files` without `cog`, `minzoom`, `maxzoom`, `bounds`, `lo`, `step`, `legend`).
+`ground.parts[]` has one `ground` object per block (`key`, `files` with `cog`, ...): the full resolution. Add one
+imagery layer per chunk, then one per part ABOVE them (added later), and read a click from the part whose `bounds`
+hold the point, else from the chunk that holds it. Each chunk and each block has its own codec and colour range:
 
 ```js
 const layerOf = (s) => { // s: the root ground or one part
@@ -122,16 +123,17 @@ const layerOf = (s) => { // s: the root ground or one part
     return t ? createImageBitmap(new Blob([t.data], { type: "image/png" })) : empty; };
   return viewer.imageryLayers.addImageryProvider(p);
 };
-const groundLayers = [g, ...(g.parts ?? [])].map(layerOf); // the overview first, the blocks above it
-const sourceAt = (lon, lat) =>
-  (g.parts ?? []).find(({ bounds: [w, s, e, n] }) => lon >= w && lon <= e && lat >= s && lat <= n) ?? g;
+const groundLayers = [...(g.overview ?? [g]), ...(g.parts ?? [])].map(layerOf); // the overview first, the blocks above
+const inside = (list, lon, lat) => (list ?? []).find(({ bounds: [w, s, e, n] }) => lon >= w && lon <= e && lat >= s && lat <= n);
+const sourceAt = (lon, lat) => inside(g.parts, lon, lat) ?? inside(g.overview, lon, lat) ?? g;
 // valueAt above: read `sourceAt(lon, lat)` (its files.value, maxzoom, lo, step) in place of `g`.
 ```
 
-Tested (CesiumJS 1.146, a synthetic 2-block export: overview maxzoom 12, blocks maxzoom 16, the test page
-`scripts/export3d/page/infrared-layer.js` of infrared-core, which uses a canvas per tile): at a view about 300 m wide
-over each block, the block layer drew its own tiles down to zoom 16, 0 failed; the value at the block centre decoded
-from the block's value tiles, in the block's codec range. The overview alone stops at its maxzoom (12).
+Tested (CesiumJS 1.146, a synthetic export of 25 blocks over 10 km x 10 km: 4 overview chunks of maxzoom 12, blocks
+of maxzoom 16, the test page `scripts/export3d/page/infrared-layer.js` of infrared-core, which uses a canvas per
+tile): the chunks draw at the area view, 0 failed; at a view about 300 m wide over each of the 25 blocks, the block
+layer drew its own tiles down to zoom 16, 0 failed, and the value at the block centre decoded from the block's value
+tiles, in the block's codec range.
 
 ## 2. Terrain
 
@@ -171,8 +173,8 @@ position, up axis and scale. No console error. The trees from `export_trees` or 
 
 **Trees of a block loop.** `manifest.trees.tileset` is then `trees/blocks-<sha256>.json`: a root with one external
 tileset per block (`trees.parts[]` lists them: `block`, `key`, `tileset`, `count`, `region`). Load it as above, as one
-tileset. Tested (CesiumJS 1.146 and deck.gl 9.3.4 with loaders.gl 4.4.3, a synthetic 2-block export with 400 trees):
-the i3dm tiles of both blocks load (2 of 2), 0 failed. A block tile has the load event too (its content is a
+tileset. Tested (CesiumJS 1.146 and deck.gl 9.3.4 with loaders.gl 4.4.3, synthetic exports of 2 and 25 blocks):
+the i3dm tiles of every block load (2 of 2, 25 of 25), 0 failed. A block tile has the load event too (its content is a
 `tileset.json`): count i3dm tiles only.
 
 ## Silent traps

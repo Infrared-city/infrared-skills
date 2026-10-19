@@ -70,23 +70,25 @@ async function valueAt(lon, lat, size = 512) {
 Tested: 8 real mouse clicks, largest error 0.046 (limit 0.0501 = step / 2). Cache decoded tiles in a real app.
 The facade value decoder has the opposite byte order (R is LOW). Do not copy one to the other.
 
-**A block analysis (a block loop): the overview and one layer per block.** The root `files` are an overview (low
-zooms over all blocks, no `cog`); `ground.parts[]` has the full-resolution `ground` object of each block (`key`,
-`files`, `minzoom`, `maxzoom`, `bounds`, `lo`, `step`). Make one `TileLayer` as above for the root and one for each
-part, the parts after the root (drawn above it), each with its own `minZoom`, `maxZoom` and `extent`, and read a click
-from the part whose `bounds` hold the point (else the root):
+**A block analysis (a block loop): the overview chunks and one layer per block.** The root `ground` has no `files`:
+`ground.overview[]` is the overview (low zooms over all blocks) in chunks of the area, about 8 km on a side, and
+`ground.parts[]` has the full-resolution `ground` object of each block (`key`, `files`, `minzoom`, `maxzoom`,
+`bounds`, `lo`, `step`). Make one `TileLayer` as above for each chunk and one for each part, the parts last (drawn
+above), each with its own `minZoom`, `maxZoom` and `extent`, and read a click from the part whose `bounds` hold the
+point, else the chunk. Each chunk and each block has its own codec and colour range:
 
 ```js
 // groundLayerOf(s, id): the TileLayer above as a function of its source s (s in place of g) and its layer id.
-const groundLayers = [g, ...(g.parts ?? [])].map((s) => groundLayerOf(s, s.key ?? "overview"));
-const sourceAt = (lon, lat) =>
-  (g.parts ?? []).find(({ bounds: [w, s, e, n] }) => lon >= w && lon <= e && lat >= s && lat <= n) ?? g;
+const sources = [...(g.overview ?? [g]).map((c) => [c, `overview-${c.key ?? 0}`]), ...(g.parts ?? []).map((p) => [p, `part-${p.key}`])];
+const groundLayers = sources.map(([s, id]) => groundLayerOf(s, id));
+const inside = (list, lon, lat) => (list ?? []).find(({ bounds: [w, s, e, n] }) => lon >= w && lon <= e && lat >= s && lat <= n);
+const sourceAt = (lon, lat) => inside(g.parts, lon, lat) ?? inside(g.overview, lon, lat) ?? g;
 ```
 
-Tested (deck.gl 9.3.4, pmtiles 3.2.1, a synthetic 2-block export: overview maxzoom 12, blocks maxzoom 16): at zoom 16
-over the centre of each block, the layer of that block loaded 6 tiles of zoom 16 (the other block 0, the overview 1
-of zoom 12), 0 failed, and the value at the centre decoded from the block's value tiles (the same value as in
-CesiumJS).
+Tested (deck.gl 9.3.4, pmtiles 3.2.1, a synthetic export of 25 blocks: 4 overview chunks of maxzoom 12, blocks of
+maxzoom 16): at zoom 16 over the centre of each block, the layer of that block loaded 6 tiles of zoom 16 (the other
+blocks 0, the chunk under it 1 tile of zoom 12), 0 failed, and the value at the centre decoded from the block's value
+tiles (the same value as in CesiumJS).
 
 ## 2. Terrain (TerrainLayer, terrain-RGB)
 
@@ -142,8 +144,8 @@ and the instance matrices that deck draws with put base, apex and crown edge at 
 The trees from `export_trees` or `TileExport(trees=...)` are not run in a browser.
 
 **Trees of a block loop.** `manifest.trees.tileset` is then `trees/blocks-<sha256>.json`, one root over the tree set of
-each block (`trees.parts[]`). Load it in ONE `Tile3DLayer` as above. Tested (a synthetic 2-block export, 400 trees):
-the i3dm tiles of both blocks load (2 of 2), 0 failed. `onTileLoad` is also called for a block tile (`contentUrl`
+each block (`trees.parts[]`). Load it in ONE `Tile3DLayer` as above. Tested (synthetic exports of 2 and 25 blocks): the
+i3dm tiles of every block load (2 of 2, 25 of 25), 0 failed, when the view holds the area (tiles out of the view do not load). `onTileLoad` is also called for a block tile (`contentUrl`
 ends with `.json`): count only the other tiles.
 
 ## Silent traps
