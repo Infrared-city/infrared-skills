@@ -39,6 +39,12 @@ Pass the `Block` as it is. A block run needs the buildings of its window plus a 
 (default 600 m). `buildings.get_area` adds only its own read margin, and the SDK has no call that widens a block, so
 `context_box` is yours: the lon/lat box of `block.polygon`, widened by 600 m on each side (the Python SDK README,
 section "Export to 3D Tiles", has the code). The ground of the loop is the ground of one run, wind included.
+A block that the folder or bucket holds is never written again. Run it again with the same results (for example
+after a failed root rebuild): no file of the block is written and the call is a success. Other results for a held
+block raise `ValueError` ("exists with other results") and change no file: export the blocks into a new id. Run the
+blocks of one id one after the other, from one process (the root is rebuilt after each block). Give
+`TileExport(trees=...)` the trees of the whole area: each block keeps the trees in its own window, and
+`manifest.trees.tileset` is one root over the trees of all blocks.
 
 **Export again after a crash, with no new job.** Save `schedule.to_dict()` as JSON (temp file, fsync, rename) right
 after `client.run_area(...)`. Later: `client.export_run(payload, polygon, "out/", schedule=AreaSchedule.from_dict(saved),
@@ -59,7 +65,11 @@ The folder holds (format `infrared-3d-export/2`):
 - `analyses/<id>/analysis.json`: the same entry. It is written last, so a folder without it is no analysis.
 - `g/<sha256>.bin`: shared geometry. A new analysis on the same buildings writes no new geometry.
 - `analyses/<id>/facades/tileset.json` and the GLB tiles. A block run has `analyses/<id>/parts/<block key>/`
-  for each block; `facades.tileset` of the analysis is the root that points to all of them. Load that one.
+  for each block; `facades.tileset` of the analysis is the root that points to all of them (one external tileset per
+  block). Load that one with `Cesium3DTileset.fromUrl`, as below: CesiumJS loads the block tilesets by itself.
+  Tested (CesiumJS 1.146, a synthetic 2-block export, `scripts/export3d/viewer_check.mjs` of infrared-core): 50 of
+  50 GLB tiles of the two blocks load, 36 facade clicks give the value of the GLB, 0 wrong, the picks of section 3
+  work unchanged. A block tile has the `tileLoad` event too (its content is a `tileset.json`): count GLB tiles only.
 - `analyses/<id>/ground/`, `terrain/`, `trees/<key>/` when you exported them (sections 6 and below).
 
 ## 2. Load the tileset

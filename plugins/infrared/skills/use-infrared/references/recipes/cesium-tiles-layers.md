@@ -107,6 +107,32 @@ new Cesium.ScreenSpaceEventHandler(viewer.canvas).setInputAction(async (m) => {
 Tested: 8 real mouse clicks, largest error 0.046 (limit 0.0501 = step / 2). The facade value decoder has the
 opposite byte order (R is LOW). Do not copy one decoder to the other.
 
+**A block analysis (a block loop): the overview and one layer per block.** The root `files` of the ground are an
+overview: the low zoom levels over all blocks (`maxzoom` is low, there is no `cog`). `ground.parts[]` has one
+`ground` object per block (`key`, `files` with `cog`, `minzoom`, `maxzoom`, `bounds`, `lo`, `step`): the full
+resolution. Add one imagery layer per part ABOVE the overview (added later), and read a click from the part whose
+`bounds` hold the point:
+
+```js
+const layerOf = (s) => { // s: the root ground or one part
+  const colour = new pmtiles.PMTiles(new URL(s.files.colour, manifestUrl).href);
+  const p = new Cesium.UrlTemplateImageryProvider({ url: "pmtiles://{z}/{x}/{y}", tilingScheme: new Cesium.WebMercatorTilingScheme(),
+    tileWidth: 512, tileHeight: 512, minimumLevel: s.minzoom, maximumLevel: s.maxzoom, rectangle: Cesium.Rectangle.fromDegrees(...s.bounds) });
+  p.requestImage = async (x, y, level) => { const t = await colour.getZxy(level, x, y);
+    return t ? createImageBitmap(new Blob([t.data], { type: "image/png" })) : empty; };
+  return viewer.imageryLayers.addImageryProvider(p);
+};
+const groundLayers = [g, ...(g.parts ?? [])].map(layerOf); // the overview first, the blocks above it
+const sourceAt = (lon, lat) =>
+  (g.parts ?? []).find(({ bounds: [w, s, e, n] }) => lon >= w && lon <= e && lat >= s && lat <= n) ?? g;
+// valueAt above: read `sourceAt(lon, lat)` (its files.value, maxzoom, lo, step) in place of `g`.
+```
+
+Tested (CesiumJS 1.146, a synthetic 2-block export: overview maxzoom 12, blocks maxzoom 16, the test page
+`scripts/export3d/page/infrared-layer.js` of infrared-core, which uses a canvas per tile): at a view about 300 m wide
+over each block, the block layer drew its own tiles down to zoom 16, 0 failed; the value at the block centre decoded
+from the block's value tiles, in the block's codec range. The overview alone stops at its maxzoom (12).
+
 ## 2. Terrain
 
 Use manifest `terrain` (the folder has one terrain). `terrain.cesium` is the path of `layer.json` (`terrain/layer.json`)
@@ -142,6 +168,12 @@ viewer.scene.primitives.add(trees);
 Tested on a spike tileset of 100 trees: all 100 instances load (`content.featuresLength`), the batch property
 `height` reads (`getFeature(5).getProperty("height")` was 11), and picks on a tree axis and above its apex fit
 position, up axis and scale. No console error. The trees from `export_trees` or `TileExport(trees=...)` are not run in a browser.
+
+**Trees of a block loop.** `manifest.trees.tileset` is then `trees/blocks-<sha256>.json`: a root with one external
+tileset per block (`trees.parts[]` lists them: `block`, `key`, `tileset`, `count`, `region`). Load it as above, as one
+tileset. Tested (CesiumJS 1.146 and deck.gl 9.3.4 with loaders.gl 4.4.3, a synthetic 2-block export with 400 trees):
+the i3dm tiles of both blocks load (2 of 2), 0 failed. A block tile has the load event too (its content is a
+`tileset.json`): count i3dm tiles only.
 
 ## Silent traps
 

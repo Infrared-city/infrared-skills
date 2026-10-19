@@ -70,6 +70,24 @@ async function valueAt(lon, lat, size = 512) {
 Tested: 8 real mouse clicks, largest error 0.046 (limit 0.0501 = step / 2). Cache decoded tiles in a real app.
 The facade value decoder has the opposite byte order (R is LOW). Do not copy one to the other.
 
+**A block analysis (a block loop): the overview and one layer per block.** The root `files` are an overview (low
+zooms over all blocks, no `cog`); `ground.parts[]` has the full-resolution `ground` object of each block (`key`,
+`files`, `minzoom`, `maxzoom`, `bounds`, `lo`, `step`). Make one `TileLayer` as above for the root and one for each
+part, the parts after the root (drawn above it), each with its own `minZoom`, `maxZoom` and `extent`, and read a click
+from the part whose `bounds` hold the point (else the root):
+
+```js
+// groundLayerOf(s, id): the TileLayer above as a function of its source s (s in place of g) and its layer id.
+const groundLayers = [g, ...(g.parts ?? [])].map((s) => groundLayerOf(s, s.key ?? "overview"));
+const sourceAt = (lon, lat) =>
+  (g.parts ?? []).find(({ bounds: [w, s, e, n] }) => lon >= w && lon <= e && lat >= s && lat <= n) ?? g;
+```
+
+Tested (deck.gl 9.3.4, pmtiles 3.2.1, a synthetic 2-block export: overview maxzoom 12, blocks maxzoom 16): at zoom 16
+over the centre of each block, the layer of that block loaded 6 tiles of zoom 16 (the other block 0, the overview 1
+of zoom 12), 0 failed, and the value at the centre decoded from the block's value tiles (the same value as in
+CesiumJS).
+
 ## 2. Terrain (TerrainLayer, terrain-RGB)
 
 Use manifest `terrain`: `terrain.rgb` (the path TEMPLATE of the terrain-RGB PNG pyramid, 256 px, XYZ: `terrain/rgb/{z}/{x}/{y}.png`),
@@ -122,6 +140,11 @@ Tested on a spike tileset of 100 trees: 100 instances load, the batch property `
 and the instance matrices that deck draws with put base, apex and crown edge at the expected points (errors under
 6 mm). No console error. Not proven: picking of the trees. `pickObject` found no tree after a view change.
 The trees from `export_trees` or `TileExport(trees=...)` are not run in a browser.
+
+**Trees of a block loop.** `manifest.trees.tileset` is then `trees/blocks-<sha256>.json`, one root over the tree set of
+each block (`trees.parts[]`). Load it in ONE `Tile3DLayer` as above. Tested (a synthetic 2-block export, 400 trees):
+the i3dm tiles of both blocks load (2 of 2), 0 failed. `onTileLoad` is also called for a block tile (`contentUrl`
+ends with `.json`): count only the other tiles.
 
 ## Silent traps
 

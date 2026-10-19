@@ -37,12 +37,18 @@ Pass the `Block` as it is. A block run needs the buildings of its window plus a 
 (default 600 m); `get_area` adds only its own read margin, so `context_box` (yours; the code is in the Python SDK
 README) widens the lon/lat box of `block.polygon` by 600 m on each side. A streamed analysis gives `None` in the result list; its summary is in
 `export.summaries[analysis_id]`. For a saved result, a crash (`export_run`), ground, terrain and trees, see the
-Python SDK README, section "Export to 3D Tiles", and [cesium-tiles](cesium-tiles.md) (section 1).
+Python SDK README, section "Export to 3D Tiles", and [cesium-tiles](cesium-tiles.md) (section 1; it also has the
+rules of a block that the target holds, and of the trees of a block loop).
 
 The folder holds `manifest.json` (`analyses[]` with `facades.tileset`, `legend`, `stats`, `height`, `value`; and
 `terrain`, `trees`), `analyses/<id>/analysis.json` (written last: no file, no analysis), `g/<sha256>.bin`
 (shared geometry) and `analyses/<id>/facades/tileset.json` with the GLB tiles. A block run adds
-`analyses/<id>/parts/<block key>/`; `facades.tileset` is the one root over all parts. Load that one.
+`analyses/<id>/parts/<block key>/`; `facades.tileset` is the one root over all parts (one external tileset per block).
+Load that one in ONE `Tile3DLayer`: loaders.gl loads the block tilesets by itself. Tested (deck.gl 9.3.4, loaders.gl
+4.4.3, a synthetic 2-block export of 4 km x 2 km, `scripts/export3d/viewer_check.mjs` of infrared-core): 50 of 50 GLB
+tiles load at zoom 13.6. At zoom 14.6 on the centre 42 of 50 loaded: tiles out of the view do not load, as for any
+tileset, so start with a view that holds the area. `onTileLoad` is also called for a block tile (its `contentUrl`
+ends with `.json`): count only the other tiles.
 Serve it from any static host (see the last section).
 
 ## Read `analysis.json` (what the UI needs)
