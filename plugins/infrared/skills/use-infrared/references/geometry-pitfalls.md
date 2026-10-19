@@ -40,6 +40,25 @@ If you add a pedestal yourself, add it only over open ground. A tower that start
 of a podium must not get walls down through the podium. Those walls are inside the podium
 and read 0. See [analyses/11-terrain-and-context.md](analyses/11-terrain-and-context.md).
 
+## 4. Double shells in source meshes
+
+City models (for example LoD2 or LoD3 towers) can contain a second, overlapping outer shell
+around slots, fins or balconies. The faces of the inner shell are inside the solid.
+Their sensors read 0 (correct for that mesh), or the SDK culls them.
+
+Rule: if you can, merge or remove the inner shells before the run. If you cannot,
+expect these zeros and do not report them as shade.
+
+## 5. Show "no data" as a surface, not as a hole
+
+When you colour facade results in a viewer, draw the cells that have no value
+(NaN or the no-data code) in a neutral, opaque colour. If the viewer discards these cells
+(transparent), people look through the outer shell at inner faces that read 0.
+They then think that the facade is dark.
+
+Rule: do not discard no-data cells on facades. Roofs and ground can keep the discard
+where their no-data cells lie over real values.
+
 ## How to check
 
 1. For each building, calculate the share of facade area where sun hours AND SVF are 0.
@@ -47,5 +66,6 @@ and read 0. See [analyses/11-terrain-and-context.md](analyses/11-terrain-and-con
    and has no geometry within about 0.5 m in front of it. Such a face is usually
    inside or against another solid.
 3. Look at the result in 3D before you trust a number.
+4. Look at the result in 3D from the side that the user will see, before you trust a count.
 
 A face at 0 with a real wall close in front of it (a party wall, a light well) is correct.
