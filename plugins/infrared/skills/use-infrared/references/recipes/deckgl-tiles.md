@@ -2,7 +2,7 @@
 
 Infrared gives you the data as standard tiles. This recipe is the last step: show the tiles in your deck.gl app.
 Put `<link rel="icon" href="data:,">` in the `<head>` of the page, or the browser asks for `/favicon.ico` and logs a 404.
-Tested with deck.gl 9.3.4 and loaders.gl 4.4.3. The export needs `infrared-sdk` with `TileExport` and `export_3d_tiles`.
+Tested with deck.gl 9.3.4 and loaders.gl 4.4.3. The export needs `infrared-sdk` with `TileExport` and `export_tiles`.
 For CesiumJS, see [cesium-tiles](cesium-tiles.md).
 
 ## 1. Make the folder (Python)
@@ -152,7 +152,7 @@ Terrain: see [deckgl-tiles-layers](deckgl-tiles-layers.md) (section 2). Not test
 
 ## 4. Ground, terrain and trees
 
-These layers are in [deckgl-tiles-layers](deckgl-tiles-layers.md): the ground layer with a click value, terrain from manifest `terrain`, and trees from manifest `trees.tileset`. They are in the folder when you pass `terrain=` and `trees=` to `TileExport`, or call `export_ground_tiles`, `export_terrain_tiles` and `export_trees`.
+These layers are in [deckgl-tiles-layers](deckgl-tiles-layers.md): the ground layer with a click value, terrain from manifest `terrain`, and trees from manifest `trees.tileset`. They are in the folder when you pass `terrain=` and `trees=` to `TileExport` or to `export_tiles` (a grid result gives the ground).
 
 ## 5. Hosting
 
@@ -177,8 +177,8 @@ No code change in the app. Export a new id into the same folder (or the same `S3
 `manifest.json`; the app reads it again and lists the new entry. `manifest.json` is `no-cache`, so a reload sees it.
 
 ```python
-export_3d_tiles(result2, "out/", "utci")                       # a live result: no other argument
-export_3d_tiles(columns2, "out/", "utci", layout=layout)       # a saved result: add the saved layout
+export_tiles(result2, "out/", "utci")                       # a live result: no other argument
+export_tiles(columns2, "out/", "utci", layout=layout)       # a saved result: add the saved layout
 # or a new run into the same folder:
 # client.run_area_and_wait(payload, polygon, buildings=buildings, export=TileExport("out/", ids={0: "utci"}))
 ```

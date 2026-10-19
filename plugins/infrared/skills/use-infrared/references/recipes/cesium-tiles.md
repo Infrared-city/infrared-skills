@@ -1,7 +1,7 @@
 # CesiumJS: Infrared tiles in your own app
 
 Infrared gives you the data as standard tiles. This recipe is the last step: show the tiles in your CesiumJS app.
-Tested with CesiumJS 1.146 and a static host. The export needs `infrared-sdk` with `TileExport` and `export_3d_tiles`.
+Tested with CesiumJS 1.146 and a static host. The export needs `infrared-sdk` with `TileExport` and `export_tiles`.
 For deck.gl, see [deckgl-tiles](deckgl-tiles.md).
 
 ## 1. Make the folder (Python)
@@ -54,7 +54,7 @@ The log is not a schedule, and `export_run` cannot use it. The server keeps resu
 within a day. For a later re-export, keep your own copy of the results (the Python SDK README, "Save and reload a
 facade result"); else the analysis needs a new run.
 
-**A saved result (notebook).** `export_3d_tiles(columns, "out/", "svf", layout=layout, schedule=svf_schedule,
+**A saved result (notebook).** `export_tiles(columns, "out/", "svf", layout=layout, schedule=svf_schedule,
 config=config)`, with `columns` from `SurfaceColumns.from_bytes`, `layout` from `FacadeLayout.from_bytes(data,
 schedule=<the schedule of the run that made the layout>)`, `schedule` from `AreaSchedule.from_dict`. One layout
 serves all analyses of a run. With no network, `config=` is the colour entry; an export that read the registry keeps
@@ -296,7 +296,7 @@ Serve `.terrain` files as `application/octet-stream` with no `Content-Encoding`.
 
 ## 6. Ground, terrain and trees
 
-These layers are in [cesium-tiles-layers](cesium-tiles-layers.md): the ground layer as PMTiles imagery with a click value, terrain from manifest `terrain`, and trees from manifest `trees.tileset`. They are in the folder when you pass `terrain=` and `trees=` to `TileExport`, or call `export_ground_tiles`, `export_terrain_tiles` and `export_trees`.
+These layers are in [cesium-tiles-layers](cesium-tiles-layers.md): the ground layer as PMTiles imagery with a click value, terrain from manifest `terrain`, and trees from manifest `trees.tileset`. They are in the folder when you pass `terrain=` and `trees=` to `TileExport` or to `export_tiles` (a grid result gives the ground).
 
 ## 7. Hosting
 
@@ -321,8 +321,8 @@ No code change in the app. Export a new id into the same folder (or the same `S3
 `manifest.json`; the app reads it again and lists the new entry. `manifest.json` is `no-cache`, so a reload sees it.
 
 ```python
-export_3d_tiles(result2, "out/", "utci")                       # a live result: no other argument
-export_3d_tiles(columns2, "out/", "utci", layout=layout)       # a saved result: add the saved layout
+export_tiles(result2, "out/", "utci")                       # a live result: no other argument
+export_tiles(columns2, "out/", "utci", layout=layout)       # a saved result: add the saved layout
 # or a new run into the same folder:
 # client.run_area_and_wait(payload, polygon, buildings=buildings, export=TileExport("out/", ids={0: "utci"}))
 ```

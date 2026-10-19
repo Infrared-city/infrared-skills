@@ -22,18 +22,18 @@ client.run_area_and_wait([facade_payload, ground_payload], polygon, buildings=bu
                          vegetation=vegetation, export=export)
 ```
 
-For results you already hold, call the parts one by one with the same `h0_orthometric_m`:
+For results you already hold, `export_tiles` is the one call (the same `h0_orthometric_m` for every analysis):
 
 ```python
-from infrared_sdk import export_ground_tiles, export_terrain_tiles, export_trees
+from infrared_sdk import export_tiles
 
-export_ground_tiles(area_result, "out/", "svf_ground")                           # analyses/svf_ground/ground/*
-export_terrain_tiles(payload.ground_geometry, "out/", site_origin=(lon, lat))    # terrain/*
-export_trees(vegetation, "out/", site_origin=(lon, lat), terrain=payload.ground_geometry)  # trees/<key>/*
+export_tiles(area_result, "out/", "svf_ground",            # a grid result: analyses/svf_ground/ground/*
+             terrain=payload.ground_geometry,              # terrain/*
+             trees=vegetation)                             # trees/<key>/*
 ```
 
-`site_origin` is the south-west corner of the bounding box of the run polygon: `(min lon, min lat)` of its ring.
-`TileExport` takes it from the run. A wrong value moves the terrain by metres with no error.
+The terrain and the trees take the site origin of the result (the south-west corner of the run polygon), as
+`TileExport` does.
 Ground and facades of one run are two ids (for example `svf` and `svf_ground`).
 Each layer exists only when you exported it. A block run (`area_blocks`) writes one ground overview at the root of the
 analysis (low zoom levels over all blocks, no COG). `ground.parts[]` in `analysis.json` lists the full-resolution
@@ -169,7 +169,7 @@ viewer.scene.primitives.add(trees);
 
 Tested on a spike tileset of 100 trees: all 100 instances load (`content.featuresLength`), the batch property
 `height` reads (`getFeature(5).getProperty("height")` was 11), and picks on a tree axis and above its apex fit
-position, up axis and scale. No console error. The trees from `export_trees` or `TileExport(trees=...)` are not run in a browser.
+position, up axis and scale. No console error. The trees from `export_tiles(trees=...)` or `TileExport(trees=...)` are not run in a browser.
 
 **Trees of a block loop.** `manifest.trees.tileset` is then `trees/blocks-<sha256>.json`: a root with one external
 tileset per block (`trees.parts[]` lists them: `block`, `key`, `tileset`, `count`, `region`). Load it as above, as one

@@ -3,7 +3,7 @@
 Add these layers to the facade page of [deckgl-tiles](deckgl-tiles.md). Same `manifest`, same `Deck`.
 Tested with deck.gl 9.3.4, loaders.gl 4.4.3 and pmtiles 3.2.1 in a headless Chromium (SwiftShader) on synthetic data.
 Each layer exists only when the export wrote it. Check the manifest before you build it.
-For the Python calls that write the layers (`TileExport(terrain=, trees=)`, `export_ground_tiles`, `export_terrain_tiles`, `export_trees`), see [cesium-tiles-layers](cesium-tiles-layers.md) (same folder, same calls).
+For the Python calls that write the layers (`TileExport(terrain=, trees=)`, `export_tiles(result, ..., terrain=, trees=)`), see [cesium-tiles-layers](cesium-tiles-layers.md) (same folder, same calls).
 
 ## 1. Ground layer (2D PMTiles)
 
@@ -141,7 +141,7 @@ const trees = new deck.Tile3DLayer({
 Tested on a spike tileset of 100 trees: 100 instances load, the batch property `height` reads (`height[5]` was 11),
 and the instance matrices that deck draws with put base, apex and crown edge at the expected points (errors under
 6 mm). No console error. Not proven: picking of the trees. `pickObject` found no tree after a view change.
-The trees from `export_trees` or `TileExport(trees=...)` are not run in a browser.
+The trees from `export_tiles(trees=...)` or `TileExport(trees=...)` are not run in a browser.
 
 **Trees of a block loop.** `manifest.trees.tileset` is then `trees/blocks-<sha256>.json`, one root over the tree set of
 each block (`trees.parts[]`). Load it in ONE `Tile3DLayer` as above. Tested (synthetic exports of 2 and 25 blocks): the
