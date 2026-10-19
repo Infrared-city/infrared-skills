@@ -8,8 +8,8 @@ For deck.gl, see [deckgl-tiles](deckgl-tiles.md).
 
 **Size rule.** Up to about 50 km²: one call. Above about 50 km², or when the area result does not fit in memory:
 one run for each block (blocks of about 4 km² by default). This is guidance, not a limit. A run over 100 tiles needs
-`max_tiles_override=` (the refusal names the value). For a block run the cap counts the WHOLE area (all blocks), so
-pass `max_tiles_override=block.area_tiles`: the loop asks once for the price of the whole area.
+`max_tiles_override=` (the refusal names the value). For a block loop the cap counts the WHOLE area (all blocks):
+pass `max_tiles_override=` once, to `area_blocks`.
 
 **One call.** The results go to the folder while the run goes on.
 
@@ -29,16 +29,17 @@ A streamed analysis gives `None` in the result list. Its summary is in `export.s
 from infrared_sdk import TileExport, area_blocks
 
 export = TileExport("out/")
-for block in area_blocks(polygon, analysis_type=payload.analysis_type):  # about 4 km² each
-    buildings = client.buildings.get_area(context_box(block))  # the block box + 600 m
-    client.run_area_and_wait(payload, block, buildings=buildings, export=export,
-                             max_tiles_override=block.area_tiles)  # tiles of the whole area
+blocks = area_blocks(polygon, analysis_type=payload.analysis_type,  # about 4 km² each
+                     max_tiles_override=1200)  # the price of the whole area, once
+for block in blocks:
+    buildings = client.buildings.get_area(block.context_polygon(600))  # the window + 600 m
+    client.run_area_and_wait(payload, block, buildings=buildings, export=export)
 ```
 
-Pass the `Block` as it is. A block run needs the buildings of its window plus a margin of at least `context_reach_m`
-(default 600 m). `buildings.get_area` adds only its own read margin, and the SDK has no call that widens a block, so
-`context_box` is yours: the lon/lat box of `block.polygon`, widened by 600 m on each side (the Python SDK README,
-section "Export to 3D Tiles", has the code). The ground of the loop is the ground of one run, wind included.
+Pass the `Block` as it is. `area_blocks` refuses an area over `max_tiles_override` (default 100 tiles, the count of
+the whole area) before anything is sent, and the blocks carry the price: the block runs need no override. A block
+run needs the buildings of its window plus a margin of at least `context_reach_m` (default 600 m):
+`block.context_polygon(600)`. The ground of the loop is the ground of one run, wind included.
 A block that the folder or bucket holds is never written again. Run it again with the same results (for example
 after a failed root rebuild): no file of the block is written and the call is a success. Other results for a held
 block raise `ValueError` ("exists with other results") and change no file: export the blocks into a new id. Run the
