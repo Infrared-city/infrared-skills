@@ -9,7 +9,8 @@ For CesiumJS, see [cesium-tiles](cesium-tiles.md).
 
 **Size rule.** Up to about 50 km²: one call. Above about 50 km², or when the area result does not fit in memory:
 one run for each block (blocks of about 4 km² by default). This is guidance, not a limit. A run over 100 tiles needs
-`max_tiles_override=` (the refusal names the value); one block is under that cap.
+`max_tiles_override=` (the refusal names the value). For a block run the cap counts the WHOLE area (all blocks), so
+pass `max_tiles_override=block.area_tiles`: the loop asks once for the price of the whole area.
 
 **One call.**
 
@@ -26,9 +27,10 @@ client.run_area_and_wait(payload, polygon, buildings=buildings, export=export)
 from infrared_sdk import TileExport, area_blocks
 
 export = TileExport("out/")
-for block in area_blocks(polygon):                        # blocks of about 4 km²
+for block in area_blocks(polygon, analysis_type=payload.analysis_type):  # about 4 km² each
     buildings = client.buildings.get_area(context_box(block))  # the block box + 600 m
-    client.run_area_and_wait(payload, block, buildings=buildings, export=export)
+    client.run_area_and_wait(payload, block, buildings=buildings, export=export,
+                             max_tiles_override=block.area_tiles)  # tiles of the whole area
 ```
 
 Pass the `Block` as it is. A block run needs the buildings of its window plus a margin of at least `context_reach_m`
