@@ -6,7 +6,11 @@ For deck.gl, see [deckgl-tiles](deckgl-tiles.md).
 
 ## 1. Make the folder (Python)
 
-**Small area (about 4 km²): one call.** The results go to the folder while the run goes on.
+**Size rule.** Up to about 50 km²: one call. Above about 50 km², or when the area result does not fit in memory:
+one run for each block (blocks of about 4 km² by default). This is guidance, not a limit. A run over 100 tiles needs
+`max_tiles_override=` (the refusal names the value); one block is under that cap.
+
+**One call.** The results go to the folder while the run goes on.
 
 ```python
 from infrared_sdk import TileExport
@@ -18,27 +22,35 @@ print(export.summaries["svf"].files)
 
 A streamed analysis gives `None` in the result list. Its summary is in `export.summaries[analysis_id]`.
 
-**Large city (hundreds of km²): one run for each block, one layer in the viewer.** Use blocks above about 50 km²,
-or when the area result does not fit in memory. Tiles appear block by block.
+**Block loop (above about 50 km²): one run for each block, one layer in the viewer.** Tiles appear block by block.
 
 ```python
 from infrared_sdk import TileExport, area_blocks
 
 export = TileExport("out/")
-for block in area_blocks(polygon):
-    client.run_area_and_wait(payload, block, buildings=buildings_of(block), export=export)
+for block in area_blocks(polygon):                        # blocks of about 4 km²
+    buildings = client.buildings.get_area(context_box(block))  # the block box + 600 m
+    client.run_area_and_wait(payload, block, buildings=buildings, export=export)
 ```
 
-Pass the `Block` as it is. `buildings_of(block)` reads the buildings of the window plus a margin of at least
-`context_reach_m` (default 600 m). The ground of the loop is the ground of one run, wind included.
-For a saved result, a crash, ground, terrain and trees, see the Python SDK README, section "Export to 3D Tiles".
+Pass the `Block` as it is. A block run needs the buildings of its window plus a margin of at least `context_reach_m`
+(default 600 m). `buildings.get_area` adds only its own read margin, and the SDK has no call that widens a block, so
+`context_box` is yours: the lon/lat box of `block.polygon`, widened by 600 m on each side (the Python SDK README,
+section "Export to 3D Tiles", has the code). The ground of the loop is the ground of one run, wind included.
 
-**Export again after a crash, with no new job.** Save `schedule.to_dict()` as JSON after `client.run_area(...)`.
-Later: `client.export_run(payload, polygon, "out/", schedule=AreaSchedule.from_dict(saved), buildings=buildings)`
-with the same inputs. The server keeps results about 7 days; after that the analysis needs a new run.
+**Export again after a crash, with no new job.** Save `schedule.to_dict()` as JSON (temp file, fsync, rename) right
+after `client.run_area(...)`. Later: `client.export_run(payload, polygon, "out/", schedule=AreaSchedule.from_dict(saved),
+buildings=buildings)` with the same inputs as the run. Pass `on_accepted=lambda job_id, tile_key: ...` to `run_area`
+to log each accepted job at once: if the process stops before the schedule is saved, the log names the billed jobs.
+The log is not a schedule, and `export_run` cannot use it. The server keeps results about 7 days; after that the
+analysis needs a new run.
 
-**A saved result (notebook).** `export_3d_tiles(columns, "out/", "svf", layout=layout)`, with `columns` from
-`SurfaceColumns.from_bytes` and `layout` from `FacadeLayout.from_bytes`. One layout serves all analyses of a run.
+**A saved result (notebook).** `export_3d_tiles(columns, "out/", "svf", layout=layout, schedule=svf_schedule,
+config=config)`, with `columns` from `SurfaceColumns.from_bytes`, `layout` from `FacadeLayout.from_bytes(data,
+schedule=<the schedule of the run that made the layout>)`, `schedule` from `AreaSchedule.from_dict`. One layout
+serves all analyses of a run. With no network, `config=` is the colour entry; an export that read the registry keeps
+it in `analysis.json` as `facades.legend.config` (or `ground.legend.config`): save it. The Python SDK README,
+section "Export to 3D Tiles" ("Save, reload, add an analysis later"), has the full recipe.
 
 The folder holds (format `infrared-3d-export/2`):
 - `manifest.json`: `analyses[]`, `terrain`, `trees`. Each analysis has `facades.tileset`, `legend`, `stats`, `height` and `value`.
@@ -50,9 +62,11 @@ The folder holds (format `infrared-3d-export/2`):
 
 ## 2. Load the tileset
 
-Load the CSS too, or the canvas is 300 x 150.
+Load the CSS too, or the canvas is 300 x 150. Add the empty icon, or the browser asks for `/favicon.ico` and logs a
+404 in the console.
 
 ```html
+<link rel="icon" href="data:,">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cesium@1.146.0/Build/Cesium/Widgets/widgets.css">
 <script src="https://cdn.jsdelivr.net/npm/cesium@1.146.0/Build/Cesium/Cesium.js"></script>
 ```
@@ -78,6 +92,9 @@ showed ion imagery and the banner "default ion access token". The default `baseL
 Turn them off as above, and give a base layer of your own if you want one
 (`baseLayer: new Cesium.ImageryLayer(new Cesium.UrlTemplateImageryProvider({ url: "https://your.tiles/{z}/{x}/{y}.png" }))`).
 Not tested with this exact option set: open the network tab and check that no request goes to `cesium.com`.
+A test with this option set and no token found no request to an ion host, but the Cesium ion logo stays in the credit
+bar (bottom left). That is normal: the logo is part of the CesiumJS credit display, not an ion request. Keep the credit
+bar; the credits of your own layers show there too.
 
 ## Read `analysis.json` (what the UI needs)
 
@@ -99,6 +116,10 @@ a value equal to `vmin` or `vmax` stays in the first or last step. Draw a legend
 
 No-data rule: a cell with no value has code `65535` and alpha `0` in the value page. Show it as "no value" and keep it
 out of your own statistics.
+
+**One legend for each layer.** Each analysis has its own legend: `facades.legend` for a facade analysis,
+`ground.legend` for a ground analysis (the ground colour tiles are painted with `ground.legend.vmin`, `vmax` and
+`config`). Draw one legend for each visible layer from its own entry; never show the facade legend for the ground.
 
 ## 3. Your own palette
 
@@ -293,10 +314,19 @@ export_3d_tiles(columns2, "out/", "utci", layout=layout)       # a saved result:
 # client.run_area_and_wait(payload, polygon, buildings=buildings, export=TileExport("out/", ids={0: "utci"}))
 ```
 
-An id that exists is refused before any tile is written (`ValueError`), and a published id is never reused: its files
-are cached. To replace an analysis in a folder, delete `analyses/<id>/` and export again, or use a new id. An export
-that was killed leaves no analysis (no `analysis.json`) and blocks no id. The `terrain` and `trees` entries stay in the
-manifest.
+An id that exists is refused before any tile is written (`ValueError`), also with the same data, and a published id is
+never reused: its files are cached. To replace an analysis in a folder, delete `analyses/<id>/` and export again, or
+use a new id. An export that was killed leaves no analysis (no `analysis.json`) and blocks no id. The `terrain` and
+`trees` entries stay in the manifest.
+
+**A nightly job.** Put the date in the id: `f"solar-{day:%Y-%m-%d}"`. The manifest lists every id; the app takes the
+newest of a prefix (ISO dates sort as text):
+
+```js
+const newest = manifest.analyses.map((a) => a.id).filter((id) => id.startsWith("solar-")).sort().at(-1);
+```
+
+Delete `analyses/<old id>/` after the new id is published; the next export drops it from `manifest.json`.
 
 ## Silent traps
 

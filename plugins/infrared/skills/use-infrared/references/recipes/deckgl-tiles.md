@@ -1,12 +1,17 @@
 # deck.gl: Infrared tiles in your own app
 
 Infrared gives you the data as standard tiles. This recipe is the last step: show the tiles in your deck.gl app.
+Put `<link rel="icon" href="data:,">` in the `<head>` of the page, or the browser asks for `/favicon.ico` and logs a 404.
 Tested with deck.gl 9.3.4 and loaders.gl 4.4.3. The export needs `infrared-sdk` with `TileExport` and `export_3d_tiles`.
 For CesiumJS, see [cesium-tiles](cesium-tiles.md).
 
 ## 1. Make the folder (Python)
 
-**Small area (about 4 km²): one call.**
+**Size rule.** Up to about 50 km²: one call. Above about 50 km², or when the area result does not fit in memory:
+one run for each block (blocks of about 4 km² by default). This is guidance, not a limit. A run over 100 tiles needs
+`max_tiles_override=` (the refusal names the value); one block is under that cap.
+
+**One call.**
 
 ```python
 from infrared_sdk import TileExport
@@ -15,19 +20,20 @@ export = TileExport("out/", ids={0: "svf"})          # or an S3Target, see "Host
 client.run_area_and_wait(payload, polygon, buildings=buildings, export=export)
 ```
 
-**Large city (hundreds of km²): one run for each block, one layer in the viewer.** Use blocks above about 50 km²,
-or when the area result does not fit in memory. Tiles appear block by block.
+**Block loop (above about 50 km²): one run for each block, one layer in the viewer.** Tiles appear block by block.
 
 ```python
 from infrared_sdk import TileExport, area_blocks
 
 export = TileExport("out/")
-for block in area_blocks(polygon):
-    client.run_area_and_wait(payload, block, buildings=buildings_of(block), export=export)
+for block in area_blocks(polygon):                        # blocks of about 4 km²
+    buildings = client.buildings.get_area(context_box(block))  # the block box + 600 m
+    client.run_area_and_wait(payload, block, buildings=buildings, export=export)
 ```
 
-Pass the `Block` as it is. `buildings_of(block)` reads the buildings of the window plus a margin of at least
-`context_reach_m` (default 600 m). A streamed analysis gives `None` in the result list; its summary is in
+Pass the `Block` as it is. A block run needs the buildings of its window plus a margin of at least `context_reach_m`
+(default 600 m); `get_area` adds only its own read margin, so `context_box` (yours; the code is in the Python SDK
+README) widens the lon/lat box of `block.polygon` by 600 m on each side. A streamed analysis gives `None` in the result list; its summary is in
 `export.summaries[analysis_id]`. For a saved result, a crash (`export_run`), ground, terrain and trees, see the
 Python SDK README, section "Export to 3D Tiles", and [cesium-tiles](cesium-tiles.md) (section 1).
 
@@ -57,6 +63,10 @@ a value equal to `vmin` or `vmax` stays in the first or last step. Draw a legend
 
 No-data rule: a cell with no value has code `65535` and alpha `0` in the value page. Show it as "no value" and keep it
 out of your own statistics.
+
+**One legend for each layer.** Each analysis has its own legend: `facades.legend` for a facade analysis,
+`ground.legend` for a ground analysis (the ground colour tiles are painted with `ground.legend.vmin`, `vmax` and
+`config`). Draw one legend for each visible layer from its own entry; never show the facade legend for the ground.
 
 ## 2. 3D tiles with Tile3DLayer
 
@@ -165,10 +175,19 @@ export_3d_tiles(columns2, "out/", "utci", layout=layout)       # a saved result:
 # client.run_area_and_wait(payload, polygon, buildings=buildings, export=TileExport("out/", ids={0: "utci"}))
 ```
 
-An id that exists is refused before any tile is written (`ValueError`), and a published id is never reused: its files
-are cached. To replace an analysis in a folder, delete `analyses/<id>/` and export again, or use a new id. An export
-that was killed leaves no analysis (no `analysis.json`) and blocks no id. The `terrain` and `trees` entries stay in the
-manifest.
+An id that exists is refused before any tile is written (`ValueError`), also with the same data, and a published id is
+never reused: its files are cached. To replace an analysis in a folder, delete `analyses/<id>/` and export again, or
+use a new id. An export that was killed leaves no analysis (no `analysis.json`) and blocks no id. The `terrain` and
+`trees` entries stay in the manifest.
+
+**A nightly job.** Put the date in the id: `f"solar-{day:%Y-%m-%d}"`. The manifest lists every id; the app takes the
+newest of a prefix (ISO dates sort as text):
+
+```js
+const newest = manifest.analyses.map((a) => a.id).filter((id) => id.startsWith("solar-")).sort().at(-1);
+```
+
+Delete `analyses/<old id>/` after the new id is published; the next export drops it from `manifest.json`.
 
 ## Silent traps
 

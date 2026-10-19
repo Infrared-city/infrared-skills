@@ -60,15 +60,23 @@ const prov = new Cesium.UrlTemplateImageryProvider({
   url: "pmtiles://{z}/{x}/{y}", tilingScheme: new Cesium.WebMercatorTilingScheme(), tileWidth: 512, tileHeight: 512,
   minimumLevel: g.minzoom, maximumLevel: g.maxzoom, rectangle: Cesium.Rectangle.fromDegrees(...g.bounds),
 });
-prov.requestImage = async (x, y, z) => { // a custom provider; z, x, y as PMTiles getZxy
-  const t = await colour.getZxy(z, x, y);
+prov.requestImage = async (x, y, level) => { // Cesium passes (x, y, level); PMTiles wants (z, x, y)
+  const t = await colour.getZxy(level, x, y);
   return t ? createImageBitmap(new Blob([t.data], { type: "image/png" })) : empty;
 };
-viewer.imageryLayers.addImageryProvider(prov);
+const groundLayer = viewer.imageryLayers.addImageryProvider(prov);
 ```
 
 This is the tested spike code. Tested without terrain on the globe only in the ground part; with terrain on, an earlier
 project note says to return a canvas drawn from the bitmap, not the `ImageBitmap` (gaps in 1.146). Untested here.
+
+**The ground follows the selected analysis.** A ground is its own analysis id (`svf_ground`), with its own
+`ground.legend`; a facade analysis (`svf`) has no `ground`. When the user selects an analysis, show the ground that
+belongs to it and hide the layer when there is none (`groundLayer.show = false`), or the page shows the ground of
+another analysis under the new facades. The manifest has no link from a facade id to a ground id: name them so that
+your app can pair them (for example `<id>` and `<id>_ground`). Draw the ground legend from `ground.legend`
+(`vmin`, `vmax`, `config`): the colour tiles are painted with it. Where no imagery is, the globe shows its base colour
+(Cesium default: dark blue); set `viewer.scene.globe.baseColor` to change it (not tested).
 
 **Click value.** Take the tile at `g.maxzoom`, the pixel that holds the point (NEAREST), no interpolation:
 
@@ -112,6 +120,9 @@ viewer.scene.globe.depthTestAgainstTerrain = true;
 const facades = await Cesium.Cesium3DTileset.fromUrl(facadeUrl); // as in the facade recipe
 viewer.scene.primitives.add(facades);
 ```
+
+The terrain covers the box of the terrain mesh of the run, not more, and the export does not clip it to the site.
+Outside that box the terrain is flat at the base height. A flat surface around the site is therefore normal.
 
 Tested (synthetic terrain): 5 hill points, terrain vs source model at most 0.064 m (limit 0.5 m); 5 building bases vs
 terrain at most 0.080 m (the `heightmap-1.0` step is 0.2 m). Read heights with `Cesium.sampleTerrainMostDetailed`.

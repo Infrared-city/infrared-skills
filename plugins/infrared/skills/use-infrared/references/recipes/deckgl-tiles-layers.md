@@ -38,6 +38,13 @@ const ground = new deck.TileLayer({
 ```
 
 Set `minZoom`, `maxZoom` and `extent` from `ground`. Without them deck.gl asks for tiles outside the archive.
+
+**The ground follows the selected analysis.** A ground is its own analysis id (`svf_ground`), with its own
+`ground.legend`; a facade analysis (`svf`) has no `ground`. When the user selects an analysis, build the ground layer
+from the ground that belongs to it, and set `visible: false` (or leave the layer out) when there is none, or the page
+shows the ground of another analysis under the new facades. The manifest has no link from a facade id to a ground
+id: name them so that your app can pair them (for example `<id>` and `<id>_ground`). Draw the ground legend from
+`ground.legend` (`vmin`, `vmax`, `config`): the colour tiles are painted with it.
 The spike passed with `p.tile.bbox.west` and so on; the `boundingBox` array form comes from the facade page test.
 
 **Click value.** Use the NEAREST pixel of the `value.pmtiles` tile at `g.maxzoom`:
@@ -80,6 +87,12 @@ const terrain = new deck.TerrainLayer({
 });
 // layers: [terrain, facadesTile3DLayer]
 ```
+
+**A flat plane around the site is normal.** The terrain covers the box of the terrain mesh of the run, and the export
+does not clip it to the site. `TerrainLayer` draws whole tiles, and a tile at `maxzoom` is larger than a small site
+(zoom 14 is about 2.4 km wide at the equator). Outside the terrain box the tile is flat at the base height.
+`extent` only limits which tiles load, not the mesh inside a tile. Test result: a 1 km synthetic hill showed a brown
+flat plane of about 4.5 km around it (2 x 2 tiles of zoom 14).
 
 Tested (synthetic terrain): 5 hill points, terrain vs source at most 0.050 m (limit 0.5 m); 5 building bases vs
 terrain at most 0.020 m. The spike read `{z}/{x}/{y}` with a path in the page folder; the use of `manifest.terrain.rgb` as the template is
