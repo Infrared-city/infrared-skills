@@ -116,4 +116,6 @@ Halve `max_sensors_per_job`, or raise `surface_grid_size`.
 - Y-up models, centimetres, an origin at the polygon centre: all silent. Look at the model in a viewer first.
 - One polygon only: a `Polygon`, not a `MultiPolygon`, one ring, no holes.
 - Coordinates must stay below 100,000 m. UTM values are refused.
+- Overlapping solids (a coarse block and its detailed mesh, a cap, a pedestal) give facades at 0:
+  [geometry-pitfalls.md](geometry-pitfalls.md).
 - Large ground sets work. Pass the real layers. Never drop them to save size: you lose the materials.

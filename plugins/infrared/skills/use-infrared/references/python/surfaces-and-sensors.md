@@ -60,6 +60,7 @@ for building_id, agg in result.aggregates["buildings"].items():
 
 A surface at exactly 0.0 is real data (a party wall, a light well). It is not a gap.
 A cell with no value is NaN. Never fill NaN with zero.
+Large faces at 0 can also come from overlapping solids: [../geometry-pitfalls.md](../geometry-pitfalls.md).
 
 ### Draw it fast: render buffers
 
