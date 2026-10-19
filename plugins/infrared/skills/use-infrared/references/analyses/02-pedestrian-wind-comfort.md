@@ -36,7 +36,7 @@ the share of hours per year above a safety speed (the hourly mean) and a class:
 | `davenport` | 15.1 m/s | 0.01 % of hours or more | pass, fail |
 | `nen_8100_comfort`, `nen_8100_safety` | 15 m/s | 0.05 % (limited), 0.30 % (dangerous) | none, limited, dangerous |
 | `vdi_3787` | 15 m/s | 0.01 % of hours or more | pass, danger-not-excluded |
-| `lawson_1970` | none | no layer, `safety` is `None` | |
+| `lawson_1970` | none | no layer: `safety` is `None` | |
 
 ```python
 if safety is not None:
@@ -66,7 +66,7 @@ if (safety) console.log(safety.classes, safety.thresholdsMs, safety.classCodes, 
 - Mask NaN before you count a share: `valid = grid[~np.isnan(grid)]`.
 - `nen_8100_safety` answers a safety question (storms) in its own comfort grid. For every criteria, read
   the yearly safety check in `result.safety`. A Lawson comfort grid never shows class S.
-- `result.safety` is `None` for a server that does not send it, and for `lawson_1970`. It is not in `to_dict()`.
+- `result.safety` is `None` for a server that does not send it, and for `lawson_1970`. It comes only with the job result archive of an area run, not with a direct (synchronous) response. `to_dict()` includes it.
 - Summer-only and yearly weather give different classes. Keep the weather fixed when you compare designs.
 - Use a discrete colour map and a class legend ([../recipes/rendering-results-well.md](../recipes/rendering-results-well.md)).
 
