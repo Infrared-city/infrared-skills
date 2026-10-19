@@ -50,8 +50,9 @@ blocks of one id one after the other, from one process (the root is rebuilt afte
 after `client.run_area(...)`. Later: `client.export_run(payload, polygon, "out/", schedule=AreaSchedule.from_dict(saved),
 buildings=buildings)` with the same inputs as the run. Pass `on_accepted=lambda job_id, tile_key: ...` to `run_area`
 to log each accepted job at once: if the process stops before the schedule is saved, the log names the billed jobs.
-The log is not a schedule, and `export_run` cannot use it. The server keeps results about 7 days; after that the
-analysis needs a new run.
+The log is not a schedule, and `export_run` cannot use it. The server keeps results about 24 hours: run `export_run`
+within a day. For a later re-export, keep your own copy of the results (the Python SDK README, "Save and reload a
+facade result"); else the analysis needs a new run.
 
 **A saved result (notebook).** `export_3d_tiles(columns, "out/", "svf", layout=layout, schedule=svf_schedule,
 config=config)`, with `columns` from `SurfaceColumns.from_bytes`, `layout` from `FacadeLayout.from_bytes(data,
