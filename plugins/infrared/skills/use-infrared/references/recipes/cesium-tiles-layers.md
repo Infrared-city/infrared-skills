@@ -112,7 +112,7 @@ opposite byte order (R is LOW). Do not copy one decoder to the other.
 side; each chunk: `key`, `files` without `cog`, `minzoom`, `maxzoom`, `bounds`, `lo`, `step`, `legend`).
 `ground.parts[]` has one `ground` object per block (`key`, `files` with `cog`, ...): the full resolution. Add one
 imagery layer per chunk, then one per part ABOVE them (added later), and read a click from the part whose `bounds`
-hold the point, else from the chunk that holds it. Each chunk and each block has its own codec and colour range:
+hold the point, else from the chunk that holds it. Each chunk and each block has its own value codec (`lo`, `step`); the colours use one range for the whole analysis:
 
 ```js
 const layerOf = (s) => { // s: the root ground or one part

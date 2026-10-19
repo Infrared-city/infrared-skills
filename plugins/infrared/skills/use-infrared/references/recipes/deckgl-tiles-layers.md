@@ -75,7 +75,7 @@ The facade value decoder has the opposite byte order (R is LOW). Do not copy one
 `ground.parts[]` has the full-resolution `ground` object of each block (`key`, `files`, `minzoom`, `maxzoom`,
 `bounds`, `lo`, `step`). Make one `TileLayer` as above for each chunk and one for each part, the parts last (drawn
 above), each with its own `minZoom`, `maxZoom` and `extent`, and read a click from the part whose `bounds` hold the
-point, else the chunk. Each chunk and each block has its own codec and colour range:
+point, else the chunk. Each chunk and each block has its own value codec (`lo`, `step`); the colours use one range for the whole analysis:
 
 ```js
 // groundLayerOf(s, id): the TileLayer above as a function of its source s (s in place of g) and its layer id.
