@@ -122,7 +122,7 @@ Facades and roofs: `surfaceRenderBuffers(columns)`. TypeScript pages and apps: s
 - [Facade results on your model](references/surface-results-integration.md), [jobs](references/async-and-jobs.md), [recipes](references/recipes/hackathon-tools.md).
 
 ## Silent traps (none of these raise an error)
-- A frame error (see Coordinates): lat/lon swapped, Y-up, centimetres, origin not at the south-west corner. An open mesh.
+- A frame error (see Coordinates): lat/lon swapped, Y-up, centimetres, origin not at the south-west corner. An open mesh. Overlapping solids: facades at 0 ([geometry-pitfalls](references/geometry-pitfalls.md)).
 - Weather left out of a thermal or solar request: billed, then fails. Use `from_weatherfile_payload`.
 - No `ground_geometry` means a flat plane. Terrain in `buildings` gives a shattered mesh.
 - Night hours in a `direct-sun-hours` window count as sun. Shade beyond 128 m past a tile is missing. Do not call UTCI night values validated.
