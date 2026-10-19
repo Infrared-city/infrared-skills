@@ -34,7 +34,18 @@ utci = result.physical_grid()           # degrees C, NaN = no value
 - A winter window (Dec to Feb) is one `TimePeriod`.
 - Trees and ground materials change the result a lot. Pass them when you have them.
 - The default model has a wall afterglow of about 3 hours and a ground lag of about 43 minutes.
-  It has no memory over days. The air temperature is the weather file value.
+  The air temperature is the weather file value.
+- Rain (mm/h) comes from the weather file. The SDK also sends `soil-moisture-init`, the wet-ground
+  start state, from the rain of the 336 hours before the window. This holds for an EPW and for
+  catalog weather. One missing rain hour inside the window drops the rain and the start state, with a
+  warning. A gap in the 14 days before drops only the start state, with a warning. Own rain or own
+  `soil_moisture_init`: the SDK does not compute it. `include_precipitation=False` turns rain off.
+- Facade `material` per building (optional): `{"version": 1, "preset": "brick"}` on the entry in
+  `buildings`. See [../byo-inputs.md](../byo-inputs.md). The `standard` model reads it.
+- `physics`: leave it unset for `standard`. `"advanced"` gives the same results today. A retired
+  name (`v1`, `detail`) runs as `standard` with a warning.
+- The server and the SDK warn about an input that they ignore or change. Read
+  `result.warnings` ([../python/errors-and-retries.md](../python/errors-and-retries.md)).
 - The stored type of the grid can change. Always read it with `physical_grid()`.
 - No facade sensors and no `context_geometry` here. Terrain (`ground_geometry`) works.
 
@@ -44,6 +55,8 @@ utci = result.physical_grid()           # degrees C, NaN = no value
 - Material changes the value strongly: sunny asphalt and shaded grass can differ by 10 to 15 C
   three metres apart. Do not average across material classes.
 - Do not call night values validated.
+- A light facade shows only its cooler wall today. The standard model does not yet add the shortwave
+  that the wall reflects, and a warning says so.
 - For the share of time in comfort, heat stress or cold stress, use the statistics analysis.
 
 Read the result: [../interpretation/thermal-results.md](../interpretation/thermal-results.md)

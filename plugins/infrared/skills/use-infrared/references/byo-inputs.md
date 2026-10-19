@@ -30,6 +30,20 @@ result = client.run_area_and_wait(
   the two corners.
 - A DotBim file has the same fields ([dotbim](https://github.com/paireks/dotbim)).
 
+### Facade materials
+
+- Optional `material` on each `geometries` entry, one entry per building, keyed by the building id:
+  `{"version": 1, "preset": "brick"}`. In Python: `DotBimMesh.material`.
+- Presets: `default`, `masonry`, `brick`, `concrete`, `light-paint`, `dark-paint`, `metal` (painted),
+  `wood`, `glass`, the green facades (`green-climbing`, `green-modular`, `green-living-wall`) and `pv`.
+  Or set `rho-solar` (0 to 1), `emissivity` (0 to 1) and `pv-efficiency` (0 to 0.4). A field beats the preset.
+- `glass` is an opaque, diffuse equivalent. It does not predict a curtain wall.
+- An unknown or invalid value is removed or set to `default`, with a warning. The run does not fail.
+- UTCI and TCS (`standard`) read it. Light facades show only the cooler wall today: the reflected
+  shortwave is not modelled yet, and a warning says so.
+- Preview, in the next SDK release: `roof-material` (same object) on the entry sets the roof, and the
+  `installations` group (below) holds thin pieces.
+
 ### Trees
 
 - `{id: Feature}` with a Point in lon/lat. Properties: `genus`, `height` (m), `crownDiameter` (m).
@@ -45,8 +59,11 @@ result = client.run_area_and_wait(
 
 - One FeatureCollection in lon/lat for each material: `asphalt`, `concrete`, `soil`, `vegetation`, `water`.
   An unknown name raises. A UUID key is refused.
-- Only the thermal analyses read them. `albedo` in a feature's properties is ignored: use
-  `ground_albedo` on the request for the whole run.
+- UTCI, TCS and solar radiation read them. Solar radiation uses the ground reflectance of each
+  material (0.2 without one).
+- A feature can carry `albedo` (0 to 1) and `dt-max` (0 to 50 K) in its properties. They beat the
+  value of the material for that feature. `ground_albedo` on the request sets one value for the
+  whole run. An invalid value is ignored with a warning. The run does not fail.
 - Make layers mutually exclusive. If two overlap, the model picks the top one and a tie can turn
   a lake into asphalt. Fetched layers come pre-cleaned. When you override, replace one key:
   `{**area_g.layers, "vegetation": my_park}`.
@@ -58,7 +75,7 @@ result = client.run_area_and_wait(
 | wind speed, pedestrian wind comfort | required | optional | no effect |
 | sky view factor | required | optional | no effect |
 | daylight availability, direct sun hours | required | optional | no effect |
-| solar radiation | required | recommended | no effect |
+| solar radiation | required | recommended | optional (ground reflectance) |
 | UTCI, TCS | required | recommended | recommended |
 
 ## Fetched buildings: know the source
@@ -78,11 +95,16 @@ result = client.run_area_and_wait(request, polygon, buildings=area_b,
                                   ground_materials=my_layers)
 ```
 
-## Terrain and context
+## Terrain, context and installations
+
 
 `ground_geometry` (terrain) and `context_geometry` (far shade) go on the request, in the building
 frame. Never put terrain in `buildings`.
 See [analyses/11-terrain-and-context.md](analyses/11-terrain-and-context.md).
+
+Preview, in the next SDK release: `installations` takes thin pieces, such as green panels, window
+strips, fins, roof PV and PV canopies, in the same mesh shape (`material` allowed). They shade the
+sun and light analyses and SVF. They get no sensors. Thermal comfort reads them later. Wind ignores them.
 
 ## Meshes from OBJ, glTF and BIM: weld first
 

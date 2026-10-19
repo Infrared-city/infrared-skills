@@ -36,6 +36,7 @@ For all three, run three requests. Each call is one subtype.
 - The window comes only from the `TimePeriod`: months, then days, then hours.
 - Percent is relative to the window. Do not compare runs with different windows without care.
 - Keep the weather file fixed when you compare designs.
-- Same inputs and materials as UTCI: pass trees and ground.
+- Same inputs and materials as UTCI: pass trees and ground. Rain, `soil-moisture-init`, facade
+  `material`, `physics` and warnings work as on the UTCI page.
 
 Read the result: [../interpretation/thermal-results.md](../interpretation/thermal-results.md)

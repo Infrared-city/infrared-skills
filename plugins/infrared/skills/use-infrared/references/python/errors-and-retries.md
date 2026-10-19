@@ -114,6 +114,13 @@ Common 422 and worker messages:
 | `not seated on the terrain` | `terrain_alignment="assume-aligned"` and the model sits off the terrain. Use `"auto-align"` |
 | `DNI length 0 != sun_vectors N`, `missing array '...'` | The weather arrays were left out. Build the request with `from_weatherfile_payload` |
 
+## Warnings
+
+The server can change or ignore an input and still run, for example a ground `albedo` out of range
+or an unknown facade `material`. An area run collects these texts in `result.warnings`. Each one also
+goes through `warnings.warn` and the SDK logger. Facade and roof runs do the same. In the next SDK
+release the facade material checks of the SDK itself join the same list.
+
 ## Retry a partial run
 
 With `run_area` (not `..._and_wait`) you get an `AreaSchedule`. After the jobs end, send only the
@@ -130,6 +137,7 @@ schedule = client.run_area(request, polygon, buildings=buildings,
 ```
 
 If you interrupt a run (Ctrl-C), the exception has a `partial_schedule`. Pass it as `retry_from`.
+In TypeScript, `AreaTimeoutError` and `AreaRunAbortedError` carry `partialSchedule`.
 A tile whose submit outcome is unknown sits in `uncertain_submissions`. The SDK never resends it.
 
 ## Cost rules
