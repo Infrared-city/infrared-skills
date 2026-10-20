@@ -41,6 +41,7 @@ utci = result.physical_grid()           # degrees C, NaN = no value
 
 ## Pitfalls
 
+- Installations, facade and roof materials, irrigated ground, with copy-paste code: [../design-variants](../design-variants.md). Compare variants: [../recipes/compare-and-derive](../recipes/compare-and-derive.md).
 - The grid is one aggregate over the window. It is not a single hour and not an annual mean.
 - Material changes the value strongly: sunny asphalt and shaded grass can differ by 10 to 15 C
   three metres apart. Do not average across material classes.
