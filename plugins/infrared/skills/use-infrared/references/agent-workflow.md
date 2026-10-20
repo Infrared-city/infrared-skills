@@ -3,7 +3,7 @@
 Use this checklist when a user asks "what cools this place?", "compare A and B", "where do we
 put PV?" or "which floors need air-con first?". Each step links to the page with the code.
 
-1. **Ask before you run.** Which environment (production or staging, see
+1. **Ask before you run.** Which base URL (production is the default, see
    [run-model](run-model.md))? Which site polygon? Whose geometry (their model, or public
    data)? Which period (a hot afternoon, a summer, a year)? Which costs, if they want a cost
    table?

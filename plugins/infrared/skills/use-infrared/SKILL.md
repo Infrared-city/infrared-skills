@@ -11,8 +11,8 @@ Do not write SDK calls from memory. Read the page for your language, or fetch th
 
 ## Start here (agents)
 
-1. [run-model](references/run-model.md): install, key, **base URL** (production is the default; staging is
-   `https://api-test.infrared.city`, no `/v2`), what goes on the request and what goes in the call, tiles, cache, result shape.
+1. [run-model](references/run-model.md): install, key, **base URL** (production is the default; how to set another),
+   what goes on the request and what goes in the call, tiles, cache, result shape.
 2. [analyses-at-a-glance](references/analyses-at-a-glance.md): every analysis, its inputs, physics tiers, and which model reads which input.
 3. [design-variants](references/design-variants.md): copy-paste examples for facade and roof materials, trees, irrigated ground,
    installations (shade sail, PV canopy, green layer, louvres, glass canopy). **`installations` goes on the request.**

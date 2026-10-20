@@ -2,7 +2,7 @@
 
 The SDK gives the simulation results. Derived values (A vs B, PV potential, air-con priority,
 cost per kelvin) are simple arithmetic on those results, in your app or your agent. These
-recipes ran on staging with SDK 1.1.4.dev2 on 2026-10-20, after the examples in
+recipes ran with SDK 1.1.4.dev2 on 2026-10-20, after the examples in
 [../design-variants](../design-variants.md) (they reuse `client`, `polygon`, `buildings`,
 `trees`, `ground`, `installations`, `utci_request`, `result`, `solar_result`).
 

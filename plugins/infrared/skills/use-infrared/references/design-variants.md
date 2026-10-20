@@ -1,7 +1,7 @@
 # Design variants: buildings, trees, ground, installations
 
 Complete, copy-paste examples. Each block runs after the one before it (one site, one
-courtyard). All were run on staging with SDK 1.1.4.dev2 on 2026-10-20.
+courtyard). All were run with SDK 1.1.4.dev2 on 2026-10-20.
 Read [run-model](run-model.md) first: base URL, payload vs call, cache.
 
 ![Installations in a street section and which models see them](images/installations-section.svg)
@@ -17,7 +17,7 @@ from infrared_sdk import InfraredClient, UtciModelRequest
 from infrared_sdk.analyses.types import AnalysesName, UtciModelBaseRequest
 from infrared_sdk.models import Location, TimePeriod
 
-client = InfraredClient(base_url="https://api-test.infrared.city")  # staging; omit for prod
+client = InfraredClient()                            # production unless INFRARED_BASE_URL is set
 lon0, lat0 = 16.3700, 48.2100                       # south-west corner of the site
 M_LON, M_LAT = 111320 * math.cos(math.radians(lat0)), 111320
 
@@ -179,7 +179,7 @@ mean UTCI -1.0 K, best cell -4.9 K, area above 32 C from 650 m2 to 200 m2. The s
 ### Glass canopy (coming)
 
 The glass presets for installations (`glass`, `glass-reflective`) wait for a server deploy.
-Staging accepts `glass` with `transmittance` today (run on 2026-10-20), but the values can
+The server accepts `glass` with `transmittance` today (run on 2026-10-20), but the values can
 change. Say "preliminary" when you report a glass result. `glass-reflective` is not a preset
 yet: it becomes `default`, with `MATERIAL_PRESET_UNKNOWN`.
 
@@ -220,7 +220,6 @@ import { InfraredClient, initializeCore, areaGridValuesF32, type AreaResult } fr
 await initializeCore();
 const client = new InfraredClient({
   apiKey: process.env.INFRARED_API_KEY,
-  baseUrl: "https://api-test.infrared.city",          // staging; omit for prod
 });
 const [lon0, lat0] = [16.37, 48.21];
 const ll = (x: number, y: number) => [lon0 + x / (111320 * Math.cos(lat0 * Math.PI / 180)), lat0 + y / 111320];

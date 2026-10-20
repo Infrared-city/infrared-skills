@@ -13,28 +13,23 @@ npm install @infrared-city/infrared-sdk        # TypeScript, Node 18+
 export INFRARED_API_KEY=...                    # never in code, never in a repo, never in a log
 ```
 
-The SDK sends jobs to **production** when you set nothing. To use another environment, set the
-base URL. The order is: constructor argument, then the environment variable `INFRARED_BASE_URL`,
-then the default.
-
-| Environment | Base URL | Note |
-|---|---|---|
-| Production (default) | `https://api.infrared.city/v2` | Bills your production account |
-| Staging (test) | `https://api-test.infrared.city` | **No `/v2`.** Needs a staging key |
+The default base URL is **production**: `https://api.infrared.city/v2`. It bills your account.
+To use another base URL, set it in one of three places. The order is: constructor argument, then the
+environment variable `INFRARED_BASE_URL`, then the default. Use only a URL that Infrared gave you.
 
 ```python
-client = InfraredClient(base_url="https://api-test.infrared.city")   # staging
+client = InfraredClient(base_url=os.environ["MY_BASE_URL"])    # or: export INFRARED_BASE_URL=...
 ```
 
 ```ts
-const client = new InfraredClient({ apiKey: process.env.INFRARED_API_KEY, baseUrl: "https://api-test.infrared.city" });
+const client = new InfraredClient({ apiKey: process.env.INFRARED_API_KEY, baseUrl: process.env.MY_BASE_URL });
 ```
 
-- `https://api-test.infrared.city/v2` is wrong. It gives an HTTP 404 or "does not advertise
-  binary transport". Remove `/v2`.
-- Before the first run, print the base URL of the client and say it to the user. One tester ran
-  on production by mistake: there the installations were dropped or refused.
-- Keys are per environment. Ask the user which key and which environment to use.
+- Use the exact URL you were given. Do not add or remove a path such as `/v2`. A wrong URL gives
+  an HTTP 404 or "does not advertise binary transport"; the error names the URL that failed.
+- Before the first run, print the base URL of the client and say it to the user. A run on the
+  wrong environment can drop or refuse inputs, for example installations.
+- Keys are per environment. Ask the user which key and which base URL to use.
 
 ## 2. One run
 
@@ -88,7 +83,7 @@ without it the preview prices a wind run.
 
 ## 4. Time and cost hints
 
-Measured on staging, one tile, 2026-10-20 (SDK 1.1.4.dev2):
+Measured, one tile, 2026-10-20 (SDK 1.1.4.dev2):
 
 | Run | Wall time |
 |---|---|
