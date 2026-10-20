@@ -35,6 +35,7 @@ utci = result.physical_grid()           # degrees C, NaN = no value
 - Trees and ground materials change the result a lot. Pass them when you have them.
 - The default model has a wall afterglow of about 3 hours and a ground lag of about 43 minutes.
   It has no memory over days. The air temperature is the weather file value.
+- Check `result.warnings` ([warnings-and-refusals](../warnings-and-refusals.md)): null weather hours are filled and out-of-range hours are clamped, with a warning. A series of the wrong length is refused (422) before the charge.
 - The stored type of the grid can change. Always read it with `physical_grid()`.
 - No facade sensors and no `context_geometry` here. Terrain (`ground_geometry`) works.
 

@@ -88,6 +88,7 @@ grid = result.physical_grid()                              # real values, NaN = 
 
 More: [own-data](references/python/own-data.md), [weather-and-time](references/python/weather-and-time.md), [surfaces-and-sensors](references/python/surfaces-and-sensors.md),
 [interior](references/python/interior.md), [errors-and-retries](references/python/errors-and-retries.md).
+Result warnings, 422 refusals, installations, physics tiers: [warnings-and-refusals](references/warnings-and-refusals.md).
 
 ## TypeScript
 
