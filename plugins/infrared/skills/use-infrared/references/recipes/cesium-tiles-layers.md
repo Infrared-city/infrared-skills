@@ -56,19 +56,22 @@ const g = (await (await fetch(new URL(`analyses/${id}/analysis.json`, manifestUr
 const colour = new pmtiles.PMTiles(new URL(g.files.colour, manifestUrl).href);
 const value = new pmtiles.PMTiles(new URL(g.files.value, manifestUrl).href);
 const empty = Object.assign(document.createElement("canvas"), { width: 1, height: 1 });
+// An Image, not an ImageBitmap (Cesium 1.146 does not draw it) and not a canvas (it premultiplies: dark part edges).
+const tileImage = async (data) => { const u = URL.createObjectURL(new Blob([data], { type: "image/png" }));
+  const img = new Image(); try { img.src = u; await img.decode(); } finally { URL.revokeObjectURL(u); } return img; };
 const prov = new Cesium.UrlTemplateImageryProvider({
   url: "pmtiles://{z}/{x}/{y}", tilingScheme: new Cesium.WebMercatorTilingScheme(), tileWidth: 512, tileHeight: 512,
   minimumLevel: g.minzoom, maximumLevel: g.maxzoom, rectangle: Cesium.Rectangle.fromDegrees(...g.bounds),
 });
 prov.requestImage = async (x, y, level) => { // Cesium passes (x, y, level); PMTiles wants (z, x, y)
   const t = await colour.getZxy(level, x, y);
-  return t ? createImageBitmap(new Blob([t.data], { type: "image/png" })) : empty;
+  return t ? tileImage(t.data) : empty;
 };
 const groundLayer = viewer.imageryLayers.addImageryProvider(prov);
 ```
 
-This is the tested spike code. Tested without terrain on the globe only in the ground part; with terrain on, an earlier
-project note says to return a canvas drawn from the bitmap, not the `ImageBitmap` (gaps in 1.146). Untested here.
+Return a decoded `Image` (as in the infrared-core test page): Cesium 1.146 does not draw an `ImageBitmap` of a
+WebMercator tile, and a canvas premultiplies, which draws a dark line at the edge of a ground part.
 
 **The ground follows the selected analysis.** A ground is its own analysis id (`svf_ground`), with its own
 `ground.legend`; a facade analysis (`svf`) has no `ground`. When the user selects an analysis, show the ground that
@@ -120,7 +123,7 @@ const layerOf = (s) => { // s: the root ground or one part
   const p = new Cesium.UrlTemplateImageryProvider({ url: "pmtiles://{z}/{x}/{y}", tilingScheme: new Cesium.WebMercatorTilingScheme(),
     tileWidth: 512, tileHeight: 512, minimumLevel: s.minzoom, maximumLevel: s.maxzoom, rectangle: Cesium.Rectangle.fromDegrees(...s.bounds) });
   p.requestImage = async (x, y, level) => { const t = await colour.getZxy(level, x, y);
-    return t ? createImageBitmap(new Blob([t.data], { type: "image/png" })) : empty; };
+    return t ? tileImage(t.data) : empty; };
   return viewer.imageryLayers.addImageryProvider(p);
 };
 const groundLayers = [...(g.overview ?? [g]), ...(g.parts ?? [])].map(layerOf); // the overview first, the blocks above
