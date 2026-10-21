@@ -40,9 +40,11 @@ more, because wind tiles step 256 m.
 
 ## How tokens scale
 
-- A grid job costs about 10 tokens. A preview shows the exact number:
+- A grid job costs 10 tokens, except pedestrian wind comfort at 50.
+  A preview shows the exact number:
   25 tiles gave about 250 tokens, 27 facade jobs about 270.
-- So tokens are roughly `tiles x 10 x number of analyses`.
+- So tokens are roughly `tiles x 10 x number of analyses` (`x 50` for
+  pedestrian wind comfort).
 - Run the preview before every large run. Read `estimated_cost_tokens`.
 - A failed submit that is sent again is never billed twice.
 
@@ -126,13 +128,14 @@ These are estimates from the numbers above.
 **A district of 5 km².**
 About 25 solar-family tiles per analysis, so about 250 tokens each.
 Cold run about 8 s, warm run about 3 s. SVF, solar and UTCI together reuse
-one upload. Wind needs about 81 tiles (about 810 tokens), still under the
-default cap.
+one upload. Wind needs about 81 tiles: about 810 tokens for wind speed, about
+4,050 for pedestrian wind comfort. This is still under the default cap.
 
 **A whole city centre of 40 km².**
 About 170 solar-family tiles, about 1,700 tokens per analysis. You must
 pass `max_tiles_override`. Expect about 15 s cold and about 8 s warm. Wind
-would be about 650 tiles (about 6,500 tokens). Split the area if the
+would be about 650 tiles (about 6,500 tokens for wind speed, about 32,500
+for pedestrian wind comfort). Split the area if the
 result grid is too large for your memory.
 
 **1,000 design variants overnight.**
