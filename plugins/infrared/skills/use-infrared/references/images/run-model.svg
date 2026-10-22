@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 372" role="img" aria-labelledby="t d">
+<title id="t">One run: what goes where</title>
+<desc id="d">Two inputs on the left. The request object (payload) holds the analysis type, weather and time period, installations, physics and analysis surfaces. The call run_area_and_wait takes the polygon and the keyword arguments buildings, vegetation and ground_materials. The SDK cuts the polygon into 512 m tiles, sends one job for each tile and analysis (a request body that ran in the last 24 hours is a free cache hit), and merges a grid with 1 m cells, row 0 south, NaN where there is no value. Crop the grid to your polygon and place it with result.bounds.</desc>
+<style>
+svg{--bg:#ffffff;--panel:#f3f8f8;--edge:#c8dede;--ink:#0a0f1a;--muted:#64748b;--teal:#2b7c85;--accent:#176587;--bld:#cbd5e1;--bldedge:#64748b;--sun:#d97706;--green:#3f8f4f;--pv:#1e3a5f;--sail:#e0f2fe;--hot:#dc2626;--cool:#2563eb;--mid:#f1f5f9}
+@media (prefers-color-scheme:dark){svg{--bg:#0a0f1a;--panel:#111a27;--edge:#1e293b;--ink:#f8fafc;--muted:#94a3b8;--teal:#1fb5bf;--accent:#23e5e5;--bld:#334155;--bldedge:#94a3b8;--sun:#fbbf24;--green:#6fcf7f;--pv:#93c5fd;--sail:#1e3a5f;--hot:#f87171;--cool:#60a5fa;--mid:#1e293b}}
+text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;fill:var(--ink)}
+.bg{fill:var(--bg)}.panel{fill:var(--panel);stroke:var(--edge);stroke-width:1.5}
+.h{font-size:17px;font-weight:700}.b{font-size:14px;font-weight:700}.s{font-size:13px;fill:var(--muted)}.m{font-size:13px;font-family:ui-monospace,Menlo,Consolas,monospace}
+.arrow{stroke:var(--teal);stroke-width:2.5;fill:none;marker-end:url(#ah)}
+.line{stroke:var(--ink);stroke-width:1.5;fill:none}
+</style>
+<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" fill="var(--teal)"/></marker></defs>
+<rect class="bg" width="780" height="372"/>
+<text class="h" x="20" y="30">One run: what goes where</text>
+<rect class="panel" x="20" y="50" width="250" height="132" rx="8"/>
+<text class="b" x="34" y="74">1  Request (payload)</text>
+<text class="m" x="34" y="98">analysis_type</text>
+<text class="m" x="34" y="118">weather + time_period</text>
+<text class="m" x="34" y="138">installations, physics</text>
+<text class="m" x="34" y="158">analysis_surfaces</text>
+<text class="s" x="34" y="176">fields of the request object</text>
+<rect class="panel" x="20" y="196" width="250" height="124" rx="8"/>
+<text class="b" x="34" y="220">2  run_area_and_wait(...)</text>
+<text class="m" x="34" y="244">polygon  (lon/lat)</text>
+<text class="m" x="34" y="264">buildings=, vegetation=</text>
+<text class="m" x="34" y="284">ground_materials=</text>
+<text class="s" x="34" y="310">keyword arguments of the call</text>
+<path class="arrow" d="M272,116 L304,130"/><path class="arrow" d="M272,250 L304,160"/>
+<text class="b" x="300" y="74">3  Tiles</text>
+<rect x="318" y="88" width="44" height="44" fill="var(--mid)" stroke="var(--teal)" stroke-width="1.5"/><rect x="362" y="88" width="44" height="44" fill="var(--mid)" stroke="var(--teal)" stroke-width="1.5"/><rect x="318" y="132" width="44" height="44" fill="var(--mid)" stroke="var(--teal)" stroke-width="1.5"/><rect x="362" y="132" width="44" height="44" fill="var(--mid)" stroke="var(--teal)" stroke-width="1.5"/>
+<path d="M326,96 L398,104 L404,166 L332,170 Z" fill="none" stroke="var(--ink)" stroke-width="2.5"/>
+<text class="s" x="300" y="200">512 m tiles, empty</text><text class="s" x="300" y="216">tiles skipped</text>
+<path class="arrow" d="M414,132 L446,132"/>
+<text class="b" x="452" y="74">4  Jobs</text>
+<rect x="452" y="90" width="92" height="20" rx="4" fill="var(--teal)"/><text x="460" y="105" font-size="12" fill="#fff" style="fill:#fff">tile 1 job</text>
+<rect x="452" y="116" width="92" height="20" rx="4" fill="var(--teal)"/><text x="460" y="131" font-size="12" style="fill:#fff">tile 2 job</text>
+<rect x="452" y="142" width="92" height="20" rx="4" fill="none" stroke="var(--teal)" stroke-dasharray="4 3"/><text class="s" x="460" y="157" font-size="12">cached: free</text>
+<text class="s" x="452" y="188">1 tile x 1 analysis</text><text class="s" x="452" y="204">= 1 billed job</text>
+<text class="s" x="452" y="220">same body in 24 h</text><text class="s" x="452" y="236">= cache hit</text>
+<path class="arrow" d="M550,132 L582,132"/>
+<text class="b" x="588" y="74">5  Grid</text>
+<rect x="588" y="88" width="112" height="88" fill="var(--mid)" stroke="var(--edge)"/>
+<path d="M600,98 L676,104 L682,164 L606,168 Z" fill="var(--teal)" fill-opacity="0.55" stroke="var(--ink)" stroke-width="2"/>
+<text class="s" x="588" y="196">1 m cells, row 0 = south</text>
+<text class="s" x="588" y="212">NaN = no value</text>
+<text class="s" x="588" y="228">crop to your polygon</text>
+<text class="s" x="588" y="244">place with result.bounds</text>
+<text class="s" x="20" y="344">Preview first: preview_area(polygon, payload=request, buildings=...) is free and gives would_bill_jobs.</text>
+<text class="s" x="20" y="362">Read result.warnings after every run.</text>
+</svg>

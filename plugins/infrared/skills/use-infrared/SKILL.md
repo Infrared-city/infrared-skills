@@ -9,6 +9,16 @@ license: Apache-2.0
 
 Do not write SDK calls from memory. Read the page for your language, or fetch the docs (below).
 
+## Start here (agents)
+
+1. [run-model](references/run-model.md): install, key, **base URL** (production is the default; how to set another),
+   what goes on the request and what goes in the call, tiles, cache, result shape.
+2. [analyses-at-a-glance](references/analyses-at-a-glance.md): every analysis, its inputs, physics tiers, and which model reads which input.
+3. [design-variants](references/design-variants.md): copy-paste examples for facade and roof materials, trees, irrigated ground,
+   installations (shade sail, PV canopy, green layer, louvres, glass canopy). **`installations` goes on the request.**
+4. [recipes/compare-and-derive](references/recipes/compare-and-derive.md): A vs B, cost table, PV potential, air-con priority (client side).
+5. [agent-workflow](references/agent-workflow.md): plan, preview, run, check warnings, compare, report.
+
 ## Coordinates: read this before your first job (mandatory)
 
 A frame error does not raise. The job runs, bills, and gives a plausible result in the wrong place.
@@ -36,9 +46,7 @@ Read [geospatial-crs](references/geospatial-crs.md) before a job, [grid-conventi
 
 Every row: read [building-fast-apps](references/building-fast-apps.md) for speed.
 ## Concepts and guidance
-
 ### What each analysis answers
-
 | Question | Analysis (unit) | Page |
 |---|---|---|
 | How fast is the wind? Is it comfortable for people? | `wind-speed` (m/s), `pedestrian-wind-comfort` (class) | [01](references/analyses/01-wind-speed.md), [02](references/analyses/02-pedestrian-wind-comfort.md) |
@@ -46,20 +54,14 @@ Every row: read [building-fast-apps](references/building-fast-apps.md) for speed
 | How open is the sky? How much solar energy? | `sky-view-factors` (%), `solar-radiation` (kWh/m2) | [05](references/analyses/05-sky-view-factors.md), [06](references/analyses/06-solar-radiation.md) |
 | What does it feel like outside? For how long is it comfortable, hot, cold? | `thermal-comfort-index` UTCI (degrees C), `thermal-comfort-statistics` (% of window) | [07](references/analyses/07-thermal-comfort-utci.md), [08](references/analyses/08-thermal-comfort-statistics.md) |
 | Daylight in a room? Heating and cooling need? (Beta) | `daylight-factor` (%), `energy-balance` (kWh/m2 a) | [10](references/analyses/10-interior-daylight-factor.md), [12](references/analyses/12-interior-energy-balance.md) |
-
 ### Inputs: your data first
-
-- Your own buildings, trees and ground are the main path ([byo-inputs](references/byo-inputs.md)). Ask what the user has
-  (BIM, Rhino, IFC, GeoJSON). Public data (Overture, city data) is a fallback. Its source and heights vary: say so. Getting data and shaping it for the SDK are two separate jobs: read [shaping-data](references/shaping-data.md) first.
-- Sensors: ground, facades and roofs, or own points ([09](references/analyses/09-facade-terrain.md)). Terrain and far
-  shade (128 m reach in 1.0): [11](references/analyses/11-terrain-and-context.md). Time: [03](references/03-time-period.md).
+- Your own buildings, trees and ground are the main path ([byo-inputs](references/byo-inputs.md)). Ask what the user has (BIM, Rhino, IFC, GeoJSON). Public data (Overture, city data) is a fallback: say its source. Getting and shaping data are two jobs: [shaping-data](references/shaping-data.md).
+- Sensors: ground, facades and roofs, or own points ([09](references/analyses/09-facade-terrain.md)). Terrain and far shade: [11](references/analyses/11-terrain-and-context.md). Time: [03](references/03-time-period.md).
 
 ### Area runs and results
 
-The SDK cuts the area into 512 m tiles, uploads the geometry once, sends one job for each tile and
-analysis, polls, and merges. A failed tile raises (no map with holes). A resend never bills twice.
-- Always read values with the helper: `result.physical_grid()` (Python), `areaGridValuesF32(result)` (TypeScript).
-  Never read the raw array: its stored type differs by analysis. NaN means no value. A facade at 0.0 is real. Ground cells under buildings can be 0.0: mask them with the footprints before a mean or a minimum.
+The SDK cuts the area into 512 m tiles, sends one job for each tile and analysis, polls, and merges. A failed tile raises (no map with holes). A resend never bills twice.
+- Always read values with the helper: `result.physical_grid()` (Python), `areaGridValuesF32(result)` (TypeScript). Never read the raw array: its stored type differs by analysis. NaN means no value. A facade at 0.0 is real. Ground cells under buildings can be 0.0: mask them with the footprints before a mean or a minimum.
 - Use a fixed colour scale for each analysis: [rendering-results-well](references/recipes/rendering-results-well.md).
 - Cost: preview first (free, local). Price from `would_bill_jobs`: one job is one tile for one analysis.
 
@@ -79,15 +81,14 @@ polygon = {"type": "Polygon", "coordinates": [[[lon, lat], [lon + 0.004, lat],
 # Your meshes {id: {"coordinates": [x, y, z, ...], "indices": [...]}}, metres from the SW corner (own-data.md).
 buildings = my_buildings
 
-client = InfraredClient()                                  # reads INFRARED_API_KEY
+client = InfraredClient()            # reads INFRARED_API_KEY; production unless base_url / INFRARED_BASE_URL is set
 request = SvfModelRequest(analysis_type=AnalysesName.sky_view_factors)
 print(client.preview_area(polygon, payload=request).would_bill_jobs, "job(s)")   # free
 result = client.run_area_and_wait(request, polygon, buildings=buildings)
 grid = result.physical_grid()                              # real values, NaN = no value
 ```
 
-More: [own-data](references/python/own-data.md), [weather-and-time](references/python/weather-and-time.md), [surfaces-and-sensors](references/python/surfaces-and-sensors.md),
-[interior](references/python/interior.md), [errors-and-retries](references/python/errors-and-retries.md).
+More: [own-data](references/python/own-data.md), [weather-and-time](references/python/weather-and-time.md), [surfaces-and-sensors](references/python/surfaces-and-sensors.md), [interior](references/python/interior.md), [errors-and-retries](references/python/errors-and-retries.md), [warnings-and-refusals](references/warnings-and-refusals.md).
 
 ## TypeScript
 
@@ -113,12 +114,10 @@ Facades and roofs: `surfaceRenderBuffers(columns)`. TypeScript pages and apps: s
 
 ## Docs for agents
 
-- Guide: <https://infrared.city/docs/sdk/>. The whole guide as one file: <https://infrared.city/docs/sdk/sdk.md>
-- Page index: <https://infrared.city/docs/sdk/llms.txt>, <https://infrared.city/docs/sdk/1.0/llms.txt>. Each page is Markdown too: add `index.md` (for example <https://infrared.city/docs/sdk/1.0/python/sdk/index.md>)
+- Guide: <https://infrared.city/docs/sdk/> (one file: <https://infrared.city/docs/sdk/sdk.md>). Index: <https://infrared.city/docs/sdk/llms.txt>; each page is Markdown too: add `index.md`.
 
 ## Other topics
-- Cookbook notebooks `00_quickstart` to `09_all_analyses` in [`cookbook/`](https://github.com/Infrared-city/infrared-skills/tree/main/cookbook).
-- Platform files: [upload](references/platform-byo-upload.md) (ask: SDK data or platform files?).
+- Notebooks `00_quickstart` to `09_all_analyses` in [`cookbook/`](https://github.com/Infrared-city/infrared-skills/tree/main/cookbook). Platform files: [upload](references/platform-byo-upload.md).
 - [Facade results on your model](references/surface-results-integration.md), [jobs](references/async-and-jobs.md), [recipes](references/recipes/hackathon-tools.md).
 
 ## Silent traps (none of these raise an error)
