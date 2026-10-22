@@ -33,6 +33,9 @@ Weather setup: [../python/weather-and-time.md](../python/weather-and-time.md).
   and the facade fields together
   ([../python/surfaces-and-sensors.md](../python/surfaces-and-sensors.md)).
 - Shade from objects farther than 128 m past a tile is missing in 1.0. See direct sun hours.
+- Ground reflectance follows the ground material under each sensor, so pass `ground_materials` when
+  you have them. Without a material it is 0.2. A feature can carry its own `albedo`
+  ([../byo-inputs.md](../byo-inputs.md)).
 - Leaf-off trees: from November to March (north of 23.5 N) the trees let more sun through.
 
 Read the result: [../interpretation/solar-results.md](../interpretation/solar-results.md)

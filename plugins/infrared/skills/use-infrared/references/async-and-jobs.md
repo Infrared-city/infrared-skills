@@ -87,6 +87,8 @@ Rules:
 
 TypeScript has the same steps: `runArea`, `checkAreaState`, `mergeAreaJobs`,
 `retryFrom`, `onAccepted`, and `areaScheduleToJSON` / `areaScheduleFromJSON` to save a schedule.
+After an abort or a timeout, the error carries `partialSchedule`: pass it as `retryFrom`.
+.NET: `AreaSchedule.ToJson()` and `AreaSchedule.FromJson()`. In the next SDK release the .NET errors carry the partial schedule too.
 
 ## Idempotency: what is billed
 
