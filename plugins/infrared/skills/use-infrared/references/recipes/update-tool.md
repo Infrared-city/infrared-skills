@@ -6,7 +6,7 @@ TypeScript: not yet.
 |---|---|
 | `TileExport(target)` | the export (it keeps every job result for the update) |
 | `client.update_preview(payloads, city, target, buildings=, vegetation=, ids=)` | finds the changed tiles, price; free, no POST |
-| `client.update(preview, max_tokens=)` | sends the changed tiles, commits |
+| `client.update(preview, max_tokens=, refresh_coarse=False)` | sends the changed tiles, commits; `refresh_coarse=True` also rebuilds the far view (no job) |
 | `prune(target, keep_days=7, dry_run=False)` | deletes old revisions; `dry_run=True` lists them |
 
 Rules:
