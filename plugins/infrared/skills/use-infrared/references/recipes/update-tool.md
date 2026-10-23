@@ -9,7 +9,7 @@ Python and TypeScript have the same calls (TypeScript: camelCase and an options 
 | `TileExport(target)` | `new TileExport(target)` | the export (it keeps every job result for the update) |
 | `client.update_preview(payloads, city, target, buildings=, vegetation=, ids=)` | `client.updatePreview(inputs, city, target, { buildings, vegetation, ids })` | finds the changed tiles and the price; free, no POST |
 | `client.update(preview, max_tokens=, refresh_coarse=False)` | `client.update(preview, { maxTokens, refreshCoarse })` | sends the changed tiles, commits; `refresh_coarse` also rebuilds the far view (no job) |
-| `export_geometry(city, target, buildings=, trees=)` | `exportGeometry(city, target, { buildings, trees })` | the grey layer; free, no API key |
+| `export_geometry(city, target, buildings=, trees=)` | `exportGeometry(city, target, { buildings, trees })` | the grey layer before any paid run; free, no API key |
 | `prune(target, keep_days=7, dry_run=False)` | `prune(target, { keepDays, dryRun })` | deletes old revisions |
 
 Rules:
@@ -19,7 +19,7 @@ Rules:
 - Show `print(preview)` to the user. Always pass `max_tokens`. Never retry `update` without a new preview.
 - Pass `refresh_coarse=True` on the last update of a batch. Without it the manifest lists the changed blocks in `stale`: the
   detail tiles are new, the far view and the merged ground are old for those blocks.
-- After an update call `export_geometry` again if you show grey buildings (`update` does not change it).
+- `update` rebuilds the grey layer by itself.
 - `prune(keep_days=7)` deletes nothing in the first 7 days. Use `dry_run=True` first.
 - One writer per target. `summary.sent == 0` means nothing changed. A failed update billed what it sent.
 
@@ -45,7 +45,6 @@ preview = client.update_preview(payloads, city, "city/", ids=ids, buildings=buil
 print(preview)        # every part compared -> 5 tiles (5 jobs) in 1 part -> 50 tokens (full run: 260)
 summary = client.update(preview, max_tokens=preview.tokens, refresh_coarse=True)    # after the user agrees
 print(summary.sent, "jobs sent,", summary.kept, "kept")
-export_geometry(city, "city/", buildings=buildings_now, trees=vegetation_now)  # the grey layer again
 prune("city/", keep_days=7)                                                    # later
 ```
 

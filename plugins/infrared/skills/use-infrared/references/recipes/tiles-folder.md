@@ -43,7 +43,7 @@ function groundOf(a) {                                  // a: an entry of manife
 
 For a click value on a city, read `ground.merged` (one value archive: `new URL(g.merged.files.value, manifestUrl)`, with
 its own `minzoom`, `maxzoom`, `encoding`, `lo`, `step`). Colour tiles (`files.colour`) exist only when the export
-was made with `ground_colour=True`; CesiumJS imagery needs them.
+was made with `ground_files=("colour",)`; CesiumJS imagery needs them.
 
 ```js
 // Value at (lon, lat) from a PMTiles value archive `pm` (pmtiles lib), source s = merged, a part or a chunk.

@@ -6,7 +6,7 @@ Tested with CesiumJS 1.146.0 and pmtiles 3.2.1 on synthetic data. A layer exists
 
 ## 1. Ground (PMTiles imagery)
 
-Colour tiles need `ground_colour=True` at export. The ground has overview chunks (low zooms over all blocks) and parts
+Colour tiles need `ground_files=("colour",)` at export. The ground has overview chunks (low zooms over all blocks) and parts
 (full resolution). Add one imagery layer per chunk, then one per part above them.
 
 ```html

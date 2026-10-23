@@ -6,7 +6,7 @@ Tested with deck.gl 9.3.4, loaders.gl 4.4.3 and pmtiles 3.2.1 on synthetic data.
 
 ## 1. Ground (2D PMTiles)
 
-Colour tiles need `ground_colour=True` at export. Make one `TileLayer` per overview chunk and one per part (parts last, drawn above).
+Colour tiles need `ground_files=("colour",)` at export. Make one `TileLayer` per overview chunk and one per part (parts last, drawn above).
 
 ```html
 <script src="https://unpkg.com/pmtiles@3.2.1/dist/pmtiles.js"></script>
