@@ -35,11 +35,11 @@ Draw the legend from `g.legend` (`vmin`, `vmax`, `config`). A ground is its own 
 layers and build the new ground, or hide them when it has none.
 
 **Click value.** Pick the globe point, then read the value archive with `valueAt` ([tiles-folder](tiles-folder.md)).
-For a city read `ground.merged`; else the part whose `bounds` hold the point, else the chunk. Each source has its own `lo`, `step`, `encoding`.
+For a city read `ground.merged` (a part can have no data where the merged archive has a value); else the part whose `bounds` hold the point, else the chunk. Each source has its own `lo`, `step`, `encoding`.
 
 ```js
 const sourceAt = (lon, lat) => { const inside = (l) => l.find(({ bounds: [w, s, e, n] }) => lon >= w && lon <= e && lat >= s && lat <= n);
-  return inside(g.parts) ?? inside(g.overview) ?? g; };
+  return g.merged ?? inside(g.parts) ?? inside(g.overview) ?? g; };
 new Cesium.ScreenSpaceEventHandler(viewer.canvas).setInputAction(async (m) => {
   const hit = viewer.scene.globe.pick(viewer.camera.getPickRay(m.position), viewer.scene);
   if (!hit) return;

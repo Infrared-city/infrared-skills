@@ -34,7 +34,7 @@ const groundLayers = [...g.overview.map((c) => groundLayerOf(c, `overview-${c.na
 ```
 
 Draw the legend from `g.legend`. A ground is its own analysis id: build the layers for the analysis the user picked, or leave them out.
-**Click value:** `onClick: async (info) => ...` with `info.coordinate` = `[lon, lat]`; pick the source (part, else chunk, else `ground.merged`)
+**Click value:** `onClick: async (info) => ...` with `info.coordinate` = `[lon, lat]`; pick the source (`ground.merged`, else part, else chunk)
 and call `valueAt` ([tiles-folder](tiles-folder.md)), as in [cesium-tiles-layers](cesium-tiles-layers.md) (`sourceAt`). Tested: 8 clicks, largest error 0.046.
 
 ## 2. Terrain (TerrainLayer, terrain-RGB)
