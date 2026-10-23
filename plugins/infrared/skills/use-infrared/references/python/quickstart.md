@@ -4,7 +4,7 @@ Install, set the key, run one analysis on your own building, read the result.
 This page shows the shape of the code. For each call, the docs page has the full detail.
 
 - Guide: <https://infrared.city/docs/sdk/> (one file: <https://infrared.city/docs/sdk/sdk.md>)
-- Client reference: <https://infrared.city/docs/sdk/1.0/python/sdk/index.md>
+- Client reference: <https://infrared.city/docs/sdk/latest/python/sdk/>
 
 ## Install and key
 

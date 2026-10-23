@@ -62,7 +62,7 @@ or a room with no openings gives exactly 0, and that is the answer.
 
 The SDK refuses a mix of `sensor_points` and `sensor_surfaces`: do not send two. The server dispatches in the order `sensor_points`, `sensor_surfaces`, `buildings`, `floors`.
 The caps (floors, sensors for each floor, occluder triangles) are in the
-[Analyses page](https://infrared.city/docs/sdk/1.0/python/analyses/index.md). A server cap is
+[Analyses page](https://infrared.city/docs/sdk/latest/python/analyses/). A server cap is
 enforced after the charge, so the SDK checks it locally before it submits. Use `preview_parts`
 to see parts and cost first.
 

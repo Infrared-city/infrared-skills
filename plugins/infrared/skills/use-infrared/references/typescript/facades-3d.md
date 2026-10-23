@@ -3,8 +3,8 @@
 Runnable app: [cookbook/apps/facades-3d](https://github.com/Infrared-city/infrared-skills/tree/main/cookbook/apps/facades-3d)
 (Vite + TypeScript + three.js). Copy `src/surface-mesh.ts`: it turns the SDK render
 buffers into one mesh with one exact colour per cell.
-Guide: [Facade and roof runs](https://infrared.city/docs/sdk/1.0/#facade-and-roof-runs),
-[Draw facade and roof results fast](https://infrared.city/docs/sdk/1.0/#draw-facade-and-roof-results-fast).
+Guide: [Facade and roof runs](https://infrared.city/docs/sdk/latest/#facade-and-roof-runs),
+[Draw facade and roof results fast](https://infrared.city/docs/sdk/latest/#draw-facade-and-roof-results-fast).
 
 ## Run on surfaces
 

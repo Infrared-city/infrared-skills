@@ -4,9 +4,9 @@ Thermal comfort, solar radiation and pedestrian wind comfort read weather.
 Direct sun hours and daylight availability need a time period and a location, but no weather array.
 Sky view factor and wind speed need neither.
 
-Docs: guide chapter "Your inputs" (<https://infrared.city/docs/sdk/1.0/sdk.md>),
-[Layers (weather)](https://infrared.city/docs/sdk/1.0/python/layers/index.md),
-[Models](https://infrared.city/docs/sdk/1.0/python/models/index.md).
+Docs: guide chapter "Your inputs" (<https://infrared.city/docs/sdk/sdk.md>),
+[Layers (weather)](https://infrared.city/docs/sdk/latest/python/layers/),
+[Models](https://infrared.city/docs/sdk/latest/python/models/).
 
 ## Time period
 

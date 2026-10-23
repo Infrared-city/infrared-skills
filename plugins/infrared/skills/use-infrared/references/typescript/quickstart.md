@@ -1,9 +1,9 @@
 # TypeScript quick start (Node)
 
 Package: `@infrared-city/infrared-sdk` 1.0.1 or later, on the public npm registry.
-API detail: [TypeScript reference](https://infrared.city/docs/sdk/1.0/api/typescript/).
-Guide: [Quickstart](https://infrared.city/docs/sdk/1.0/#quickstart),
-[What comes back](https://infrared.city/docs/sdk/1.0/#what-comes-back).
+API detail: [TypeScript reference](https://infrared.city/docs/sdk/latest/api/typescript/).
+Guide: [Quickstart](https://infrared.city/docs/sdk/latest/#quickstart),
+[What comes back](https://infrared.city/docs/sdk/latest/#what-comes-back).
 
 ## Install
 

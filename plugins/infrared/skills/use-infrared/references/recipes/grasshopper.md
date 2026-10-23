@@ -1,5 +1,5 @@
 # Recipe: Infrared SDK in Rhino 8 Grasshopper
-Use the Python SDK (`infrared-sdk` 1.0.0) from a Grasshopper Python 3 component in Rhino 8 (Mac or Windows, CPython 3.9).
+Use the Python SDK (`infrared-sdk` 1.x) from a Grasshopper Python 3 component in Rhino 8 (Mac or Windows, CPython 3.9).
 
 This is a toolbox. Take what you need. A small script that blocks the canvas for 5 seconds is fine. A component for 2000 buildings needs most of this file.
 
@@ -26,10 +26,10 @@ Rules:
 
 ```python
 #! python 3
-# r: infrared-sdk==1.0.0
+# r: infrared-sdk==<version>
 ```
 
-Pin the version. Not for many components in one file.
+Pin the exact 1.x version you tested (`pip index versions infrared-sdk` lists them). Not for many components in one file.
 
 ### Option B: one shared folder (many components)
 
@@ -38,7 +38,7 @@ Install once into a folder that you own. Use Rhino's pip.
 ```bash
 # macOS path. On Windows, use the python.exe in the same py39-rh8 folder.
 ~/.rhinocode/py39-rh8/python3.9 -I -m pip install --upgrade \
-    --target ~/infrared-sdk-libs infrared-sdk==1.0.0 pyproj orjson
+    --target ~/infrared-sdk-libs "infrared-sdk>=1.0,<2" pyproj orjson
 ```
 
 Put this bootstrap at the top of **every** Infrared component. It puts the folder first on `sys.path` and removes an SDK that another component loaded from somewhere else.
@@ -373,7 +373,7 @@ Make the parser forgiving (any case, `:` or `=`, `#` comments, month names, `6-8
 
 ## 5. Migrating a 0.5.1 script
 
-The full upgrade steps are in `UPGRADING.md` in the installed package (`infrared_sdk-1.0.0.dist-info/UPGRADING.md`). The docs home is https://infrared.city/docs/sdk/ (there is no separate upgrade page). Do these steps in order.
+The full upgrade steps are in `UPGRADING.md` in the installed package (`infrared_sdk-<version>.dist-info/UPGRADING.md`). The docs home is https://infrared.city/docs/sdk/ (there is no separate upgrade page). Do these steps in order.
 
 1. **Load path.** Use section 1. Make sure no 0.5.1 component stays in the same file.
 2. **Imports.** The modules `infrared_sdk.tiling.merger`, `merger_smart` and `terrain_envelope` are gone. So are the old `transforms` and `terrain_slice` helpers. Use `run_area_and_wait`, or `client.merge_area_jobs(schedule)`.

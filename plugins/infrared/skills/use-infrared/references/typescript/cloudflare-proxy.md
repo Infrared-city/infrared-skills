@@ -1,8 +1,8 @@
 # Production: keep the API key in a proxy (Cloudflare Worker)
 
 Runnable app: [cookbook/apps/cloudflare-proxy](https://github.com/Infrared-city/infrared-skills/tree/main/cookbook/apps/cloudflare-proxy).
-Guide: [Serve many users](https://infrared.city/docs/sdk/1.0/#serve-many-users),
-[TypeScript in the browser](https://infrared.city/docs/sdk/1.0/#typescript-in-the-browser).
+Guide: [Serve many users](https://infrared.city/docs/sdk/latest/#serve-many-users),
+[TypeScript in the browser](https://infrared.city/docs/sdk/latest/#typescript-in-the-browser).
 
 **Never send the API key to a browser.** Not in the bundle, not in a `VITE_*`
 variable, not in a request header from the page. The browser calls a path on its

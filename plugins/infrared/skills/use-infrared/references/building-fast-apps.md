@@ -4,7 +4,7 @@ Patterns for an app that serves many users and feels instant. They come from a p
 platform built on the SDK. Link, do not copy: the exact calls are in the docs.
 
 - Guide chapters "Where it runs", "Serve many users" and "Cost and retry":
-  <https://infrared.city/docs/sdk/1.0/sdk.md>
+  <https://infrared.city/docs/sdk/sdk.md>
 - Python backend app recipe: [recipes/python-fastapi-app.md](recipes/python-fastapi-app.md)
 - TypeScript: [typescript/quickstart.md](typescript/quickstart.md),
   [typescript/map-grid.md](typescript/map-grid.md), [typescript/facades-3d.md](typescript/facades-3d.md),

@@ -11,7 +11,7 @@ Start from one of the two app shapes. This page adds storage and users to both.
 | Browser app | The SDK in a Web Worker on each user's device; a proxy holds the key | [../typescript/cloudflare-proxy.md](../typescript/cloudflare-proxy.md) |
 | Server app | Your Python service runs, merges and stores | [python-fastapi-app.md](python-fastapi-app.md) |
 
-Guide chapter "Serve many users": <https://infrared.city/docs/sdk/1.0/sdk.md>.
+Guide chapter "Serve many users": <https://infrared.city/docs/sdk/sdk.md>.
 
 ## The rules
 

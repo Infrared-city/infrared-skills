@@ -12,10 +12,10 @@ Only four analyses take facade and point sensors: solar radiation, sky view fact
 direct sun hours and daylight availability. UTCI, TCS and wind do not.
 You cannot use `analysis_surfaces` and `sensor_points` in one request.
 
-Docs: [Facade and roof runs](https://infrared.city/docs/sdk/1.0/sdk.md) (chapters "Facade and roof runs" and
+Docs: [Facade and roof runs](https://infrared.city/docs/sdk/sdk.md) (chapters "Facade and roof runs" and
 "Draw facade and roof results fast"),
-[Facade layout](https://infrared.city/docs/sdk/1.0/python/facade_layout/index.md),
-[Analyses](https://infrared.city/docs/sdk/1.0/python/analyses/index.md).
+[Facade layout](https://infrared.city/docs/sdk/latest/python/facade_layout/),
+[Analyses](https://infrared.city/docs/sdk/latest/python/analyses/).
 
 ## Facades and roofs
 
@@ -96,7 +96,7 @@ print(out["output"])                               # one value per point, same o
 
 Terrain goes in `ground_geometry`, never in `buildings`. The ground grid then drapes onto it.
 Without `ground_geometry`, the ground is a flat plane at z = 0, with no error.
-`context_geometry` holds far objects that only cast shade. In 1.0 it reaches 128 m past a tile.
+`context_geometry` holds far objects that only cast shade. It reaches each tile within `context_reach_m` (default 600 m).
 It needs terrain, facade sensors or own points beside it.
 
 ```python

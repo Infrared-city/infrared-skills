@@ -54,7 +54,15 @@ Every row: read [building-fast-apps](references/building-fast-apps.md) for speed
 - Your own buildings, trees and ground are the main path ([byo-inputs](references/byo-inputs.md)). Ask what the user has
   (BIM, Rhino, IFC, GeoJSON). Public data (Overture, city data) is a fallback. Its source and heights vary: say so. Getting data and shaping it for the SDK are two separate jobs: read [shaping-data](references/shaping-data.md) first.
 - Sensors: ground, facades and roofs, or own points ([09](references/analyses/09-facade-terrain.md)). Terrain and far
-  shade (128 m reach in 1.0): [11](references/analyses/11-terrain-and-context.md). Time: [03](references/03-time-period.md).
+  shade (`context_geometry` reaches 600 m, `context_reach_m`): [11](references/analyses/11-terrain-and-context.md). Time: [03](references/03-time-period.md).
+- Shading pieces: `installations` on solar and thermal payloads (`{id: mesh}`: panels, fins, PV, shade sails; no
+  sensors). `material` takes a preset (`pv`, `shade-sail-light`, `shade-sail-dark`, `shade-mesh`) and `transmittance`
+  (0 to 1). Wind ignores them. A preset `pv` gives `pv_yield` on the result.
+- Materials: a building entry takes a facade `material` and a `roof_material` (TS `roofMaterial`), for example
+  `{"version": 1, "preset": "glass-reflective"}` or `"green-roof-extensive"` on a roof. An unknown name runs as `default`, with a warning.
+- Thermal comfort (UTCI, TCS) from a weather file also sends hourly `precipitation` (mm/h) and `soil_moisture_init`
+  (TS `soilMoistureInit`): the engine models wet ground. `include_precipitation=False` turns rain off.
+- Pedestrian wind comfort has a safety layer: `result.safety` (ratio, classes, exceedance). None for `lawson-1970`.
 
 ### Area runs and results
 
@@ -116,7 +124,7 @@ Facades and roofs: `surfaceRenderBuffers(columns)`. TypeScript pages and apps: s
 ## Docs for agents
 
 - Guide: <https://infrared.city/docs/sdk/>. The whole guide as one file: <https://infrared.city/docs/sdk/sdk.md>
-- Page index: <https://infrared.city/docs/sdk/llms.txt>, <https://infrared.city/docs/sdk/1.0/llms.txt>. Each page is Markdown too: add `index.md` (for example <https://infrared.city/docs/sdk/1.0/python/sdk/index.md>)
+- Page index: <https://infrared.city/docs/sdk/llms.txt>. Each page there is Markdown too (its `index.md` path). Pages for people: <https://infrared.city/docs/sdk/latest/> (for example `latest/python/sdk/`).
 
 ## Other topics
 - Cookbook notebooks `00_quickstart` to `09_all_analyses` in [`cookbook/`](https://github.com/Infrared-city/infrared-skills/tree/main/cookbook).
@@ -127,6 +135,6 @@ Facades and roofs: `surfaceRenderBuffers(columns)`. TypeScript pages and apps: s
 - A frame error (see Coordinates): lat/lon swapped, Y-up, centimetres, origin not at the south-west corner. An open mesh.
 - Weather left out of a thermal or solar request: billed, then fails. Use `from_weatherfile_payload`.
 - No `ground_geometry` means a flat plane. Terrain in `buildings` gives a shattered mesh.
-- Night hours in a `direct-sun-hours` window count as sun. Shade beyond 128 m past a tile is missing. Do not call UTCI night values validated.
-- Interior entities must be nested. `preview_area` without `payload=` prices the wind grid. Wind speed: always merge with `strategy="directional_blend"`, or tiles show seams.
+- Night hours in a `direct-sun-hours` window count as sun. Buildings shade only 128 m past a tile: give far objects as `context_geometry` (600 m reach). Do not call UTCI night values validated.
+- Interior entities must be nested. `preview_area` without `payload=` prices the wind grid. Wind speed merges with the directional blend by default; `strategy="default"` shows tile seams.
 End of task: read [references/reflection-and-feedback.md](references/reflection-and-feedback.md) once.

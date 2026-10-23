@@ -39,8 +39,9 @@ Night hours then count as sun. A 24-hour window reads 24.0 h on open ground.
 
 ## Pitfalls
 
-- A low sun on a multi-tile area clips long shadows at the tile edge: a tower farther than 128 m
-  past a tile gives no shade in 1.0. Avoid dawn and dusk hours in winter.
+- A low sun on a multi-tile area clips long shadows at the tile edge: a building farther than 128 m
+  past a tile gives no shade. Give far towers as `context_geometry` (600 m reach), or avoid dawn and
+  dusk hours in winter.
 - Do not compare raw hour grids of different windows.
 - A high summer value can be a heat-stress driver and not an amenity.
 

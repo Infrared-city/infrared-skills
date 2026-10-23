@@ -3,9 +3,9 @@
 Failures come in three layers: a bad input (before any job), a transport problem (HTTP), and a job
 that fails on the server. Catch each layer where your retry rule fits.
 
-Docs: [Cost and retry](https://infrared.city/docs/sdk/1.0/sdk.md) (chapter "Cost and retry"),
-[Client](https://infrared.city/docs/sdk/1.0/python/sdk/index.md),
-[Tiling](https://infrared.city/docs/sdk/1.0/python/tiling/index.md).
+Docs: [Cost and retry](https://infrared.city/docs/sdk/sdk.md) (chapter "Cost and retry"),
+[Client](https://infrared.city/docs/sdk/latest/python/sdk/),
+[Tiling](https://infrared.city/docs/sdk/latest/python/tiling/).
 
 ## What the SDK does for you
 

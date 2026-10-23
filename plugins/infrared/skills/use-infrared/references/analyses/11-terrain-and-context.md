@@ -44,14 +44,15 @@ Run a plain grid analysis with `ground_geometry`. The 1 m grid drapes onto the r
 - Cells under a building footprint are `0.0` on this path, not NaN. NaN means outside the polygon
   or off the terrain. Mask the footprints with your own polygons before a shadow statistic.
 
-## Far shade in 1.0
+## Far shade
 
-A tile reads geometry 128 m past its edge. Terrain is cut for each tile to what its buildings and
-trees need. An object farther away gives no shade and no error. This includes `context_geometry`.
-To keep distant relief, give it as low-poly `context_geometry` that touches the 128 m margin.
+A solar tile reads `buildings` 128 m past its edge. For shade from farther away, give
+low-poly `context_geometry`: it reaches each tile within `context_reach_m` (TypeScript
+`contextReachM`), default 600 m; `None` / `null` sends every context mesh to every tile.
+Context inside the tile margin plus `context_buffer_m` (default 10 m) is cut out.
 `terrain_context_margin_m` on `run_area` widens the terrain slice for valley and escarpment sites;
 the payload grows with the square of the reach.
 
 Advice: give far geometry as sparse, low-poly blocks and hills. Each mesh uploads once for every
-tile that holds it. A context mesh over about 50,000 triangles gives a warning.
-A later release adds a `context_reach_m` setting.
+tile that holds it. Context over about 50,000 triangles gives a warning; a tile job with more than
+250,000 context triangles is refused (use a smaller `context_reach_m`).
