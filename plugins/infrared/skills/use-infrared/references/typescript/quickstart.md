@@ -44,8 +44,8 @@ const indices = [0, 2, 1, 0, 3, 2, 4, 5, 6, 4, 6, 7, 0, 1, 5, 0, 5, 4,
 const buildings = { tower: { coordinates, indices } };
 // No model? Public data: const buildings = await client.buildings.getBuildingsInArea(polygon);
 
-// 4. Preview: local, free. One tile = one billed job.
-const preview = client.previewArea(polygon, { analysisType: "sky-view-factors" });
+// 4. Preview: free (it sends no job). One tile = one billed job.
+const preview = await client.previewArea(polygon, { analysisType: "sky-view-factors" });
 console.log(`${preview.tileCount} tile(s), about ${preview.estimatedCostTokens} tokens`);
 
 // 5. Run: tiles, upload, submit, poll and merge in one call.

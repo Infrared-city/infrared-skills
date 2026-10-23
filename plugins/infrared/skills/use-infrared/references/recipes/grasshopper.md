@@ -146,7 +146,7 @@ Sky view factor needs no weather. `SvfModelRequest(analysis_type="sky-view-facto
 
 ### Preview, then run
 
-`preview_area` is free and local. Call it before every paid run. Pass `analysis_type` and `payload` as keywords.
+`preview_area` is free: it sends no job. Call it before every paid run. Pass `analysis_type` and `payload` as keywords.
 
 ```python
 preview = client.preview_area(polygon, analysis_type="thermal-comfort-index",

@@ -33,7 +33,7 @@ const client = new InfraredClient({
 
 ```ts
 const polygon = { type: "Polygon", coordinates: [ring] };     // ring: [lon, lat][] , closed
-const p = client.previewArea(polygon, { analysisType: "sky-view-factors" }); // free, local
+const p = await client.previewArea(polygon, { analysisType: "sky-view-factors" }); // free: no job
 status(`${p.tileCount} tile(s), about ${p.estimatedCostTokens} tokens`);     // show before Run
 
 // On Run. Own meshes first; public buildings are the fallback.

@@ -71,7 +71,7 @@ analysis, polls, and merges. A failed tile raises (no map with holes). A resend 
 - Always read values with the helper: `result.physical_grid()` (Python), `areaGridValuesF32(result)` (TypeScript).
   Never read the raw array: its stored type differs by analysis. NaN means no value. A facade at 0.0 is real. Ground cells under buildings can be 0.0: mask them with the footprints before a mean or a minimum.
 - Use a fixed colour scale for each analysis: [rendering-results-well](references/recipes/rendering-results-well.md).
-- Cost: preview first (free, local). Price from `would_bill_jobs`: one job is one tile for one analysis.
+- Cost: preview first (free: it sends no job). Price from `would_bill_jobs`: one job is one tile for one analysis.
 
 ## Python
 

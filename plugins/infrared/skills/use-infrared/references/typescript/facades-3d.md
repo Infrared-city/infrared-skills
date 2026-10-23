@@ -21,7 +21,7 @@ const input = {
   analysisType: "solar-radiation", analysisSurfaces: "all", surfaceGridSize: 3, // cell size, m
   latitude: lat, longitude: lon, dateFilters: { period }, weatherData,
 };
-const preview = await client.previewAreaBatches(input, polygon, { buildings }); // free, local
+const preview = await client.previewAreaBatches(input, polygon, { buildings }); // free: no job
 // show preview.plannedJobCount, preview.sensorCount, preview.estimatedCostTokens before Run
 const columns = (await client.runAreaAndWait(input, polygon, { buildings, onProgress })) as SurfaceColumns;
 const buffers = surfaceRenderBuffers(columns);

@@ -35,7 +35,7 @@ A second client holds the geometry again and uses more memory.
 ## 2. Keep the geometry upload links (and clear them at sign-out)
 
 The SDK uploads the geometry of each tile once and reuses the link for every analysis on that tile.
-In Python the links stay in the process memory for about 24 hours.
+In Python the links stay in the process memory until they expire (the expiry is in the link).
 In a browser, a reload makes a new worker, which would upload again.
 Give the client a persistent `geometryUrlStore` (IndexedDB) so the same geometry skips the upload,
 also after a reload.
@@ -60,7 +60,7 @@ Do not write a poll loop. `runAreaAndWait` (`run_area_and_wait`) asks for the st
 
 ## 4. Preview before you run
 
-Preview is free and local. It sends no job. Show the user the tiles, the jobs and the cost first.
+Preview is free. It sends no job (it reads the public price list). Show the user the tiles, the jobs and the cost first.
 
 ```python
 preview = client.preview_area(polygon, payload=request, buildings=buildings)

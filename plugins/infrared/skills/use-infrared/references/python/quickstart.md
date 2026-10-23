@@ -44,7 +44,7 @@ client = InfraredClient()
 # 4. The request. Sky view factor needs no weather and no time period.
 request = SvfModelRequest(analysis_type=AnalysesName.sky_view_factors)
 
-# 5. Preview first. It is free and local: it sends no job.
+# 5. Preview first. It is free: it sends no job.
 preview = client.preview_area(polygon, payload=request)
 print(preview.would_bill_jobs, preview.estimated_cost_tokens)
 

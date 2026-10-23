@@ -24,7 +24,7 @@ the SDK guide. The server way below is the simpler start.
 ## What you build
 
 ```
-frontend ──POST /preview──▶ API ── preview_area()  (local, free)
+frontend ──POST /preview──▶ API ── preview_area()  (free, no job)
          ──POST /runs─────▶ API ── thread: run_area_and_wait() ──▶ Infrared cloud
          ◀─ run_id (at once)          tiles, upload, submit, poll, merge
                                       (wind: run_area + directional blend merge)
@@ -58,7 +58,7 @@ Bad input gets HTTP 422 with a clear message, before anything is billed:
 
 1. **One client per process.** Make `InfraredClient()` once at startup
    (FastAPI `lifespan`) and close it at shutdown. The client keeps the
-   upload of each tile geometry in memory for about 24 hours. A second
+   upload link of each tile geometry in memory until the link expires. A second
    analysis on the same site then skips the upload. A client per request
    uploads everything again. The Python SDK has no disk store for these
    uploads; keep the process alive.

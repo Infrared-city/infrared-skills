@@ -16,7 +16,8 @@ whole polygon. A building beyond the edge is placed at the edge height.
 A BIM terrain solid is closed. `ground_geometry` wants the top surface only. Keep the up-facing
 triangles (normal z above 0.5) and drop the bottom cap and the skirt.
 
-Set `terrain_alignment` yourself: the field is unset by default.
+Set `terrain_alignment` yourself. If you do not: with terrain and your own buildings, trees or
+context geometry the SDK sends `"as-is"`; else it sends nothing and the server uses `"auto-align"`.
 
 Which analyses take it: the four solar analyses and UTCI and TCS. Wind refuses terrain: it has no `ground_geometry`.
 
@@ -24,7 +25,7 @@ Which analyses take it: the four solar analyses and UTCI and TCS. Wind refuses t
 
 | Mode | What happens | Use when |
 |---|---|---|
-| `"as-is"` | Trusts your geometry. No seating, no check. The guide names it the default for a supplied scene (the SDK field is unset until you set it) | Your model already sits on its terrain |
+| `"as-is"` | Trusts your geometry. No seating, no check. The SDK sends it when the request has terrain and your own scene and you set no mode | Your model already sits on its terrain |
 | `"auto-align"` | Seats every solid on the local ground, with a 0.5 m skirt | Buildings at z = 0 on a real terrain |
 | `"assume-aligned"` | Checks only. A base outside terrain -1.5 to +1.0 m refuses the job (422, with the offenders) | You want a mismatch to fail loud |
 

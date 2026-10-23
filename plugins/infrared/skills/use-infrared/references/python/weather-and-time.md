@@ -43,7 +43,7 @@ year = TimePeriod(start_month=1, start_day=1, start_hour=0,
 
 Two sources. Both give hourly rows.
 
-1. The public catalog: 16,757 stations, one typical year each (TMYx). It has no forecast,
+1. The public catalog: about 16,800 stations (16,757 on 2026-09-08), one typical year each. It has no forecast,
    no future climate and no single year that you choose.
 2. Your own `.epw` file: `parse_epw("site.epw")`. It needs hourly data, 8760 rows.
    The SDK reads it on your machine. Nothing uploads as a file.
