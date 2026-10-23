@@ -68,7 +68,7 @@ analysis, polls, and merges. A failed tile raises (no map with holes). A resend 
 ## Python
 
 ```bash
-pip install infrared-sdk    # "[geodata]" adds public buildings, trees, ground. Set INFRARED_API_KEY; never put it in code.
+pip install infrared-sdk    # "[geodata]" adds public buildings, trees, ground. Set INFRARED_API_KEY (get a key at https://platform.infrared.city/dashboard?tab=subscription); never put it in code.
 ```
 
 ```python
