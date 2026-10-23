@@ -1,6 +1,6 @@
 # Update tool for an exported city (Python)
 
-TypeScript: not yet.
+TypeScript: the same calls in camelCase: `client.updatePreview`, `client.update(preview, { maxTokens, refreshCoarse })`.
 
 | Name | What it does |
 |---|---|
