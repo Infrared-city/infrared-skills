@@ -2,8 +2,8 @@
 
 Runnable app: [cookbook/apps/map-grid](https://github.com/Infrared-city/infrared-skills/tree/main/cookbook/apps/map-grid)
 (Vite + TypeScript, no framework). Copy it, then change the analysis and the area.
-API detail: [Results and legend](https://infrared.city/docs/sdk/1.0/api/typescript/results-and-legend/),
-[Tiling](https://infrared.city/docs/sdk/1.0/api/typescript/tiling/).
+API detail: [Results and legend](https://infrared.city/docs/sdk/latest/api/typescript/results-and-legend/),
+[Tiling](https://infrared.city/docs/sdk/latest/api/typescript/tiling/).
 
 What it does: light basemap, draw a polygon (or a default one), job and token
 preview, **Run**, the result as a `BitmapLayer`, a legend with units, progress text.
@@ -33,7 +33,7 @@ const client = new InfraredClient({
 
 ```ts
 const polygon = { type: "Polygon", coordinates: [ring] };     // ring: [lon, lat][] , closed
-const p = client.previewArea(polygon, { analysisType: "sky-view-factors" }); // free, local
+const p = await client.previewArea(polygon, { analysisType: "sky-view-factors" }); // free: no job
 status(`${p.tileCount} tile(s), about ${p.estimatedCostTokens} tokens`);     // show before Run
 
 // On Run. Own meshes first; public buildings are the fallback.
@@ -97,7 +97,7 @@ tile at its centre and leaves visible seams in a wind field:
 const input = { analysisType: "wind-speed", windSpeed: 5, windDirection: 270 } as const;
 const schedule = await client.runArea(input, polygon, { buildings });
 while (!(await client.checkAreaState(schedule)).isComplete) await new Promise((r) => setTimeout(r, 1000));
-const result = await client.mergeAreaJobs(schedule, { strategy: "directional_blend", windDirectionDeg: input.windDirection });
+const result = await client.mergeAreaJobs(schedule);   // wind speed: directional blend by default
 ```
 
 `mergeAreaJobs` throws when a tile failed: you never get a map with holes. Weather analyses also need `weatherData`,

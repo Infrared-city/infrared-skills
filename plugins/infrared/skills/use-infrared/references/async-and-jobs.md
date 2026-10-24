@@ -3,10 +3,10 @@
 Most apps need only `run_area_and_wait` (`runAreaAndWait`). It tiles, uploads, submits,
 polls and merges. Read this page when a run must survive a restart, a deploy or a closed tab.
 
-Reference: [Python client](https://infrared.city/docs/sdk/1.0/python/sdk/index.md),
-[tiling](https://infrared.city/docs/sdk/1.0/python/tiling/index.md),
-[webhooks](https://infrared.city/docs/sdk/1.0/python/webhooks/index.md),
-guide chapter "Cost and retry" in <https://infrared.city/docs/sdk/1.0/sdk.md>.
+Reference: [Python client](https://infrared.city/docs/sdk/latest/python/sdk/),
+[tiling](https://infrared.city/docs/sdk/latest/python/tiling/),
+[webhooks](https://infrared.city/docs/sdk/latest/python/webhooks/),
+guide chapter "Cost and retry" in <https://infrared.city/docs/sdk/sdk.md>.
 
 ## Which call?
 

@@ -8,8 +8,8 @@ Runnable code: [`cookbook/apps/python-fastapi/`](../../../../../../cookbook/apps
 (`main.py` is about 200 lines). Copy it, then change it. This recipe tells you
 why the code has its shape, so that you keep it fast when you grow it.
 
-SDK guide (one Markdown file, good for agents): https://infrared.city/docs/sdk/1.0/sdk.md.
-Python reference: https://infrared.city/docs/sdk/1.0/python/sdk/index.md.
+SDK guide (one Markdown file, good for agents): https://infrared.city/docs/sdk/sdk.md.
+Python reference: https://infrared.city/docs/sdk/latest/python/sdk/.
 
 ## When to use this
 
@@ -24,7 +24,7 @@ the SDK guide. The server way below is the simpler start.
 ## What you build
 
 ```
-frontend ──POST /preview──▶ API ── preview_area()  (local, free)
+frontend ──POST /preview──▶ API ── preview_area()  (free, no job)
          ──POST /runs─────▶ API ── thread: run_area_and_wait() ──▶ Infrared cloud
          ◀─ run_id (at once)          tiles, upload, submit, poll, merge
                                       (wind: run_area + directional blend merge)
@@ -58,7 +58,7 @@ Bad input gets HTTP 422 with a clear message, before anything is billed:
 
 1. **One client per process.** Make `InfraredClient()` once at startup
    (FastAPI `lifespan`) and close it at shutdown. The client keeps the
-   upload of each tile geometry in memory for about 24 hours. A second
+   upload link of each tile geometry in memory until the link expires. A second
    analysis on the same site then skips the upload. A client per request
    uploads everything again. The Python SDK has no disk store for these
    uploads; keep the process alive.
@@ -97,8 +97,7 @@ Bad input gets HTTP 422 with a clear message, before anything is billed:
    known = {}
    while not client.check_area_state(schedule, known=known).is_complete:
        time.sleep(1)
-   result = client.merge_area_jobs(schedule, strategy="directional_blend",
-                                   wind_direction_deg=request.wind_direction)
+   result = client.merge_area_jobs(schedule)   # wind speed: directional blend by default
    ```
 
    The app also resubmits failed tiles once (`run_area(..., retry_from=schedule,
@@ -146,7 +145,7 @@ comfort analyses read the ground. See "Your inputs" in the SDK guide.
 ### Public fallback
 
 ```python
-# needs: pip install "infrared-sdk[geodata]==1.0.0"
+# needs: pip install "infrared-sdk[geodata]>=1.0,<2"
 buildings = client.buildings.get_area(polygon, analysis_type=analysis)
 result = client.run_area_and_wait(request, polygon, buildings=buildings)
 ```
@@ -316,7 +315,7 @@ railway domain
 For long runs that must survive a restart, use `run_area` (it returns a
 schedule you can save) or webhooks instead of a thread. See the Python
 reference for `run_area`, `check_area_state`, `merge_area_jobs` and
-https://infrared.city/docs/sdk/1.0/python/webhooks/index.md.
+https://infrared.city/docs/sdk/latest/python/webhooks/.
 
 ## Check before you call it done
 

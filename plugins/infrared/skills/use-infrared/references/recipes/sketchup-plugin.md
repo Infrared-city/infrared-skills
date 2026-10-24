@@ -16,7 +16,7 @@ Put the SDK in a small Python service, and keep the plugin thin:
 
 ```
 SketchUp (Ruby)                          Python service (FastAPI + SDK)       Infrared
-  meshes in metres + polygon ──POST /preview──▶ preview_area()  (free, local)
+  meshes in metres + polygon ──POST /preview──▶ preview_area()  (free, no job)
                              ──POST /runs─────▶ thread: run_area_and_wait() ──▶ cloud
   UI.start_timer, every 1.5 s ─GET /runs/{id}─▶ status, jobs_done / jobs_total
   draw a textured face       ◀─GET /runs/{id}/result.png, result.json
