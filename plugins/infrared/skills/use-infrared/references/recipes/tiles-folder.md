@@ -6,6 +6,8 @@ the how-to: [3D Tiles: from a run to a viewer](https://infrared.city/docs/sdk/#3
 and [read the files](https://infrared.city/docs/sdk/#3d-tiles-read-the-files) (decode formulas, byte order, no data).
 This page keeps only the code that both viewer pages use.
 Viewers: [cesium-tiles](cesium-tiles.md), [deckgl-tiles](deckgl-tiles.md). Change a city: [update-tool](update-tool.md).
+Saved results of a whole city: one `export_tiles(blocks, "out/", ids, workers=...)` call. Folder to a bucket:
+`upload_tiles` (TypeScript, Node: `uploadTiles`). Both resume when you call them again.
 
 ## Read the manifest
 
@@ -66,6 +68,7 @@ async function valueAt(pm, s, lon, lat, size = 512) {
 ## Hosting traps
 
 - A bucket needs CORS: allow `GET`, `HEAD` and the header `Range`; expose `ETag` and `Content-Range`. PMTiles needs `Range`.
+- Upload a finished folder with `upload_tiles`: it writes `manifest.json` and the other live files last.
 - A host that ignores `_headers` must send `no-cache` for `manifest.json`, or a browser shows an old list.
 - Serve `.terrain` as `application/octet-stream` with no `Content-Encoding`.
 
@@ -74,4 +77,5 @@ async function valueAt(pm, s, lon, lat, size = 512) {
 - Facade value bytes: R is LOW. Ground value bytes: R is HIGH. Never share a decoder.
 - Sample value tiles with NEAREST. Interpolated codes mean nothing.
 - Terrain and facades need one base height. Use the terrain of the same export, not a provider terrain.
-- An id that exists is refused (`ValueError`), also with the same data. Use a new id.
+- The same call again resumes. Other results under an id the folder holds are refused ("holds other results"): use a new id.
+- A facade cell with no value shows a filled colour. Its GLB property `no_value` is 1: check it before you show a click value.
