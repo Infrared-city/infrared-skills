@@ -8,9 +8,9 @@ They do not use `run_area_and_wait`. Use `client.analyses.run_and_wait(request)`
 - **Energy balance**: the monthly heating and cooling energy need of each zone.
   Keep one building whole in one request.
 
-Docs: [Interior (Beta)](https://infrared.city/docs/sdk/1.0/sdk.md) (chapter "Interior"),
-[Interior helpers](https://infrared.city/docs/sdk/1.0/python/interior/index.md),
-[Analyses](https://infrared.city/docs/sdk/1.0/python/analyses/index.md).
+Docs: [Interior (Beta)](https://infrared.city/docs/sdk/sdk.md) (chapter "Interior"),
+[Interior helpers](https://infrared.city/docs/sdk/latest/python/interior/),
+[Analyses](https://infrared.city/docs/sdk/latest/python/analyses/).
 Details of the daylight inputs: [../analyses/10-interior-daylight-factor.md](../analyses/10-interior-daylight-factor.md).
 
 ## The one trap: nested entities

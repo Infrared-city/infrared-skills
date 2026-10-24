@@ -28,13 +28,15 @@ Read [geospatial-crs](references/geospatial-crs.md) before a job, [grid-conventi
 |---|---|---|
 | Grasshopper or Rhino component | Python in Rhino 8 | [grasshopper](references/recipes/grasshopper.md), [geometry and drawing](references/recipes/grasshopper-geometry-and-drawing.md), [pitfalls](references/recipes/grasshopper-pitfalls.md) |
 | Analysis, study or notebook for yourself | Python | [python/quickstart](references/python/quickstart.md), `cookbook/notebooks/00_quickstart.ipynb` |
-| Web app for yourself (browser, map, 3D facades) | TypeScript in the browser | [typescript/quickstart](references/typescript/quickstart.md), [map-grid](references/typescript/map-grid.md), [facades-3d](references/typescript/facades-3d.md), [facades-sampling](references/typescript/facades-sampling.md), `cookbook/apps/map-grid`, `cookbook/apps/facades-3d` |
+| Web app for yourself (browser, map, 3D facades) | TypeScript in the browser | [typescript/quickstart](references/typescript/quickstart.md), [map-grid](references/typescript/map-grid.md), [facades-3d](references/typescript/facades-3d.md), [facades-sampling](references/typescript/facades-sampling.md), `cookbook/apps/map-grid`, `cookbook/apps/facades-3d`;  |
+| Show an exported city (3D tiles) in your app, or change it | Python export, any viewer | [tiles-folder](references/recipes/tiles-folder.md), [cesium-tiles](references/recipes/cesium-tiles.md), [deckgl-tiles](references/recipes/deckgl-tiles.md), [update-tool](references/recipes/update-tool.md) |
 | Web app for many users (sign-in, secret key) | TypeScript front end + Cloudflare Worker proxy | [cloudflare-proxy](references/typescript/cloudflare-proxy.md), `cookbook/apps/cloudflare-proxy`, [persistence-and-users](references/recipes/persistence-and-users.md) |
 | High-throughput backend (many sites, queue, cache) | Python service | [python-fastapi-app](references/recipes/python-fastapi-app.md), `cookbook/apps/python-fastapi` |
 | SketchUp, Blender or other CAD | Ruby or Python, same API | [sketchup-plugin](references/recipes/sketchup-plugin.md), [blender](references/recipes/blender.md) |
 | Upload your own data to the platform (no code) | none | [platform-byo-upload](references/platform-byo-upload.md) |
 
 Every row: read [building-fast-apps](references/building-fast-apps.md) for speed.
+
 ## Concepts and guidance
 
 ### What each analysis answers
@@ -52,7 +54,15 @@ Every row: read [building-fast-apps](references/building-fast-apps.md) for speed
 - Your own buildings, trees and ground are the main path ([byo-inputs](references/byo-inputs.md)). Ask what the user has
   (BIM, Rhino, IFC, GeoJSON). Public data (Overture, city data) is a fallback. Its source and heights vary: say so. Getting data and shaping it for the SDK are two separate jobs: read [shaping-data](references/shaping-data.md) first.
 - Sensors: ground, facades and roofs, or own points ([09](references/analyses/09-facade-terrain.md)). Terrain and far
-  shade (128 m reach in 1.0): [11](references/analyses/11-terrain-and-context.md). Time: [03](references/03-time-period.md).
+  shade (`context_geometry` reaches 600 m, `context_reach_m`): [11](references/analyses/11-terrain-and-context.md). Time: [03](references/03-time-period.md).
+- Shading pieces: `installations` on solar and thermal payloads (`{id: mesh}`: panels, fins, PV, shade sails; no
+  sensors). `material` takes a preset (`pv`, `shade-sail-light`, `shade-sail-dark`, `shade-mesh`) and `transmittance`
+  (0 to 1). Wind ignores them. A preset `pv` gives `pv_yield` on the result.
+- Materials: a building entry takes a facade `material` and a `roof_material` (TS `roofMaterial`), for example
+  `{"version": 1, "preset": "glass-reflective"}` or `"green-roof-extensive"` on a roof. An unknown name runs as `default`, with a warning.
+- Thermal comfort (UTCI, TCS) from a weather file also sends hourly `precipitation` (mm/h) and `soil_moisture_init`
+  (TS `soilMoistureInit`): the engine models wet ground. `include_precipitation=False` turns rain off.
+- Pedestrian wind comfort has a safety layer: `result.safety` (ratio, classes, exceedance). None for `lawson-1970`.
 
 ### Area runs and results
 
@@ -61,12 +71,12 @@ analysis, polls, and merges. A failed tile raises (no map with holes). A resend 
 - Always read values with the helper: `result.physical_grid()` (Python), `areaGridValuesF32(result)` (TypeScript).
   Never read the raw array: its stored type differs by analysis. NaN means no value. A facade at 0.0 is real. Ground cells under buildings can be 0.0: mask them with the footprints before a mean or a minimum.
 - Use a fixed colour scale for each analysis: [rendering-results-well](references/recipes/rendering-results-well.md).
-- Cost: preview first (free, local). Price from `would_bill_jobs`: one job is one tile for one analysis.
+- Cost: preview first (free: it sends no job). Price from `would_bill_jobs`: one job is one tile for one analysis.
 
 ## Python
 
 ```bash
-pip install infrared-sdk    # "[geodata]" adds public buildings, trees, ground. Set INFRARED_API_KEY; never put it in code.
+pip install infrared-sdk    # "[geodata]" adds public buildings, trees, ground. Set INFRARED_API_KEY (get a key at https://platform.infrared.city/dashboard?tab=subscription); never put it in code.
 ```
 
 ```python
@@ -114,7 +124,7 @@ Facades and roofs: `surfaceRenderBuffers(columns)`. TypeScript pages and apps: s
 ## Docs for agents
 
 - Guide: <https://infrared.city/docs/sdk/>. The whole guide as one file: <https://infrared.city/docs/sdk/sdk.md>
-- Page index: <https://infrared.city/docs/sdk/llms.txt>, <https://infrared.city/docs/sdk/1.0/llms.txt>. Each page is Markdown too: add `index.md` (for example <https://infrared.city/docs/sdk/1.0/python/sdk/index.md>)
+- Page index: <https://infrared.city/docs/sdk/llms.txt>. Each page there is Markdown too (its `index.md` path). Pages for people: <https://infrared.city/docs/sdk/latest/> (for example `latest/python/sdk/`).
 
 ## Other topics
 - Cookbook notebooks `00_quickstart` to `09_all_analyses` in [`cookbook/`](https://github.com/Infrared-city/infrared-skills/tree/main/cookbook).
@@ -125,6 +135,6 @@ Facades and roofs: `surfaceRenderBuffers(columns)`. TypeScript pages and apps: s
 - A frame error (see Coordinates): lat/lon swapped, Y-up, centimetres, origin not at the south-west corner. An open mesh. Overlapping solids: facades at 0 ([geometry-pitfalls](references/geometry-pitfalls.md)).
 - Weather left out of a thermal or solar request: billed, then fails. Use `from_weatherfile_payload`.
 - No `ground_geometry` means a flat plane. Terrain in `buildings` gives a shattered mesh.
-- Night hours in a `direct-sun-hours` window count as sun. Shade beyond 128 m past a tile is missing. Do not call UTCI night values validated.
-- Interior entities must be nested. `preview_area` without `payload=` prices the wind grid. Wind speed: always merge with `strategy="directional_blend"`, or tiles show seams.
+- Night hours in a `direct-sun-hours` window count as sun. Buildings shade only 128 m past a tile: give far objects as `context_geometry` (600 m reach). Do not call UTCI night values validated.
+- Interior entities must be nested. `preview_area` without `payload=` prices the wind grid. Wind speed merges with the directional blend by default; `strategy="default"` shows tile seams.
 End of task: read [references/reflection-and-feedback.md](references/reflection-and-feedback.md) once.

@@ -3,11 +3,11 @@
 Your own model is the main input. A run on your design shows your design.
 Public data is a fallback for when you have no model (last section).
 
-Docs: guide chapter "Your inputs" (<https://infrared.city/docs/sdk/1.0/sdk.md>), and the pages
-[Buildings](https://infrared.city/docs/sdk/1.0/python/buildings/index.md),
-[Vegetation](https://infrared.city/docs/sdk/1.0/python/vegetation/index.md),
-[Ground materials](https://infrared.city/docs/sdk/1.0/python/ground_materials/index.md),
-[Geometry](https://infrared.city/docs/sdk/1.0/python/geometry/index.md).
+Docs: guide chapter "Your inputs" (<https://infrared.city/docs/sdk/sdk.md>), and the pages
+[Buildings](https://infrared.city/docs/sdk/latest/python/buildings/),
+[Vegetation](https://infrared.city/docs/sdk/latest/python/vegetation/),
+[Ground materials](https://infrared.city/docs/sdk/latest/python/ground_materials/),
+[Geometry](https://infrared.city/docs/sdk/latest/python/geometry/).
 
 ## The three layers
 

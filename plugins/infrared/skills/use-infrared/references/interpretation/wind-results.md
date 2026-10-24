@@ -15,7 +15,7 @@ Returns a 2-D grid (`physical_grid()`) of wind magnitude in **m/s** at pedestria
 
 `wind_speed` payload field is a **`float`** in m/s, `v ≥ 0` — pass an EPW-derived mean as-is; truncating 3.9 to 3 shifts every cell by −23 %. `wind_direction` is a whole-degree `int`. Values outside 0–360 wrap. A fractional bearing is rejected at construction.
 
-**Pitfalls:** single-direction snapshot (run several to estimate annual exposure); `wind_direction=270` means wind **from** the west; NaN ≠ zero; **if you see grid-aligned discontinuities on multi-tile runs**, switch from the default centre-crop merge to `merge_area_jobs(strategy="directional_blend", wind_direction_deg=...)` — see [`../analyses/01-wind-speed.md`](../analyses/01-wind-speed.md).
+**Pitfalls:** single-direction snapshot (run several to estimate annual exposure); `wind_direction=270` means wind **from** the west; NaN ≠ zero; wind speed merges with the directional blend by default (no seams); grid-aligned seams mean a run merged with `strategy="default"` or an old schedule with no wind direction — see [`../analyses/01-wind-speed.md`](../analyses/01-wind-speed.md).
 
 ## pedestrian-wind-comfort (PWC)
 

@@ -4,7 +4,7 @@ The SDK takes **WGS84 longitude/latitude in degrees, `[lon, lat]`** (GeoJSON, RF
 It does not reproject and it does not check plausibility. Coordinates in another CRS, or in
 `[lat, lon]` order, run without an error on the wrong part of the planet.
 
-Use this page for real GIS or CAD data (Shapefile, GeoPackage, GeoTIFF, Rhino, IFC). Guide chapter "Coordinates": <https://infrared.city/docs/sdk/1.0/sdk.md>.
+Use this page for real GIS or CAD data (Shapefile, GeoPackage, GeoTIFF, Rhino, IFC). Guide chapter "Coordinates": <https://infrared.city/docs/sdk/sdk.md>.
 
 ## The frames
 
@@ -101,7 +101,7 @@ Nothing below raises an error. Work down the table.
 | Everything mirrored about the diagonal | `[lat, lon]` swap, or `pyproj` without `always_xy=True` |
 | Trees or ground materials far from the site | Metre values given where lon/lat is expected |
 | Grid and surfaces a constant few metres off the buildings | Polygon corner is not your `(0, 0)`. See the frame rule. |
-| Site too bright; far blocks cast no shade | Negative-coordinate buildings filtered out, or an occluder more than 128 m past the tile |
+| Site too bright; far blocks cast no shade | Negative-coordinate buildings filtered out, or an occluder more than 128 m past the tile in `buildings` (give it as `context_geometry`, 600 m reach) |
 | Buildings float above or sink into terrain | Terrain in absolute heights, buildings at z = 0, no `terrain_alignment` |
 | Overlay squashed toward the south-west | Placed with the polygon bounds, not `result.bounds` |
 | Exported GeoTIFF upside down | Row 0 of the grid is south; row 0 of a GeoTIFF is north: `np.flipud` |

@@ -4,9 +4,9 @@ Thermal comfort, solar radiation and pedestrian wind comfort read weather.
 Direct sun hours and daylight availability need a time period and a location, but no weather array.
 Sky view factor and wind speed need neither.
 
-Docs: guide chapter "Your inputs" (<https://infrared.city/docs/sdk/1.0/sdk.md>),
-[Layers (weather)](https://infrared.city/docs/sdk/1.0/python/layers/index.md),
-[Models](https://infrared.city/docs/sdk/1.0/python/models/index.md).
+Docs: guide chapter "Your inputs" (<https://infrared.city/docs/sdk/sdk.md>),
+[Layers (weather)](https://infrared.city/docs/sdk/latest/python/layers/),
+[Models](https://infrared.city/docs/sdk/latest/python/models/).
 
 ## Time period
 
@@ -43,7 +43,7 @@ year = TimePeriod(start_month=1, start_day=1, start_hour=0,
 
 Two sources. Both give hourly rows.
 
-1. The public catalog: 16,757 stations, one typical year each (TMYx). It has no forecast,
+1. The public catalog: about 16,800 stations (16,757 on 2026-09-08), one typical year each. It has no forecast,
    no future climate and no single year that you choose.
 2. Your own `.epw` file: `parse_epw("site.epw")`. It needs hourly data, 8760 rows.
    The SDK reads it on your machine. Nothing uploads as a file.

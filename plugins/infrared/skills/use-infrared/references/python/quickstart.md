@@ -4,7 +4,7 @@ Install, set the key, run one analysis on your own building, read the result.
 This page shows the shape of the code. For each call, the docs page has the full detail.
 
 - Guide: <https://infrared.city/docs/sdk/> (one file: <https://infrared.city/docs/sdk/sdk.md>)
-- Client reference: <https://infrared.city/docs/sdk/1.0/python/sdk/index.md>
+- Client reference: <https://infrared.city/docs/sdk/latest/python/sdk/>
 
 ## Install and key
 
@@ -44,7 +44,7 @@ client = InfraredClient()
 # 4. The request. Sky view factor needs no weather and no time period.
 request = SvfModelRequest(analysis_type=AnalysesName.sky_view_factors)
 
-# 5. Preview first. It is free and local: it sends no job.
+# 5. Preview first. It is free: it sends no job.
 preview = client.preview_area(polygon, payload=request)
 print(preview.would_bill_jobs, preview.estimated_cost_tokens)
 

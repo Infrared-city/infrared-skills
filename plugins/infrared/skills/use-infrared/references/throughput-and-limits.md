@@ -36,7 +36,7 @@ more, because wind tiles step 256 m.
   on the same site share one upload of the geometry.
 - Facade runs bill per batch of buildings, not per tile. Use
   `previewAreaBatches` (TypeScript) or `preview_area` (Python). Both are
-  free and local.
+  free: they send no job.
 
 ## How tokens scale
 
