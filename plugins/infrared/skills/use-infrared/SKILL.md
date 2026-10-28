@@ -34,6 +34,8 @@ Read [geospatial-crs](references/geospatial-crs.md) before a job, [grid-conventi
 | SketchUp, Blender or other CAD | Ruby or Python, same API | [sketchup-plugin](references/recipes/sketchup-plugin.md), [blender](references/recipes/blender.md) |
 | Upload your own data to the platform (no code) | none | [platform-byo-upload](references/platform-byo-upload.md) |
 
+For a city twin, read [twin-price](references/recipes/twin-price.md) for the free price.
+
 Every row: read [building-fast-apps](references/building-fast-apps.md) for speed.
 ## Concepts and guidance
 
