@@ -87,7 +87,9 @@ def read_location(
 
     if (lat is None) != (lon is None):
         raise ValueError("Give both lat and lon, or neither.")
-    angle = float(doc.ActiveProjectLocation.GetProjectPosition(XYZ.Zero).Angle)
+    if doc.IsFamilyDocument:
+        raise ValueError("The open document is a family. Open a project (.rvt) and run again.")
+    angle = float(_project_location(doc).GetProjectPosition(XYZ.Zero).Angle)
     if lat is not None and lon is not None:
         source = "override"
     else:
@@ -101,6 +103,24 @@ def read_location(
     if not (-90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0):
         raise ValueError("lat/lon out of range: %.5f, %.5f" % (lat, lon))
     return SiteLocation(float(lon), float(lat), angle, source)
+
+
+def _project_location(doc: object) -> object:
+    """The active project location, else the first one in the project.
+
+    ``doc.ActiveProjectLocation`` can be None (seen in Revit 2026 through
+    Dynamo). A project normally holds at least one ``ProjectLocation``.
+    """
+    import clr  # type: ignore
+    from Autodesk.Revit.DB import FilteredElementCollector, ProjectLocation  # type: ignore
+
+    active = doc.ActiveProjectLocation
+    if active is not None:
+        return active
+    collector = FilteredElementCollector(doc).OfClass(clr.GetClrType(ProjectLocation))
+    for location in collector:
+        return location
+    raise ValueError("The project has no location. Set one in Manage > Location and run again.")
 
 
 def internal_ft_to_site_m(xyz_ft: Sequence[float], true_north_rad: float) -> np.ndarray:

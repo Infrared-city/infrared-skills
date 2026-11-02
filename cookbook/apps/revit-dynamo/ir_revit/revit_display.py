@@ -1,12 +1,11 @@
-"""Show a result in the ACTIVE Revit view with the Analysis Visualization Framework (AVF).
+"""Show a result in Revit as a coloured surface (a DirectShape in the model).
 
-Both results are drawn as coloured points (no face reference):
+* ground: one square per grid cell, a little above the ground;
+* facades: one triangle per result triangle, a little out of the wall.
 
-* ground: one point at the centre of each grid cell;
-* facades (v1): one point at the centre of each result triangle.
-
-Revit draws them as markers with one legend (title and unit of the result).
-The legend range is the range of the data: Revit takes it from the values.
+Each colour bin is one material, "Infrared 01" .. "Infrared 10" (low -> high).
+The shape stays in the model (it is "baked"); the next run replaces it. Look at
+it in a Shaded or Realistic 3D view. The legend is in the Watch node text.
 
 Dynamo wraps a node run in a transaction. This file asks Dynamo's
 ``TransactionManager`` for it.
@@ -14,142 +13,88 @@ Dynamo wraps a node run in a transaction. This file asks Dynamo's
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Sequence, Tuple
+from typing import Any, Dict, List
 
 import numpy as np
 
-from . import revit_location
+from . import result_mesh, revit_location
 
-SCHEMA_NAME = "Infrared"
-STYLE_NAME = "Infrared"
-POINTS_PER_PRIMITIVE = 5000
-MARKER_SIZE = 6.0  # points on screen
-
-
-def _supported_view_types() -> List[Any]:
-    from Autodesk.Revit.DB import ViewType  # type: ignore
-
-    return [
-        ViewType.ThreeD,
-        ViewType.FloorPlan,
-        ViewType.CeilingPlan,
-        ViewType.EngineeringPlan,
-        ViewType.AreaPlan,
-        ViewType.Elevation,
-        ViewType.Section,
-    ]
+SHAPE_NAME = "Infrared result"
+APP_ID = "Infrared Dynamo"
+MATERIAL_PREFIX = "Infrared "
 
 
-def check_view(view: Any) -> str:
-    """An empty text if AVF can draw in this view, else the reason (for the user)."""
-    if view is None:
-        return "There is no active view."
-    if view.ViewType not in _supported_view_types():
-        return (
-            "The active view is a %s. Open a 3D view or a plan, section or "
-            "elevation view and run again." % view.ViewType
-        )
-    return ""
-
-
-def point_set(result: Dict[str, Any]) -> Tuple[np.ndarray, np.ndarray]:
-    """The points (flat x, y, z in the Revit frame, metres) and the values of a result.
-
-    Facade triangles give the centre of each triangle (v1).
-    """
-    if result["kind"] == "points":
-        points = np.asarray(result["points"], dtype=np.float64).reshape(-1)
-    else:
-        corners = np.asarray(result["triangles"], dtype=np.float64).reshape(-1, 3, 3)
-        points = corners.mean(axis=1).reshape(-1)
-    return points, np.asarray(result["values"], dtype=np.float64)
-
-
-def _display_style(doc: Any) -> Any:
-    """Create the "Infrared" analysis display style: marker points and a legend."""
+def _materials(doc: Any) -> List[Any]:
+    """The bin materials (created once, colours refreshed). Returns their ids."""
     import clr  # type: ignore
+    from Autodesk.Revit.DB import Color, FilteredElementCollector, Material  # type: ignore
+
+    known = {
+        m.Name: m
+        for m in list(FilteredElementCollector(doc).OfClass(clr.GetClrType(Material)))
+    }
+    ids = []
+    for k, rgb in enumerate(result_mesh.bin_colors()):
+        name = "%s%02d" % (MATERIAL_PREFIX, k + 1)
+        material = known.get(name)
+        if material is None:
+            material = doc.GetElement(Material.Create(doc, name))
+        material.Color = Color(*rgb)
+        ids.append(material.Id)
+    return ids
+
+
+def _delete_old_shapes(doc: Any) -> int:
+    import clr  # type: ignore
+    from Autodesk.Revit.DB import DirectShape, FilteredElementCollector  # type: ignore
+
+    # Copy to a list first: deleting while the collector runs breaks the iterator.
+    shapes = list(FilteredElementCollector(doc).OfClass(clr.GetClrType(DirectShape)))
+    old = [s.Id for s in shapes if s.ApplicationId == APP_ID]
+    for element_id in old:
+        doc.Delete(element_id)
+    return len(old)
+
+
+def _build_shape(doc: Any, feet: np.ndarray, bins: np.ndarray, material_ids: List[Any]) -> Any:
+    """One DirectShape with all triangles; each face takes the material of its bin."""
     from Autodesk.Revit.DB import (  # type: ignore
-        AnalysisDisplayColorSettings,
-        AnalysisDisplayLegendSettings,
-        AnalysisDisplayMarkersAndTextSettings,
-        AnalysisDisplayStyle,
-        AnalysisDisplayStyleMarkerType,
-        Color,
-        FilteredElementCollector,
+        BuiltInCategory,
+        DirectShape,
+        ElementId,
+        TessellatedFace,
+        TessellatedShapeBuilder,
+        TessellatedShapeBuilderFallback,
+        TessellatedShapeBuilderTarget,
+        XYZ,
     )
-
-    style_type = clr.GetClrType(AnalysisDisplayStyle)
-    for old in FilteredElementCollector(doc).OfClass(style_type):
-        if old.Name == STYLE_NAME:
-            doc.Delete(old.Id)  # create it fresh: no guessing which setter exists
-    markers = AnalysisDisplayMarkersAndTextSettings()
-    markers.MarkerType = AnalysisDisplayStyleMarkerType.Circle
-    markers.MarkerSize = MARKER_SIZE
-    markers.ShowText = False
-    colors = AnalysisDisplayColorSettings()
-    colors.MinColor = Color(0, 0, 255)  # blue = low
-    colors.MaxColor = Color(255, 0, 0)  # red = high
-    legend = AnalysisDisplayLegendSettings()
-    legend.NumberOfSteps = 10
-    legend.ShowLegend = True
-    legend.ShowDataDescription = True
-    return AnalysisDisplayStyle.CreateAnalysisDisplayStyle(
-        doc, STYLE_NAME, markers, colors, legend
-    )
-
-
-def _schema_index(sfm: Any, title: str, unit: str) -> int:
-    """Register the result schema (legend title and unit). Return its index."""
-    from Autodesk.Revit.DB.Analysis import AnalysisResultSchema  # type: ignore
-    from System import Double, String  # type: ignore
     from System.Collections.Generic import List as NetList  # type: ignore
 
-    schema = AnalysisResultSchema("%s - %s" % (SCHEMA_NAME, title), unit)
-    names = NetList[String]()
-    names.Add(unit)
-    multipliers = NetList[Double]()
-    multipliers.Add(1.0)
-    schema.SetUnits(names, multipliers)
-    for index, known in dict(sfm.GetRegisteredResults()).items():
-        if known.Name == schema.Name:
-            sfm.SetResultSchema(index, schema)
-            return int(index)
-    return int(sfm.RegisterResult(schema))
-
-
-def _add_points(
-    sfm: Any, schema_index: int, feet: np.ndarray, values: Sequence[float]
-) -> None:
-    from Autodesk.Revit.DB import XYZ  # type: ignore
-    from Autodesk.Revit.DB.Analysis import (  # type: ignore
-        FieldDomainPointsByXYZ,
-        FieldValues,
-        ValueAtPoint,
-    )
-    from System import Double  # type: ignore
-    from System.Collections.Generic import List as NetList  # type: ignore
-
-    xyz = feet.reshape(-1, 3)
-    step = POINTS_PER_PRIMITIVE
-    for start in range(0, len(xyz), step):
-        points = NetList[XYZ]()
-        at_points = NetList[ValueAtPoint]()
-        for row, value in zip(xyz[start : start + step], values[start : start + step]):
-            points.Add(XYZ(float(row[0]), float(row[1]), float(row[2])))
-            one = NetList[Double]()
-            one.Add(float(value))
-            at_points.Add(ValueAtPoint(one))
-        primitive = sfm.AddSpatialFieldPrimitive()  # no face: points in space
-        sfm.UpdateSpatialFieldPrimitive(
-            primitive,
-            FieldDomainPointsByXYZ(points),
-            FieldValues(at_points),
-            schema_index,
-        )
+    builder = TessellatedShapeBuilder()
+    builder.OpenConnectedFaceSet(False)
+    for tri, k in zip(feet, bins):
+        corners = NetList[XYZ]()
+        for p in tri:
+            corners.Add(XYZ(float(p[0]), float(p[1]), float(p[2])))
+        builder.AddFace(TessellatedFace(corners, material_ids[int(k)]))
+    builder.CloseConnectedFaceSet()
+    builder.Target = TessellatedShapeBuilderTarget.Mesh
+    builder.Fallback = TessellatedShapeBuilderFallback.Salvage
+    builder.Build()
+    built = builder.GetBuildResult()
+    shape = DirectShape.CreateElement(doc, ElementId(BuiltInCategory.OST_GenericModel))
+    shape.ApplicationId = APP_ID  # how the next run finds and replaces it
+    shape.ApplicationDataId = "result"
+    shape.SetShape(built.GetGeometricalObjects())
+    try:
+        shape.Name = SHAPE_NAME  # shown in Properties; not every Revit allows it
+    except Exception:
+        pass
+    return shape
 
 
 def show(result: Dict[str, Any], title: str, unit: str, true_north_rad: float) -> str:
-    """Draw the result in the active view. Return one line for the user.
+    """Draw the result as a coloured surface. Return the text for the Watch node.
 
     Parameters
     ----------
@@ -158,39 +103,31 @@ def show(result: Dict[str, Any], title: str, unit: str, true_north_rad: float) -
     title, unit : str
         Legend title and unit.
     true_north_rad : float
-        The angle that ``revit_geometry`` used. The points are turned back with it.
+        The angle that ``revit_geometry`` used. The shape is turned back with it.
     """
-    from Autodesk.Revit.DB.Analysis import SpatialFieldManager  # type: ignore
     from RevitServices.Persistence import DocumentManager  # type: ignore
     from RevitServices.Transactions import TransactionManager  # type: ignore
 
-    doc = DocumentManager.Instance.CurrentDBDocument
-    view = doc.ActiveView
-    problem = check_view(view)
-    if problem:
-        return problem
-    metres, values = point_set(result)
-    if values.size == 0:
+    if len(result["values"]) == 0:
         return "The result has no values to show."
-    feet = revit_location.site_m_to_internal_ft(metres, true_north_rad)
+    tri_m, bins = result_mesh.coloured_triangles(result)
+    feet = revit_location.site_m_to_internal_ft(tri_m.reshape(-1), true_north_rad)
+    feet = feet.reshape(-1, 3, 3)
+    doc = DocumentManager.Instance.CurrentDBDocument
     TransactionManager.Instance.EnsureInTransaction(doc)
     try:
-        sfm = SpatialFieldManager.GetSpatialFieldManager(view)
-        if sfm is None:
-            sfm = SpatialFieldManager.CreateSpatialFieldManager(view, 1)
-        sfm.Clear()
-        index = _schema_index(sfm, title, unit)
-        _add_points(sfm, index, feet, values)
-        view.AnalysisDisplayStyleId = _display_style(doc).Id
-    except Exception:
+        removed = _delete_old_shapes(doc)
+        shape = _build_shape(doc, feet, bins, _materials(doc))
+    except Exception as error:
         TransactionManager.Instance.ForceCloseTransaction()
-        raise
+        return "Display failed: %s (%d triangles)" % (error, len(feet))
     TransactionManager.Instance.TransactionTaskDone()
-    return "Showed %d points in view '%s': %s (%s), %.3g to %.3g." % (
-        values.size,
-        view.Name,
-        title,
-        unit,
-        float(values.min()),
-        float(values.max()),
-    )
+    low, high = result["legend_min"], result["legend_max"]
+    lines = [
+        "Showed %s (%s) as %d triangles, element %s (replaced %d old). "
+        "Use a Shaded or Realistic 3D view." % (title, unit, len(feet), shape.Id, removed),
+        "Legend (material: value range):",
+    ]
+    if low is not None and high is not None:
+        lines += result_mesh.legend_lines(float(low), float(high), unit)
+    return "\n".join(lines)

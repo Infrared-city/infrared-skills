@@ -8,10 +8,43 @@ only joins them.
 
 from __future__ import annotations
 
+import datetime
+import json
 import math
-from typing import Any, List, Optional
+import os
+import traceback
+from typing import Any, Dict, List, Optional
 
 from . import revit_apikey, revit_display, revit_geometry, revit_location
+
+# Dynamo keeps the Watch text nowhere. Each run writes its lines here, so the
+# user (or a helper) can read the last run. The API key is never in these lines.
+LOG_FILE = os.path.join(os.path.expanduser("~"), ".infrared", "revit-dynamo-runs.log")
+LAST_RESULT_FILE = os.path.join(
+    os.path.expanduser("~"), ".infrared", "revit-dynamo-last-result.json"
+)
+SHOW_LAST = "show-last"
+
+
+def _log(lines: List[str]) -> None:
+    try:
+        os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
+        stamp = datetime.datetime.now().isoformat(timespec="seconds")
+        with open(LOG_FILE, "a", encoding="utf-8") as handle:
+            handle.write("=== %s\n%s\n" % (stamp, "\n".join(lines)))
+    except OSError:
+        pass  # a log that cannot be written must not stop the run
+
+
+def run(*args: Any, **kwargs: Any) -> List[str]:
+    """See ``_run``. Writes the returned lines (or the traceback) to ``LOG_FILE``."""
+    try:
+        lines = _run(*args, **kwargs)
+    except Exception:
+        _log(["Unexpected error:", traceback.format_exc()])
+        raise
+    _log(lines)
+    return lines
 
 
 def _optional_float(value: Any, name: str) -> Optional[float]:
@@ -24,7 +57,7 @@ def _optional_float(value: Any, name: str) -> Optional[float]:
         raise ValueError("%s must be a number, for example 48.208." % name)
 
 
-def run(
+def _run(
     surface: str,
     elements: Any,
     analysis: str,
@@ -75,6 +108,8 @@ def run(
         if revit_apikey.ask_and_save():
             return ["API key saved. Set set_api_key to False and run again."]
         return ["No key saved."]
+    if str(analysis).strip().lower() == SHOW_LAST:
+        return _show_last()
     try:
         env.setup()
         doc = DocumentManager.Instance.CurrentDBDocument
@@ -108,9 +143,35 @@ def run(
         return ["Error: %s" % error]
     lines += [out["status"]] + notes + list(out["warnings"])
     if out["ran"]:
-        lines.append(
-            revit_display.show(
-                out["result"], out["title"], out["unit"], site.true_north_rad
-            )
-        )
+        shown = {
+            "result": out["result"],
+            "title": out["title"],
+            "unit": out["unit"],
+            "true_north_rad": site.true_north_rad,
+        }
+        _save_last(shown)  # a paid result is kept: "show-last" draws it again for free
+        lines.append(_show(shown))
     return lines
+
+
+def _save_last(shown: Dict[str, Any]) -> None:
+    try:
+        with open(LAST_RESULT_FILE, "w", encoding="utf-8") as handle:
+            json.dump(shown, handle)
+    except (OSError, TypeError, ValueError):
+        pass
+
+
+def _show(shown: Dict[str, Any]) -> str:
+    return revit_display.show(
+        shown["result"], shown["title"], shown["unit"], shown["true_north_rad"]
+    )
+
+
+def _show_last() -> List[str]:
+    """Draw the last paid result again, without a new run (analysis = "show-last")."""
+    if not os.path.isfile(LAST_RESULT_FILE):
+        return ["There is no saved result yet. Run an analysis first."]
+    with open(LAST_RESULT_FILE, "r", encoding="utf-8") as handle:
+        shown = json.load(handle)
+    return ["Showing the last saved result (no new run).", _show(shown)]

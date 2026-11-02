@@ -12,6 +12,23 @@ KEY_ENV = "INFRARED_API_KEY"
 KEY_FILE = os.path.join(os.path.expanduser("~"), ".infrared", "api_key.txt")
 
 
+class _FlushableStream:
+    """Wraps a stream that has write() but no flush() (Dynamo's stdout)."""
+
+    def __init__(self, stream: object) -> None:
+        self._stream = stream
+
+    def write(self, text: str) -> int:
+        self._stream.write(text)
+        return len(text)
+
+    def flush(self) -> None:
+        pass
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self._stream, name)
+
+
 def setup(libs_dir: Optional[str] = None) -> str:
     """Put the libs folder first on ``sys.path`` and import the SDK.
 
@@ -31,6 +48,12 @@ def setup(libs_dir: Optional[str] = None) -> str:
     RuntimeError
         When the SDK is missing or is not the pinned version.
     """
+    # Dynamo has no console, and its stdout object has no flush(): the SDK's
+    # progress lines (print(..., flush=True)) raise AttributeError there.
+    # Status reaches the user through on_status and the Watch node instead.
+    os.environ["INFRARED_QUIET"] = "1"
+    if not hasattr(sys.stdout, "flush"):
+        sys.stdout = _FlushableStream(sys.stdout)
     if libs_dir:
         if libs_dir in sys.path:
             sys.path.remove(libs_dir)
