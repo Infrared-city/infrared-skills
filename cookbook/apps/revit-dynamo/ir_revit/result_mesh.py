@@ -4,49 +4,20 @@
   with its corners on the terrain when the result has ``corner_z``;
 * facades: each result triangle, moved a little out of the wall.
 
-The values are put into ``BINS`` colour bins between the legend min and max.
+The colour bin of each value comes from ``ir_dynamo.colors.Legend`` (the platform
+colours of the SDK colour registry).
 """
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, Optional, Sequence, Tuple
 
 import numpy as np
 
-BINS = 10
-# Low -> high (viridis stops). The bin colours are blends of these.
-GRADIENT = [(68, 1, 84), (59, 82, 139), (33, 145, 140), (94, 201, 98), (253, 231, 37)]
+from ir_dynamo.colors import Legend
+
 GROUND_LIFT_M = 0.05  # above the ground, so the colours do not mix with a floor
 FACADE_OFFSET_M = 0.05  # out of the wall, for the same reason
-
-
-def bin_colors(count: int = BINS) -> List[Tuple[int, int, int]]:
-    """``count`` colours from low to high, blended from ``GRADIENT``."""
-    stops = np.asarray(GRADIENT, dtype=np.float64)
-    where = np.linspace(0.0, len(stops) - 1.0, count)
-    low = np.floor(where).astype(int).clip(0, len(stops) - 2)
-    part = (where - low)[:, None]
-    rgb = stops[low] * (1.0 - part) + stops[low + 1] * part
-    return [tuple(int(round(c)) for c in row) for row in rgb]
-
-
-def bin_index(values: np.ndarray, low: float, high: float, count: int = BINS) -> np.ndarray:
-    """The bin (0 .. count-1) of each value. Values outside [low, high] go to the end bins."""
-    if not high > low:
-        return np.zeros(values.shape, dtype=int)
-    scaled = (values - low) / (high - low) * count
-    return np.clip(np.floor(scaled), 0, count - 1).astype(int)
-
-
-def legend_lines(low: float, high: float, unit: str, count: int = BINS) -> List[str]:
-    """One line per bin: its number, colour and value range."""
-    edges = np.linspace(low, high, count + 1)
-    colors = bin_colors(count)
-    return [
-        "  Infrared %02d  rgb%s  %.3g .. %.3g %s"
-        % (k + 1, colors[k], edges[k], edges[k + 1], unit)
-        for k in range(count)
-    ]
 
 
 def ground_triangles(
@@ -100,13 +71,13 @@ def facade_triangles(triangles: Sequence[float]) -> np.ndarray:
     return tri + FACADE_OFFSET_M * normal[:, None, :]
 
 
-def coloured_triangles(result: Dict[str, Any]) -> Tuple[np.ndarray, np.ndarray]:
-    """Triangles ``(m, 3, 3)`` in Revit-frame metres and the bin of each one."""
-    values = np.asarray(result["values"], dtype=np.float64)
-    low, high = result["legend_min"], result["legend_max"]
-    if low is None or high is None:
-        low, high = float(np.nanmin(values)), float(np.nanmax(values))
-    bins = bin_index(values, float(low), float(high))
+def coloured_triangles(result: Dict[str, Any], legend: Legend) -> Tuple[np.ndarray, np.ndarray]:
+    """Triangles ``(m, 3, 3)`` in Revit-frame metres and the legend bin of each one.
+
+    A value without a bin (NaN) gets the first bin; results do not carry NaN
+    (``ir_dynamo.results`` leaves such cells out).
+    """
+    bins = np.maximum(legend.bin_of(result["values"]), 0)
     if result["kind"] == "points":
         tri = ground_triangles(result["points"], result["cell_m"], result.get("corner_z"))
         return tri, np.repeat(bins, 2)

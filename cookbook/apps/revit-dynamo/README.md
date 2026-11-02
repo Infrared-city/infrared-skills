@@ -85,7 +85,7 @@ Leave `lat` and `lon` empty to use the project location.
 3. Select your buildings in Revit. In Dynamo, click "Select Model Elements" and
    press Select. Walls, floors, roofs, masses and families all work.
 4. Set `target` (`ground`, `facades` or `both`) and `analysis` (a label from the table above, or `show-last`).
-5. Set `months` (for example `6-8`) and `hours` (for example `8-18`).
+5. Set `months` (for example `6-8`) and `hours` (for example `8-18`, or one hour like `13`).
 6. Keep `preview_only` at `True`. Press Run. The Watch node shows the number
    of tiles, jobs and tokens.
 7. Set `preview_only` to `False`. Press Run again. This spends tokens.
@@ -145,3 +145,7 @@ legend for each target.
 | `dynamo/` | `IR_Analysis.dyn`. Its Python node has a few lines and calls `ir_revit.entry.run`. |
 | `build_libs.py` | Builds the libs zip for Python 3.9 on Windows x64. |
 | `tests/` | pytest tests for `ir_dynamo`. |
+
+## Colours
+
+The result uses the colours of the Infrared platform, read from the SDK colour registry (free, cached). Each distinct colour is one Revit material, for example `Infrared svf 01`; the Watch text lists material, rgb, value range and unit. UTCI and wind speed have a fixed registry range and a few flat colours; the other analyses use the range of the result and are shown in 10 bins with the platform colours. If the registry cannot be reached, built-in colours are used and the Watch text says so.

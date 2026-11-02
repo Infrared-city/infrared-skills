@@ -4,22 +4,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from ir_dynamo.colors import Legend
 from ir_revit import result_mesh as rm
-
-
-def test_bins_cover_the_range_and_clip_outside_values() -> None:
-    values = np.array([-5.0, 0.0, 9.99, 10.0, 50.0, 100.0, 200.0])
-    assert rm.bin_index(values, 0.0, 100.0).tolist() == [0, 0, 0, 1, 5, 9, 9]
-
-
-def test_flat_range_goes_to_the_first_bin() -> None:
-    assert rm.bin_index(np.array([3.0, 3.0]), 3.0, 3.0).tolist() == [0, 0]
-
-
-def test_bin_colors_run_from_the_first_to_the_last_stop() -> None:
-    colors = rm.bin_colors()
-    assert len(colors) == rm.BINS
-    assert colors[0] == rm.GRADIENT[0] and colors[-1] == rm.GRADIENT[-1]
 
 
 def test_ground_cell_becomes_two_triangles_covering_the_cell() -> None:
@@ -40,6 +26,8 @@ def test_facade_triangles_move_away_from_the_centre() -> None:
 
 
 def test_coloured_triangles_repeat_the_ground_bin_per_cell() -> None:
+    ramp = np.linspace(0.0, 100.0, 101)
+    legend = Legend("x", [], ramp, np.minimum(np.arange(101) // 10, 9), "registry")
     result = {
         "kind": "points",
         "points": [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]],
@@ -48,6 +36,6 @@ def test_coloured_triangles_repeat_the_ground_bin_per_cell() -> None:
         "legend_min": 0.0,
         "legend_max": 100.0,
     }
-    tri, bins = rm.coloured_triangles(result)
+    tri, bins = rm.coloured_triangles(result, legend)
     assert tri.shape == (4, 3, 3)
     assert bins.tolist() == [0, 0, 9, 9]

@@ -10,6 +10,7 @@ from boxes import box_soup
 
 from ir_dynamo import frame, meshes, payloads, results, run, settings
 from ir_dynamo import terrain as tm
+from ir_dynamo.colors import Legend
 from ir_revit import result_mesh as rm
 
 
@@ -87,7 +88,8 @@ def test_coloured_triangles_pass_corner_z_through() -> None:
         "legend_max": 2.0,
         "corner_z": [[0.0, 1.0, 2.0, 3.0]],
     }
-    tri, _ = rm.coloured_triangles(result)
+    legend = Legend("x", [], np.array([0.0, 2.0]), np.array([0, 0]), "fallback")
+    tri, _ = rm.coloured_triangles(result, legend)
     assert tri[1, 2, 2] == pytest.approx(3.05)
 
 

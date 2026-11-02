@@ -12,10 +12,11 @@ import datetime
 import json
 import math
 import os
+import time
 import traceback
 from typing import Any, Dict, List, Optional
 
-from ir_dynamo import targets
+from ir_dynamo import settings, targets
 
 from . import revit_apikey, revit_display, revit_geometry, revit_location
 
@@ -38,8 +39,29 @@ def _log(lines: List[str]) -> None:
         pass  # a log that cannot be written must not stop the run
 
 
+_START = [0.0]
+
+
+def _progress(text: str) -> None:
+    """One live line in ``LOG_FILE`` with the seconds since the run started.
+
+    The Watch node shows text only at the end; this shows where a slow run is.
+    """
+    try:
+        os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
+        with open(LOG_FILE, "a", encoding="utf-8") as handle:
+            handle.write(
+                "  ... %s +%.1f s: %s\n"
+                % (datetime.datetime.now().strftime("%H:%M:%S"), time.time() - _START[0], text)
+            )
+    except OSError:
+        pass
+
+
 def run(*args: Any, **kwargs: Any) -> List[str]:
     """See ``_run``. Writes the returned lines (or the traceback) to ``LOG_FILE``."""
+    _START[0] = time.time()
+    _progress("run started")
     try:
         lines = _run(*args, **kwargs)
     except Exception:
@@ -121,8 +143,13 @@ def _run(
         site = revit_location.read_location(
             doc, _optional_float(lat, "lat"), _optional_float(lon, "lon")
         )
+        _progress("reading geometry from Revit")
         buildings, terrain, notes = revit_geometry.collect_scene(
             doc, elements, site.true_north_rad
+        )
+        _progress(
+            "geometry read: %d building(s) with %d triangles, %d terrain element(s)"
+            % (len(buildings), sum(len(v) for v in buildings.values()) // 9, len(terrain))
         )
         if not buildings:
             return [
@@ -138,6 +165,7 @@ def _run(
         return ["Error: %s" % error]
     outs: Dict[str, Dict[str, Any]] = {}
     for surface in to_run:
+        _progress("%s: preparing and sending" % surface)
         try:
             outs[surface] = run_analysis(
                 surface,
@@ -153,7 +181,9 @@ def _run(
                 wind_speed=float(wind_speed),
                 wind_direction=int(round(float(wind_direction))),
                 surfaces=surfaces,
+                on_status=lambda text, s=surface: _progress("%s: %s" % (s, text)),
             )
+            _progress("%s: done" % surface)
         except (ValueError, RuntimeError) as error:
             # A failed second target must not hide a first one that was paid for.
             lines.append("Error on %s: %s" % (surface, error))
@@ -173,6 +203,7 @@ def _run(
                     "result": out["result"],
                     "title": out["title"],
                     "unit": out["unit"],
+                    "analysis_type": out["analysis_type"],
                     "true_north_rad": site.true_north_rad,
                 }
             )
@@ -196,12 +227,15 @@ def _save_last(entries: List[Dict[str, Any]]) -> None:
 
 
 def _show(entry: Dict[str, Any]) -> str:
+    _progress("%s: drawing %d values in Revit" % (entry["target"], len(entry["result"]["values"])))
     return revit_display.show(
         entry["result"],
         entry["title"],
         entry["unit"],
         entry["true_north_rad"],
         entry["target"],
+        # Files saved before the colour registry have no analysis_type: use the title.
+        entry.get("analysis_type") or settings.sdk_type_of_title(entry.get("title", "")),
     )
 
 

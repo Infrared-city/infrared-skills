@@ -140,6 +140,7 @@ def run_analysis(
     -------
     dict
         ``status`` (text), ``cost`` (text), ``tokens`` (int, the estimate), ``ran`` (bool), ``title``, ``unit``,
+        ``analysis_type`` (the SDK name, for the colours),
         ``warnings`` (list of text), and ``result``: ``None`` after a preview, else
         the dict of ``results.ground_points`` or ``results.facade_triangles``
         (``kind``, geometry, ``values``, ``legend_min``, ``legend_max``).
@@ -204,6 +205,7 @@ def run_analysis(
         out: Dict[str, Any] = {
             "title": row.title,
             "unit": row.unit,
+            "analysis_type": row.sdk_type,
             "cost": cost,
             "tokens": int(preview.estimated_cost_tokens),
             "warnings": warnings,

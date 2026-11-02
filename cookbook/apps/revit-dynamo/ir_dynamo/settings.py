@@ -116,6 +116,14 @@ ALIASES = {
 }
 
 
+def sdk_type_of_title(title: str) -> str:
+    """The SDK analysis type of an analysis title (old saved results have a title only).
+
+    Returns ``""`` when no row has that title.
+    """
+    return next((a.sdk_type for a in ANALYSES.values() if a.title == title), "")
+
+
 def valid_labels(surface: str) -> List[str]:
     """The labels that run on ``surface`` (``"ground"`` or ``"facades"``)."""
     return [k for k, a in ANALYSES.items() if getattr(a, surface)]
@@ -177,11 +185,14 @@ def parse_months(text: str) -> Tuple[int, int]:
 
 
 def parse_hours(text: str) -> Tuple[int, int]:
-    """Parse ``"9-17"`` or ``"9 - 17"``. Returns ``(start_hour, end_hour)``, 0-23."""
+    """Parse ``"9-17"``, ``"9 - 17"`` or one hour ``"13"`` (= ``(13, 13)``).
+
+    Returns ``(start_hour, end_hour)``, 0-23.
+    """
     parts = [p for p in _RANGE.split(str(text).strip()) if p]
-    if len(parts) != 2 or not all(p.isdigit() for p in parts):
-        raise ValueError("Hours %r: write a range like 9-17." % (text,))
-    start, end = int(parts[0]), int(parts[1])
+    if len(parts) not in (1, 2) or not all(p.isdigit() for p in parts):
+        raise ValueError("Hours %r: write a range like 9-17, or one hour like 13." % (text,))
+    start, end = int(parts[0]), int(parts[-1])
     if not (0 <= start <= 23 and 0 <= end <= 23) or start > end:
         raise ValueError("Hours %r: use 0-23 and start before end." % (text,))
     return start, end

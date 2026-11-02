@@ -47,7 +47,7 @@ def test_bad_months(text: str) -> None:
 
 def test_hours() -> None:
     assert s.parse_hours("9 - 17") == (9, 17)
-    for bad in ["9", "17-9", "9-24", "a-b"]:
+    for bad in ["17-9", "9-24", "a-b"]:
         with pytest.raises(ValueError):
             s.parse_hours(bad)
 

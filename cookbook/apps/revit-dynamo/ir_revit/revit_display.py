@@ -3,7 +3,8 @@
 * ground: one square per grid cell, a little above the ground;
 * facades: one triangle per result triangle, a little out of the wall.
 
-Each colour bin is one material, "Infrared 01" .. "Infrared 10" (low -> high).
+Each distinct colour of the platform colour scale is one material, named by
+analysis and bin, for example "Infrared svf 01" (low -> high).
 The shape stays in the model (it is "baked"); the next run of the same target
 (ground or facades) replaces it. Look at
 it in a Shaded or Realistic 3D view. The legend is in the Watch node text.
@@ -18,6 +19,8 @@ from typing import Any, Dict, List
 
 import numpy as np
 
+from ir_dynamo import colors
+
 from . import result_mesh, revit_location
 
 SHAPE_NAME = "Infrared result"
@@ -25,8 +28,8 @@ APP_ID = "Infrared Dynamo"
 MATERIAL_PREFIX = "Infrared "
 
 
-def _materials(doc: Any) -> List[Any]:
-    """The bin materials (created once, colours refreshed). Returns their ids."""
+def _materials(doc: Any, legend: colors.Legend) -> List[Any]:
+    """The bin materials of ``legend`` (reused by name, colours refreshed). Returns their ids."""
     import clr  # type: ignore
     from Autodesk.Revit.DB import Color, FilteredElementCollector, Material  # type: ignore
 
@@ -35,8 +38,9 @@ def _materials(doc: Any) -> List[Any]:
         for m in list(FilteredElementCollector(doc).OfClass(clr.GetClrType(Material)))
     }
     ids = []
-    for k, rgb in enumerate(result_mesh.bin_colors()):
-        name = "%s%02d" % (MATERIAL_PREFIX, k + 1)
+    for k, bin_ in enumerate(legend.bins):
+        rgb = bin_.rgb
+        name = colors.material_name(legend, k, MATERIAL_PREFIX.strip())
         material = known.get(name)
         if material is None:
             material = doc.GetElement(Material.Create(doc, name))
@@ -106,7 +110,12 @@ def _build_shape(
 
 
 def show(
-    result: Dict[str, Any], title: str, unit: str, true_north_rad: float, target: str
+    result: Dict[str, Any],
+    title: str,
+    unit: str,
+    true_north_rad: float,
+    target: str,
+    analysis_type: str = "",
 ) -> str:
     """Draw the result as a coloured surface. Return the text for the Watch node.
 
@@ -121,31 +130,36 @@ def show(
     target : str
         ``"ground"`` or ``"facades"``. The shape is tagged with it; a new shape
         replaces only the old shape of the same target.
+    analysis_type : str
+        The SDK analysis name; it picks the platform colours. Empty or unknown:
+        the built-in gradient, with a warning line.
     """
     from RevitServices.Persistence import DocumentManager  # type: ignore
     from RevitServices.Transactions import TransactionManager  # type: ignore
 
     if len(result["values"]) == 0:
         return "The result has no values to show."
-    tri_m, bins = result_mesh.coloured_triangles(result)
+    legend, warnings = colors.make_legend(
+        analysis_type, result["legend_min"], result["legend_max"]
+    )
+    tri_m, bins = result_mesh.coloured_triangles(result, legend)
     feet = revit_location.site_m_to_internal_ft(tri_m.reshape(-1), true_north_rad)
     feet = feet.reshape(-1, 3, 3)
     doc = DocumentManager.Instance.CurrentDBDocument
     TransactionManager.Instance.EnsureInTransaction(doc)
     try:
         removed = _delete_old_shapes(doc, target)
-        shape = _build_shape(doc, feet, bins, _materials(doc), target)
+        shape = _build_shape(doc, feet, bins, _materials(doc, legend), target)
     except Exception as error:
         TransactionManager.Instance.ForceCloseTransaction()
         return "Display failed: %s (%d triangles)" % (error, len(feet))
     TransactionManager.Instance.TransactionTaskDone()
-    low, high = result["legend_min"], result["legend_max"]
     lines = [
         "Showed %s on %s (%s) as %d triangles, element %s (replaced %d old %s shape(s)). "
         "Use a Shaded or Realistic 3D view."
         % (title, target, unit, len(feet), shape.Id, removed, target),
         "Legend for %s (material: value range):" % target,
     ]
-    if low is not None and high is not None:
-        lines += result_mesh.legend_lines(float(low), float(high), unit)
+    lines += colors.legend_lines(legend, unit, MATERIAL_PREFIX.strip())
+    lines += warnings
     return "\n".join(lines)
