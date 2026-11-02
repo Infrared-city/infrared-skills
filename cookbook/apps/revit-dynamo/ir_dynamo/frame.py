@@ -131,8 +131,8 @@ def grid_cell_m(bounds: Sequence[float], shape: Tuple[int, int]) -> Tuple[float,
     """Cell size (east-west, north-south), in SDK metres, of a ground grid.
 
     ``bounds`` is ``(min_lon, min_lat, max_lon, max_lat)`` of the grid and
-    ``shape`` is ``(rows, cols)``. The grid starts at the polygon SW corner,
-    so the metres of its box are the extent from the same origin.
+    ``shape`` is ``(rows, cols)``. The size is the metre extent of the bounds
+    box, from its own SW corner, divided by the number of cells.
     """
     min_lon, min_lat, max_lon, max_lat = bounds
     ring = [
@@ -146,3 +146,13 @@ def grid_cell_m(bounds: Sequence[float], shape: Tuple[int, int]) -> Tuple[float,
     width = max(p[0] for p in meters) - min(p[0] for p in meters)
     height = max(p[1] for p in meters) - min(p[1] for p in meters)
     return width / shape[1], height / shape[0]
+
+
+def grid_corner_sdk(frame: SiteFrame, bounds: Sequence[float]) -> Tuple[float, float]:
+    """The SW corner of a ground grid (its ``bounds``) in the SDK frame, in metres.
+
+    The kernel affine from a frame anchored at that corner to the SDK frame
+    moves the point (0, 0). Row 0 of the grid is the south edge.
+    """
+    shift = frame_affine(bounds[0], bounds[1], frame.origin_lon, frame.origin_lat)
+    return float(shift.shift_x), float(shift.shift_y)

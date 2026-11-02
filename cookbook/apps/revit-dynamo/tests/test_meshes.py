@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 from boxes import box_soup
+
 from ir_dynamo import frame, meshes
 
 
@@ -41,3 +42,16 @@ def test_context_overlapping_a_selected_building_is_dropped() -> None:
     far = {"coordinates": [50, 50, 0, 60, 60, 9], "indices": [0, 1, 0]}
     merged, added = meshes.merge_context(sel, {"n": near, "f": far})
     assert added == 1 and set(merged) == {"a", "ctx-f"}
+
+
+def test_context_accepts_sdk_dotbim_mesh_objects() -> None:
+    from infrared_sdk.buildings.types import DotBimMesh
+
+    sel = {"a": {"coordinates": [0, 0, 0, 10, 10, 5], "indices": [0, 1, 0]}}
+    far = DotBimMesh(mesh_id=7, coordinates=[50, 50, 0, 60, 60, 9], indices=[0, 1, 0])
+    merged, added = meshes.merge_context(sel, {"7": far})
+    assert added == 1
+    assert merged["ctx-7"] == {
+        "coordinates": [50, 50, 0, 60, 60, 9],
+        "indices": [0, 1, 0],
+    }

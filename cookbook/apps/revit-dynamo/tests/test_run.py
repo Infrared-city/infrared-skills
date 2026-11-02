@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 from boxes import box_soup
+
 from ir_dynamo import run
 
 SOUPS = {"b1": box_soup(-10, -10, 0, 20, 20, 15)}

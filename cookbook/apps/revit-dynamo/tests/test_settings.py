@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+
 from ir_dynamo import settings as s
 
 

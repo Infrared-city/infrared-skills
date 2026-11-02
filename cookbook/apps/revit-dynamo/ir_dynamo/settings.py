@@ -28,7 +28,7 @@ class Analysis:
     sdk_type : str
         The SDK ``analysis_type`` string.
     unit : str
-        Unit of the values. Empty for a ratio.
+        Unit of the values, as the public colour registry names it.
     ground, facades : bool
         Whether the analysis runs on the ground grid / on walls and roofs.
     needs_period : bool
@@ -53,7 +53,7 @@ class Analysis:
 ANALYSES: Dict[str, Analysis] = {
     a.key: a
     for a in [
-        Analysis("svf", "Sky view factor", "sky-view-factors", "", True, True),
+        Analysis("svf", "Sky view factor", "sky-view-factors", "%", True, True),
         Analysis(
             "solar",
             "Solar radiation",
@@ -77,7 +77,7 @@ ANALYSES: Dict[str, Analysis] = {
             "daylight",
             "Daylight availability",
             "daylight-availability",
-            "h",
+            "%",
             False,
             True,
             needs_period=True,

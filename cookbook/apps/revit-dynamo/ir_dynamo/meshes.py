@@ -8,7 +8,7 @@ triangles and turns the winding outward. This module only calls it.
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 import numpy as np
 from infrared_sdk.geometry import clean_mesh
@@ -98,18 +98,24 @@ def build_buildings(
     return buildings, float(z_offset), warnings
 
 
-def _xy_box(mesh: dict) -> Tuple[float, float, float, float]:
-    xyz = np.asarray(mesh["coordinates"], dtype=np.float64).reshape(-1, 3)
+def _field(mesh: Any, name: str) -> Any:
+    """A field of a mesh that is a dict or an SDK ``DotBimMesh``."""
+    return mesh[name] if isinstance(mesh, dict) else getattr(mesh, name)
+
+
+def _xy_box(mesh: Any) -> Tuple[float, float, float, float]:
+    xyz = np.asarray(_field(mesh, "coordinates"), dtype=np.float64).reshape(-1, 3)
     return xyz[:, 0].min(), xyz[:, 1].min(), xyz[:, 0].max(), xyz[:, 1].max()
 
 
 def merge_context(
-    selected: Dict[str, dict], fetched: Dict[str, dict]
+    selected: Dict[str, dict], fetched: Mapping[str, Any]
 ) -> Tuple[Dict[str, dict], int]:
     """Add fetched public buildings, except those that overlap a selected one.
 
-    The overlap test is a box test in x and y. Both inputs are in the SDK
-    frame. Returns ``(all_buildings, number_added)``.
+    ``fetched`` values may be dicts or SDK ``DotBimMesh`` objects (what
+    ``buildings.get_area`` returns). The overlap test is a box test in x and y.
+    Both inputs are in the SDK frame. Returns ``(all_buildings, number_added)``.
     """
     boxes = [_xy_box(m) for m in selected.values()]
     merged = dict(selected)
@@ -119,8 +125,8 @@ def merge_context(
         if any(x0 < b[2] and x1 > b[0] and y0 < b[3] and y1 > b[1] for b in boxes):
             continue
         merged["ctx-%s" % name] = {
-            "coordinates": list(mesh["coordinates"]),
-            "indices": list(mesh["indices"]),
+            "coordinates": list(_field(mesh, "coordinates")),
+            "indices": list(_field(mesh, "indices")),
         }
         added += 1
     return merged, added

@@ -20,12 +20,11 @@ from infrared_sdk.legend import legend_range
 
 from . import frame as frame_mod
 
-
-# Where a ground cell sits, in cells from its index. One live run (a 20 m box at
-# 5..25 m in the SDK frame, 1 m cells) left a hole in cells 6..25, so the cell
-# index i is at i - 0.5 m and not at i + 0.5 m. Checked on one run only: see the
-# README before you rely on it for a precise overlay.
-GROUND_CELL_CENTRE = -0.5
+# Measured offset of the cell grid, in cells. One live run (a 20 m box at 5..25 m
+# in the SDK frame, 1 m cells, bounds SW corner = polygon SW corner) left its hole
+# in cells 6..25, not 5..24: the cell centre is (index + 0.5 + GROUND_GRID_SHIFT)
+# cells from the corner. It rests on one run; the cause is not known.
+GROUND_GRID_SHIFT = -1.0
 
 
 def _legend(values: np.ndarray) -> Tuple[Optional[float], Optional[float]]:
@@ -43,8 +42,9 @@ def ground_points(
     cell_x, cell_y = frame_mod.grid_cell_m(result.bounds, (rows, cols))
     row, col = np.nonzero(np.isfinite(grid))  # row 0 is the south
     xyz = np.empty((row.size, 3), dtype=np.float64)
-    xyz[:, 0] = (col + GROUND_CELL_CENTRE) * cell_x
-    xyz[:, 1] = (row + GROUND_CELL_CENTRE) * cell_y
+    corner_x, corner_y = frame_mod.grid_corner_sdk(frame, result.bounds)
+    xyz[:, 0] = corner_x + (col + 0.5 + GROUND_GRID_SHIFT) * cell_x
+    xyz[:, 1] = corner_y + (row + 0.5 + GROUND_GRID_SHIFT) * cell_y
     xyz[:, 2] = 0.0
     moved = frame_mod.points_to_revit(frame, xyz.reshape(-1)).reshape(-1, 3)
     moved[:, 2] += z_offset

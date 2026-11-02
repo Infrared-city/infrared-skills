@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
+
 from ir_dynamo import frame, results
 
 F = frame.make_frame(16.371, 48.208, (-10.0, -10.0, 10.0, 10.0), 5.0)
@@ -77,3 +78,38 @@ def test_empty_legend_is_none() -> None:
     result = SimpleNamespace(physical_grid=lambda: grid, bounds=_bounds_for_cells(4))
     out = results.ground_points(F, result)
     assert out["points"] == [] and out["legend_min"] is None
+
+
+def test_saved_real_grid_leaves_a_hole_exactly_where_the_box_is() -> None:
+    """A crop of a real ground SVF grid (20 m box at 5..25 m, buffer 5 m, 1 m cells)."""
+    import os
+
+    crop = np.load(
+        os.path.join(os.path.dirname(__file__), "data", "ground_svf_crop.npy")
+    )
+    full = np.full((512, 512), np.nan)  # the bounds belong to the full 512 cell grid
+    full[: crop.shape[0], : crop.shape[1]] = crop
+    result = SimpleNamespace(
+        physical_grid=lambda: full,
+        bounds=(
+            16.370797580286474,
+            48.20786510175911,
+            16.377706821642462,
+            48.21246962838142,
+        ),
+    )
+    out = results.ground_points(F, result)
+    pts = np.array(out["points"])
+    box = 10.0  # the box is 20 m wide, centred on the Revit origin
+    inside = (np.abs(pts[:, 0]) < box) & (np.abs(pts[:, 1]) < box)
+    assert inside.sum() == 0
+    # Cells right next to every wall are valid: centres 0.5 m from the wall.
+    for wx, wy in [
+        (-box - 0.5, 0.0),
+        (box + 0.5, 0.0),
+        (0.0, -box - 0.5),
+        (0.0, box + 0.5),
+    ]:
+        near = np.hypot(pts[:, 0] - wx, pts[:, 1] - wy) < 0.6
+        assert near.any(), (wx, wy)
+    assert len(pts) == 500
