@@ -3,7 +3,8 @@
 Both functions return a dict with lists and numbers only:
 
 ground: ``{"kind": "points", "points": [[x, y, z], ...], "values": [...],
-           "cell_m": float, "legend_min", "legend_max"}``
+           "cell_m": float, "legend_min", "legend_max",
+           "corner_z": [[sw, se, ne, nw], ...] (only with terrain)}``
 facades: ``{"kind": "triangles", "triangles": [x, y, z, ...] (9 per triangle),
             "values": [one per triangle], "legend_min", "legend_max"}``
 
@@ -19,6 +20,7 @@ import numpy as np
 from infrared_sdk.legend import legend_range
 
 from . import frame as frame_mod
+from . import terrain as terrain_mod
 
 # Measured offset of the cell grid, in cells. One live run (a 20 m box at 5..25 m
 # in the SDK frame, 1 m cells, bounds SW corner = polygon SW corner) left its hole
@@ -34,9 +36,18 @@ def _legend(values: np.ndarray) -> Tuple[Optional[float], Optional[float]]:
 
 
 def ground_points(
-    frame: frame_mod.SiteFrame, result: Any, z_offset: float = 0.0
+    frame: frame_mod.SiteFrame,
+    result: Any,
+    z_offset: float = 0.0,
+    sampler: Optional[terrain_mod.Sampler] = None,
 ) -> Dict[str, Any]:
-    """The ground grid of an ``AreaResult``: one point at the centre of each valid cell."""
+    """The ground grid of an ``AreaResult``: one point at the centre of each valid cell.
+
+    The SDK result has no per-cell height. With a ``sampler`` (the terrain in the
+    Revit frame) each cell gets the terrain height at its four corners
+    (``corner_z``), so the display can follow the slope; ``z`` of the point is
+    their mean. Without it every cell sits at ``z_offset``.
+    """
     grid = np.asarray(result.physical_grid(), dtype=np.float64)
     rows, cols = grid.shape
     cell_x, cell_y = frame_mod.grid_cell_m(result.bounds, (rows, cols))
@@ -48,9 +59,14 @@ def ground_points(
     xyz[:, 2] = 0.0
     moved = frame_mod.points_to_revit(frame, xyz.reshape(-1)).reshape(-1, 3)
     moved[:, 2] += z_offset
+    corner_z = None
+    if sampler is not None and len(moved):
+        corners = terrain_mod.corner_heights(moved, cell_x, sampler)
+        moved[:, 2] = corners.mean(axis=1)
+        corner_z = corners.tolist()
     values = grid[row, col]
     low, high = _legend(values)
-    return {
+    out = {
         "kind": "points",
         "points": moved.tolist(),
         "values": values.tolist(),
@@ -58,6 +74,9 @@ def ground_points(
         "legend_min": low,
         "legend_max": high,
     }
+    if corner_z is not None:
+        out["corner_z"] = corner_z
+    return out
 
 
 def facade_triangles(

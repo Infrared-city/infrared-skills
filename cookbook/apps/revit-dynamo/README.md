@@ -91,6 +91,14 @@ west) for the `wind` analysis. IR_Facades has `surfaces`: `facades`, `roofs` or 
 If you edit a file in `ir_dynamo` or `revit`, press Run again. The script
 reloads the files. You do not need to restart Revit.
 
+## Terrain and the ground level
+
+Select the terrain (a Toposolid or a Topography surface) together with the buildings. If you select no terrain, the script uses every terrain element of the document and says so in the Watch text.
+
+- With terrain, z = 0 of the analysis is the lowest terrain point near the buildings. Parts of buildings below the terrain (foundations) are left out. The ground result is drawn on the terrain.
+- Without terrain, the ground is Revit elevation 0.
+- Wind does not accept terrain. The buildings are lowered to their own base and the result is still drawn on the terrain.
+
 ## What you see
 
 Coloured points in the active view. Blue is a low value. Red is a high value.

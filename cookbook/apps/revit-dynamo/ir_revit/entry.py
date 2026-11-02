@@ -116,12 +116,16 @@ def _run(
         site = revit_location.read_location(
             doc, _optional_float(lat, "lat"), _optional_float(lon, "lon")
         )
-        buildings, notes = revit_geometry.collect_buildings(
-            elements, site.true_north_rad
+        buildings, terrain, notes = revit_geometry.collect_scene(
+            doc, elements, site.true_north_rad
         )
         if not buildings:
-            return ["No geometry found. Select walls, floors, roofs or masses."] + notes
+            return [
+                "No building geometry found. Select walls, floors, roofs or masses "
+                "(and the terrain, if you like)."
+            ] + notes
         lines = [
+            "Terrain: %d element(s)." % len(terrain),
             "Location: lon %.5f, lat %.5f (%s), true north %.1f deg."
             % (site.lon, site.lat, site.source, math.degrees(site.true_north_rad))
         ]
@@ -135,6 +139,7 @@ def _run(
             months=months,
             hours=hours,
             fetch_context=bool(fetch_context),
+            terrain_m=terrain,
             wind_speed=float(wind_speed),
             wind_direction=int(round(float(wind_direction))),
             surfaces=surfaces,

@@ -13,6 +13,7 @@ from infrared_sdk import (
 )
 from infrared_sdk.analyses.types import (
     AnalysesName,
+    TerrainAlignment,
     BaseAnalysisPayload,
     UtciModelBaseRequest,
 )
@@ -61,6 +62,7 @@ def build_payload(
     grid_m: float = DEFAULT_GRID_M,
     wind_speed: float = 5.0,
     wind_direction: int = 270,
+    ground_geometry: Optional[Dict[str, dict]] = None,
     client: Optional[Any] = None,
 ) -> Any:
     """Build the SDK request for one analysis.
@@ -82,9 +84,49 @@ def build_payload(
     wind_speed, wind_direction : float, int
         Wind only: speed in m/s and the bearing in whole degrees (270 = wind
         from the west).
+    ground_geometry : dict, optional
+        The terrain, ``{id: {"coordinates": [...], "indices": [...]}}`` in the
+        SDK frame. Svf, sun hours, daylight, solar and utci take it. Wind does
+        not (the SDK refuses it): for wind it only switches the buildings to
+        ``terrain_alignment="to-ground"``.
     client : InfraredClient, optional
         Needed for the analyses that read weather.
     """
+    request = _request(
+        analysis, surface, lat, lon, months, hours, surfaces, grid_m,
+        wind_speed, wind_direction, client,
+    )  # fmt: skip
+    if not ground_geometry:
+        return request
+    if analysis.key == "wind":
+        # No terrain for wind. Its worker reads a building's height from the raw
+        # z, so each building is lowered to its own lowest point (the grade).
+        return request.model_copy(update={"terrain_alignment": "to-ground"})
+    # "as-is" (the SDK default for a supplied scene, written here on purpose):
+    # the buildings keep their Revit heights. "auto-align" would seat every
+    # building on the terrain and move it; "assume-aligned" leaves the server
+    # to check it. The terrain z and the building z share one datum (z_offset).
+    return request.model_copy(
+        update={
+            "ground_geometry": ground_geometry,
+            "terrain_alignment": TerrainAlignment.as_is,
+        }
+    )
+
+
+def _request(
+    analysis: Analysis,
+    surface: str,
+    lat: float,
+    lon: float,
+    months: str,
+    hours: str,
+    surfaces: str,
+    grid_m: float,
+    wind_speed: float,
+    wind_direction: int,
+    client: Optional[Any],
+) -> Any:
     extra = _surface_fields(surfaces, grid_m) if surface == "facades" else {}
     period = (
         TimePeriod(**parse_period(months, hours)) if analysis.needs_period else None

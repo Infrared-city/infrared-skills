@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import pytest
 from boxes import box_soup
@@ -9,7 +9,7 @@ from ir_dynamo import frame, meshes
 def test_box_is_welded_and_moved_to_the_sdk_frame() -> None:
     soups = {"b": box_soup(-10, -10, 3, 20, 20, 15)}
     f = frame.make_frame(16.371, 48.208, meshes.soup_bbox(soups), 5.0)
-    buildings, z_offset, warnings = meshes.build_buildings(f, soups)
+    buildings, z_offset, warnings = meshes.build_buildings(f, soups, 3.0)
     mesh = buildings["b"]
     assert z_offset == 3.0 and warnings == []
     assert len(mesh["coordinates"]) == 8 * 3  # 36 corners welded to 8 vertices

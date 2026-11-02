@@ -10,12 +10,17 @@ Typical use in a Dynamo Python node (see the README of this folder)::
 from __future__ import annotations
 
 import time
-from typing import Any, Callable, Dict, Optional, Sequence
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
+
+import numpy as np
 
 from . import env, meshes, payloads, results, settings
+from . import terrain as terrain_mod
 from . import frame as frame_mod
 
 DEFAULT_BUFFER_M = {"ground": 30.0, "facades": 5.0}
+# Terrain triangles this far outside the run area are kept (shade, slope at the edge).
+TERRAIN_MARGIN_M = 20.0
 
 
 def _cost_text(preview: Any) -> str:
@@ -27,6 +32,48 @@ def _cost_text(preview: Any) -> str:
     if preview.sensor_count:
         text += ", %d sensors" % preview.sensor_count
     return text
+
+
+def _scene(
+    frame: frame_mod.SiteFrame,
+    buildings_m: Dict[str, Sequence[float]],
+    terrain_m: Optional[Dict[str, Sequence[float]]],
+    bbox: Sequence[float],
+    buffer: float,
+    is_wind: bool,
+) -> Tuple[Dict[str, dict], Dict[str, dict], Optional[terrain_mod.Sampler], float, List[str]]:
+    """Buildings and terrain in the SDK frame, around one ground reference.
+
+    The ground reference (z = 0 of the SDK) is the lowest terrain point of the
+    run area. Without terrain it is Revit z = 0: no offset.
+    Returns ``(buildings, ground_geometry, sampler, z_offset, warnings)``.
+    """
+    warnings: List[str] = []
+    ground: Dict[str, dict] = {}
+    sampler = None
+    z_offset = 0.0
+    if terrain_m:
+        tris, notes = terrain_mod.prepare(terrain_m, bbox, buffer + TERRAIN_MARGIN_M)
+        warnings += notes
+        if tris:
+            every = np.concatenate(list(tris.values()))
+            sampler = terrain_mod.Sampler(every)
+            z_offset = float(every[:, :, 2].min())
+            ground = meshes.build_terrain(frame, tris, z_offset)
+    buildings, z_offset, notes = meshes.build_buildings(frame, buildings_m, z_offset, sampler)
+    warnings += notes
+    if ground and is_wind:
+        warnings.append(
+            "Wind does not take terrain: it is not sent. Each building is lowered "
+            "to its own base; the result is drawn on the terrain."
+        )
+    lowest = min(float(terrain_mod.triangles(f)[:, :, 2].min()) for f in buildings_m.values())
+    if sampler is None and lowest > 5.0:
+        warnings.append(
+            "No terrain: the ground is Revit elevation 0 and the buildings start %.0f m "
+            "above it. Select the terrain to place them on it." % lowest
+        )
+    return buildings, ground, sampler, z_offset, warnings
 
 
 def run_analysis(
@@ -45,6 +92,7 @@ def run_analysis(
     wind_speed: float = 5.0,
     wind_direction: int = 270,
     fetch_context: bool = False,
+    terrain_m: Optional[Dict[str, Sequence[float]]] = None,
     on_status: Optional[Callable[[str], None]] = None,
     client: Optional[Any] = None,
 ) -> Dict[str, Any]:
@@ -78,6 +126,11 @@ def run_analysis(
         Wind only: m/s and bearing in whole degrees (270 = from the west).
     fetch_context : bool
         Add the public buildings around the selection (needs the geodata libs).
+    terrain_m : dict, optional
+        ``{terrain_id: flat [x, y, z, ...]}``, same units and frame as
+        ``buildings_m``. With terrain, z = 0 of the SDK is the lowest terrain
+        point of the run area and the ground result follows the terrain. Without
+        it the ground is Revit z = 0. Wind does not take terrain (a warning says so).
     on_status : callable, optional
         Called with a short text at each stage. It is called on the calling thread.
     client : InfraredClient, optional
@@ -109,10 +162,11 @@ def run_analysis(
         client = InfraredClient(api_key=env.read_api_key())
     try:
         buffer = DEFAULT_BUFFER_M[surface] if buffer_m is None else float(buffer_m)
-        frame = frame_mod.make_frame(
-            site_lon, site_lat, meshes.soup_bbox(buildings_m), buffer
+        bbox = meshes.soup_bbox(buildings_m)
+        frame = frame_mod.make_frame(site_lon, site_lat, bbox, buffer)
+        buildings, ground, sampler, z_offset, warnings = _scene(
+            frame, buildings_m, terrain_m, bbox, buffer, row.key == "wind"
         )
-        buildings, z_offset, warnings = meshes.build_buildings(frame, buildings_m)
         if fetch_context:
             say("reading public buildings")
             fetched = client.buildings.get_area(
@@ -120,6 +174,11 @@ def run_analysis(
             )
             buildings, added = meshes.merge_context(buildings, dict(fetched.buildings))
             warnings.append("%d public building(s) added as context." % added)
+            if ground:
+                warnings.append(
+                    "Public context buildings stand at z = 0 of the SDK (the lowest "
+                    "terrain point), not on the terrain."
+                )
         say("building the request")
         payload = payloads.build_payload(
             row,
@@ -132,6 +191,7 @@ def run_analysis(
             grid_m=grid_m,
             wind_speed=wind_speed,
             wind_direction=wind_direction,
+            ground_geometry=ground or None,
             client=client,
         )
         preview = client.preview_area(
@@ -162,7 +222,7 @@ def run_analysis(
         )
         say("reading the result")
         if surface == "ground":
-            out["result"] = results.ground_points(frame, run, z_offset)
+            out["result"] = results.ground_points(frame, run, z_offset, sampler)
         else:
             out["result"] = results.facade_triangles(frame, run, z_offset)
         out["ran"] = True

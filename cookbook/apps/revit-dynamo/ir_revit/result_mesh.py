@@ -1,6 +1,7 @@
 """A result as coloured triangles: pure numpy, no Revit import (tested with pytest).
 
-* ground: each grid cell becomes a square (two triangles), lifted a little;
+* ground: each grid cell becomes a square (two triangles), lifted a little,
+  with its corners on the terrain when the result has ``corner_z``;
 * facades: each result triangle, moved a little out of the wall.
 
 The values are put into ``BINS`` colour bins between the legend min and max.
@@ -8,7 +9,7 @@ The values are put into ``BINS`` colour bins between the legend min and max.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -48,17 +49,30 @@ def legend_lines(low: float, high: float, unit: str, count: int = BINS) -> List[
     ]
 
 
-def ground_triangles(points: Sequence[Sequence[float]], cell_m: float) -> np.ndarray:
-    """Two triangles per cell centre: shape ``(2 * n, 3, 3)``, metres, Revit frame."""
+def ground_triangles(
+    points: Sequence[Sequence[float]],
+    cell_m: float,
+    corner_z: Optional[Sequence[Sequence[float]]] = None,
+) -> np.ndarray:
+    """Two triangles per cell centre: shape ``(2 * n, 3, 3)``, metres, Revit frame.
+
+    ``corner_z`` (optional, ``(n, 4)``: SW, SE, NE, NW) is the terrain height at
+    each cell corner, so the square follows the slope. Without it the square is
+    flat at the z of its centre point. Both are lifted by ``GROUND_LIFT_M``.
+    """
     centre = np.asarray(points, dtype=np.float64).reshape(-1, 3)
     half = 0.5 * float(cell_m)
-    z = centre[:, 2] + GROUND_LIFT_M
+    if corner_z is None:
+        z = np.repeat(centre[:, 2:3], 4, axis=1)
+    else:
+        z = np.asarray(corner_z, dtype=np.float64).reshape(-1, 4)
+    z = z + GROUND_LIFT_M
     x0, x1 = centre[:, 0] - half, centre[:, 0] + half
     y0, y1 = centre[:, 1] - half, centre[:, 1] + half
-    a = np.stack([x0, y0, z], axis=1)
-    b = np.stack([x1, y0, z], axis=1)
-    c = np.stack([x1, y1, z], axis=1)
-    d = np.stack([x0, y1, z], axis=1)
+    a = np.stack([x0, y0, z[:, 0]], axis=1)
+    b = np.stack([x1, y0, z[:, 1]], axis=1)
+    c = np.stack([x1, y1, z[:, 2]], axis=1)
+    d = np.stack([x0, y1, z[:, 3]], axis=1)
     first = np.stack([a, b, c], axis=1)
     second = np.stack([a, c, d], axis=1)
     out = np.empty((2 * len(centre), 3, 3), dtype=np.float64)
@@ -94,5 +108,6 @@ def coloured_triangles(result: Dict[str, Any]) -> Tuple[np.ndarray, np.ndarray]:
         low, high = float(np.nanmin(values)), float(np.nanmax(values))
     bins = bin_index(values, float(low), float(high))
     if result["kind"] == "points":
-        return ground_triangles(result["points"], result["cell_m"]), np.repeat(bins, 2)
+        tri = ground_triangles(result["points"], result["cell_m"], result.get("corner_z"))
+        return tri, np.repeat(bins, 2)
     return facade_triangles(result["triangles"]), bins
