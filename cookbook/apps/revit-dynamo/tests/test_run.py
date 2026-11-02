@@ -31,6 +31,7 @@ def test_preview_only_never_runs() -> None:
     client = FakeClient()
     out = run.run_analysis("ground", "svf", SOUPS, 16.371, 48.208, client=client)
     assert out["ran"] is False and out["result"] is None
+    assert out["tokens"] == 10
     assert "10 tokens" in out["cost"] and "Preview only" in out["status"]
     assert client.calls == [("preview", "sky-view-factors")]
 

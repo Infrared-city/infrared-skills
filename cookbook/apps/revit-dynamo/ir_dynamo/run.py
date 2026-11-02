@@ -139,7 +139,7 @@ def run_analysis(
     Returns
     -------
     dict
-        ``status`` (text), ``cost`` (text), ``ran`` (bool), ``title``, ``unit``,
+        ``status`` (text), ``cost`` (text), ``tokens`` (int, the estimate), ``ran`` (bool), ``title``, ``unit``,
         ``warnings`` (list of text), and ``result``: ``None`` after a preview, else
         the dict of ``results.ground_points`` or ``results.facade_triangles``
         (``kind``, geometry, ``values``, ``legend_min``, ``legend_max``).
@@ -205,6 +205,7 @@ def run_analysis(
             "title": row.title,
             "unit": row.unit,
             "cost": cost,
+            "tokens": int(preview.estimated_cost_tokens),
             "warnings": warnings,
             "ran": False,
             "result": None,

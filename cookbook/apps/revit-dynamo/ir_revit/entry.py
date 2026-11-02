@@ -15,6 +15,8 @@ import os
 import traceback
 from typing import Any, Dict, List, Optional
 
+from ir_dynamo import targets
+
 from . import revit_apikey, revit_display, revit_geometry, revit_location
 
 # Dynamo keeps the Watch text nowhere. Each run writes its lines here, so the
@@ -58,7 +60,7 @@ def _optional_float(value: Any, name: str) -> Optional[float]:
 
 
 def _run(
-    surface: str,
+    target: str,
     elements: Any,
     analysis: str,
     months: str,
@@ -76,12 +78,14 @@ def _run(
 
     Parameters
     ----------
-    surface : str
-        ``"ground"`` or ``"facades"``.
+    target : str
+        ``"ground"``, ``"facades"`` or ``"both"`` (also ``"all"``). "both" is two
+        runs and two costs. An analysis that exists on one target only runs there.
     elements : Any
         The output of "Select Model Elements".
     analysis, months, hours : str
         See ``ir_dynamo.settings`` (labels) and ``ir_dynamo.run.run_analysis``.
+        ``analysis = "show-last"`` draws the saved results again, free.
     preview_only : bool
         True: free preview, no tokens.
     fetch_context : bool
@@ -93,7 +97,7 @@ def _run(
     wind_speed, wind_direction : float
         Ground wind only.
     surfaces : str
-        Facades only: ``"facades"``, ``"roofs"`` or ``"all"``.
+        Facade part only: ``"facades"``, ``"roofs"`` or ``"all"``.
 
     Returns
     -------
@@ -111,6 +115,7 @@ def _run(
     if str(analysis).strip().lower() == SHOW_LAST:
         return _show_last()
     try:
+        to_run, skipped = targets.plan_runs(target, analysis)
         env.setup()
         doc = DocumentManager.Instance.CurrentDBDocument
         site = revit_location.read_location(
@@ -127,56 +132,85 @@ def _run(
         lines = [
             "Terrain: %d element(s)." % len(terrain),
             "Location: lon %.5f, lat %.5f (%s), true north %.1f deg."
-            % (site.lon, site.lat, site.source, math.degrees(site.true_north_rad))
-        ]
-        out = run_analysis(
-            surface,
-            analysis,
-            buildings,
-            site.lon,
-            site.lat,
-            preview_only=bool(preview_only),
-            months=months,
-            hours=hours,
-            fetch_context=bool(fetch_context),
-            terrain_m=terrain,
-            wind_speed=float(wind_speed),
-            wind_direction=int(round(float(wind_direction))),
-            surfaces=surfaces,
-        )
+            % (site.lon, site.lat, site.source, math.degrees(site.true_north_rad)),
+        ] + skipped
     except (ValueError, RuntimeError) as error:
         return ["Error: %s" % error]
-    lines += [out["status"]] + notes + list(out["warnings"])
-    if out["ran"]:
-        shown = {
-            "result": out["result"],
-            "title": out["title"],
-            "unit": out["unit"],
-            "true_north_rad": site.true_north_rad,
-        }
-        _save_last(shown)  # a paid result is kept: "show-last" draws it again for free
-        lines.append(_show(shown))
+    outs: Dict[str, Dict[str, Any]] = {}
+    for surface in to_run:
+        try:
+            outs[surface] = run_analysis(
+                surface,
+                analysis,
+                buildings,
+                site.lon,
+                site.lat,
+                preview_only=bool(preview_only),
+                months=months,
+                hours=hours,
+                fetch_context=bool(fetch_context),
+                terrain_m=terrain,
+                wind_speed=float(wind_speed),
+                wind_direction=int(round(float(wind_direction))),
+                surfaces=surfaces,
+            )
+        except (ValueError, RuntimeError) as error:
+            # A failed second target must not hide a first one that was paid for.
+            lines.append("Error on %s: %s" % (surface, error))
+    lines += notes
+    if len(outs) > 1:
+        verb = "Preview" if preview_only else "Cost"
+        lines.append("%s of both targets: %s." % (verb, targets.combined_cost(outs)))
+    entries = []
+    for surface, out in outs.items():
+        lines += ["[%s] %s" % (surface, out["status"])] + [
+            "[%s] %s" % (surface, w) for w in out["warnings"]
+        ]
+        if out["ran"]:
+            entries.append(
+                {
+                    "target": surface,
+                    "result": out["result"],
+                    "title": out["title"],
+                    "unit": out["unit"],
+                    "true_north_rad": site.true_north_rad,
+                }
+            )
+    if entries:
+        _save_last(entries)  # paid results are kept: "show-last" draws them again for free
+        lines += [_show(entry) for entry in entries]
     return lines
 
 
-def _save_last(shown: Dict[str, Any]) -> None:
+def _save_last(entries: List[Dict[str, Any]]) -> None:
+    """Write the entries; entries of a target that did not run now are kept."""
     try:
+        old = None
+        if os.path.isfile(LAST_RESULT_FILE):
+            with open(LAST_RESULT_FILE, "r", encoding="utf-8") as handle:
+                old = json.load(handle)
         with open(LAST_RESULT_FILE, "w", encoding="utf-8") as handle:
-            json.dump(shown, handle)
+            json.dump(targets.merge_entries(old, entries), handle)
     except (OSError, TypeError, ValueError):
         pass
 
 
-def _show(shown: Dict[str, Any]) -> str:
+def _show(entry: Dict[str, Any]) -> str:
     return revit_display.show(
-        shown["result"], shown["title"], shown["unit"], shown["true_north_rad"]
+        entry["result"],
+        entry["title"],
+        entry["unit"],
+        entry["true_north_rad"],
+        entry["target"],
     )
 
 
 def _show_last() -> List[str]:
-    """Draw the last paid result again, without a new run (analysis = "show-last")."""
+    """Draw the saved results again, without a new run (analysis = "show-last")."""
     if not os.path.isfile(LAST_RESULT_FILE):
         return ["There is no saved result yet. Run an analysis first."]
     with open(LAST_RESULT_FILE, "r", encoding="utf-8") as handle:
-        shown = json.load(handle)
-    return ["Showing the last saved result (no new run).", _show(shown)]
+        entries = targets.load_entries(json.load(handle))
+    if not entries:
+        return ["The saved result file has no result. Run an analysis first."]
+    return ["Showing the last saved result(s) (no new run)."] + [_show(e) for e in entries]

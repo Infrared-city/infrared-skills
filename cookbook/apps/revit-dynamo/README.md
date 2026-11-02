@@ -1,12 +1,19 @@
 # Infrared in Revit 2026 (Dynamo)
 
-Two Dynamo scripts run an Infrared analysis on the buildings you select in Revit.
-They show the result in the active view, with a legend.
+One Dynamo script, `IR_Analysis.dyn`, runs an Infrared analysis on the buildings you select in Revit.
+It shows the result in the active view, with a legend. The `target` input chooses
+what it analyses: `ground`, `facades` (walls and roofs) or `both`.
 
-| Script | What it analyses | Analyses |
+| `target` | What it analyses | Analyses (`analysis` input) |
 |---|---|---|
-| `IR_Ground.dyn` | The ground around the buildings | `svf`, `solar`, `sun-hours`, `wind`, `utci` |
-| `IR_Facades.dyn` | The walls and roofs of the buildings | `svf`, `solar`, `sun-hours`, `daylight` |
+| `ground` | The ground around the buildings | `svf`, `solar`, `sun-hours`, `wind`, `utci` |
+| `facades` | The walls and roofs of the buildings | `svf`, `solar`, `sun-hours`, `daylight` |
+| `both` (or `all`) | Both, one after the other | `svf`, `solar`, `sun-hours` on both; `wind`, `utci` on the ground only; `daylight` on the facades only |
+
+One Infrared request computes the ground grid or the facades, not both. So `both`
+is **two runs and two costs**. The preview shows both costs and their sum. If the
+analysis exists on one target only (for example `wind`), `both` runs it there and
+the Watch text says that the other target was skipped.
 
 ## What it does
 
@@ -38,8 +45,8 @@ python build_libs.py
 
 The script writes `build/infrared-dynamo-libs.zip` (about 50 MB). Unzip it as above.
 
-Then open `dynamo/IR_Ground.dyn` or `dynamo/IR_Facades.dyn` in Dynamo.
-Dynamo opens both files in Manual run mode. Nothing runs until you press Run.
+Then open `dynamo/IR_Analysis.dyn` in Dynamo.
+Dynamo opens the file in Manual run mode. Nothing runs until you press Run.
 
 ## Set the API key
 
@@ -71,13 +78,13 @@ The script needs the place of the project and the direction of true north.
 
 Leave `lat` and `lon` empty to use the project location.
 
-## Run IR_Ground and IR_Facades
+## Run IR_Analysis
 
 1. Open the script. Check that `libs_folder` is the folder you unzipped to.
 2. Open a 3D view or a plan view. The result goes into the active view.
 3. Select your buildings in Revit. In Dynamo, click "Select Model Elements" and
    press Select. Walls, floors, roofs, masses and families all work.
-4. Set `analysis`. Use one of the labels in the table above.
+4. Set `target` (`ground`, `facades` or `both`) and `analysis` (a label from the table above, or `show-last`).
 5. Set `months` (for example `6-8`) and `hours` (for example `8-18`).
 6. Keep `preview_only` at `True`. Press Run. The Watch node shows the number
    of tiles, jobs and tokens.
@@ -85,8 +92,12 @@ Leave `lat` and `lon` empty to use the project location.
 8. Wait. Revit does not respond while the run is going.
 
 Other inputs: `fetch_context` adds public buildings around your selection.
-IR_Ground has `wind_speed` (m/s) and `wind_direction` (degrees, 270 = from the
-west) for the `wind` analysis. IR_Facades has `surfaces`: `facades`, `roofs` or `all`.
+`wind_speed` (m/s) and `wind_direction` (degrees, 270 = from the west) are for the
+`wind` analysis (ground). `surfaces` (`facades`, `roofs` or `all`) is for the facade part.
+
+`analysis = show-last` draws the saved results again, free. The script saves the
+last paid result of each target in `.infraredevit-dynamo-last-result.json`
+(a file from an older version, with one result, still works).
 
 If you edit a file in `ir_dynamo` or `revit`, press Run again. The script
 reloads the files. You do not need to restart Revit.
@@ -104,7 +115,9 @@ Select the terrain (a Toposolid or a Topography surface) together with the build
 Coloured points in the active view. Blue is a low value. Red is a high value.
 The legend has the name of the analysis and the unit. The Watch node shows a
 status text: the location, the cost, and how many points Revit shows.
-Each run clears the points of the last run in that view.
+Each target has its own shape in the model. A new ground run replaces only the old
+ground shape, and a facade run only the old facade shape. The Watch text has a
+legend for each target.
 
 ## Limits
 
@@ -127,8 +140,8 @@ Each run clears the points of the last run in that view.
 
 | Path | What it holds |
 |---|---|
-| `ir_dynamo/` | SDK calls. No Revit code. Tested with pytest. |
+| `ir_dynamo/` | SDK calls and the target rules (`targets.py`). No Revit code. Tested with pytest. |
 | `ir_revit/` | Revit API code: location, geometry, display, key dialog, `entry.py`. |
-| `dynamo/` | The two `.dyn` files. Each Python node has a few lines and calls `ir_revit.entry.run`. |
+| `dynamo/` | `IR_Analysis.dyn`. Its Python node has a few lines and calls `ir_revit.entry.run`. |
 | `build_libs.py` | Builds the libs zip for Python 3.9 on Windows x64. |
 | `tests/` | pytest tests for `ir_dynamo`. |
