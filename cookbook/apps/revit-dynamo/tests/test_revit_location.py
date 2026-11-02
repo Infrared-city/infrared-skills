@@ -3,7 +3,7 @@
 import math
 
 import numpy as np
-from revit import revit_location as loc
+from ir_revit import revit_location as loc
 
 
 def test_round_trip():

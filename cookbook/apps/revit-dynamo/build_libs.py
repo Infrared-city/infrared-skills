@@ -26,7 +26,7 @@ BUILD = HERE / "build"
 LIBS = BUILD / "libs"
 ZIP = BUILD / "infrared-dynamo-libs.zip"
 REQUIREMENT = "infrared-sdk[geodata]==1.0.0"
-OWN_FOLDERS = ["ir_dynamo", "revit", "dynamo"]
+OWN_FOLDERS = ["ir_dynamo", "ir_revit", "dynamo"]
 
 
 def pip_install() -> None:

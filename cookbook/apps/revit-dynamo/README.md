@@ -112,7 +112,7 @@ Each run clears the points of the last run in that view.
 - The SDK is pinned to `infrared-sdk` 1.0.0. The script refuses any other version.
 - The area must stay below 100 000 m in each direction.
 - The weather comes from the public station catalog, for the project location.
-- The Revit code (`revit/`) is not covered by the automated tests. They cover
+- The Revit code (`ir_revit/`) is not covered by the automated tests. They cover
   `ir_dynamo` and the rotation maths only.
 
 ## Folder map
@@ -120,7 +120,7 @@ Each run clears the points of the last run in that view.
 | Path | What it holds |
 |---|---|
 | `ir_dynamo/` | SDK calls. No Revit code. Tested with pytest. |
-| `revit/` | Revit API code: location, geometry, display, key dialog, `entry.py`. |
-| `dynamo/` | The two `.dyn` files. Each Python node has a few lines and calls `revit.entry.run`. |
+| `ir_revit/` | Revit API code: location, geometry, display, key dialog, `entry.py`. |
+| `dynamo/` | The two `.dyn` files. Each Python node has a few lines and calls `ir_revit.entry.run`. |
 | `build_libs.py` | Builds the libs zip for Python 3.9 on Windows x64. |
 | `tests/` | pytest tests for `ir_dynamo`. |
