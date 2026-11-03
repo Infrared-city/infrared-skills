@@ -27,6 +27,25 @@ REGION_PREFIX = "Infrared legend "
 MM_TO_FT = 1.0 / 304.8
 
 
+def element_name(element: Any) -> str:
+    """The name of an element, also of an ElementType.
+
+    Dynamo's CPython3 cannot read ``ElementType.Name`` ("property cannot be
+    read": the type declares only a setter). The getter of ``Element.Name``
+    works; the type-name parameter is the fallback.
+    """
+    from Autodesk.Revit.DB import BuiltInParameter, Element  # type: ignore
+
+    try:
+        return str(Element.Name.__get__(element))
+    except Exception:
+        pass
+    try:
+        return str(element.get_Parameter(BuiltInParameter.ALL_MODEL_TYPE_NAME).AsString())
+    except Exception:
+        return str(element.Name)
+
+
 def _by_class(doc: Any, cls: Any, view_id: Any = None) -> List[Any]:
     import clr  # type: ignore
     from Autodesk.Revit.DB import FilteredElementCollector  # type: ignore
@@ -47,7 +66,7 @@ def _view(doc: Any, target: str) -> Any:
 
     name = VIEW_PREFIX + target
     for view in _by_class(doc, ViewDrafting):
-        if view.Name == name:
+        if element_name(view) == name:
             for cls in (FilledRegion, TextNote):
                 for element in _by_class(doc, cls, view.Id):
                     doc.Delete(element.Id)
@@ -77,7 +96,7 @@ def _region_types(doc: Any, rgbs: Sequence[Any]) -> Dict[Any, Any]:
     from Autodesk.Revit.DB import Color, FilledRegionType  # type: ignore
 
     types = _by_class(doc, FilledRegionType)
-    known = {t.Name: t for t in types}
+    known = {element_name(t): t for t in types}
     solid = _solid_fill(doc)
     out = {}
     for rgb in set(tuple(c) for c in rgbs):
@@ -127,4 +146,4 @@ def draw_legend(
     text_type = doc.GetDefaultElementTypeId(ElementTypeGroup.TextNoteType)
     for t in texts:
         TextNote.Create(doc, view.Id, XYZ(t.x * MM_TO_FT, t.y * MM_TO_FT, 0), t.text, text_type)
-    return "Legend view: \"%s\" (Project Browser > Drafting Views)." % view.Name
+    return "Legend view: \"%s\" (Project Browser > Drafting Views)." % element_name(view)

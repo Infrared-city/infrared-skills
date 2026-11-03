@@ -26,6 +26,7 @@ SHIFTS = (-1, 0, 1)
 FLAT = 0.9  # |normal z| of a roof or floor triangle
 ABOVE_M = 0.5  # flat triangles at the ground (a slab on grade) are not used
 LATTICE_M = 0.5
+MARGIN = 0.05  # warn only when a shift fits clearly better (two live runs: 84 % vs 85 %)
 MAX_LATTICE_TRIANGLES = 20000  # the largest ones; enough for a check
 
 
@@ -123,7 +124,7 @@ def alignment_lines(
         "SDK rule: %s; best: x %+d, y %+d cell(s): %s."
         % (counted, pct((0, 0)), best[0], best[1], pct(best))
     ]
-    if found[best] > found.get((0, 0), 0.0):
+    if found[best] > found.get((0, 0), 0.0) + MARGIN:
         lines.append(
             "Warning: the ground grid may be one cell off here. Please report this line."
         )
