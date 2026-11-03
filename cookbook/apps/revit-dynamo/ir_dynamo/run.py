@@ -227,9 +227,7 @@ def run_analysis(
         if surface == "ground":
             out["result"] = results.ground_points(frame, run, z_offset, sampler)
             try:  # where does the matrix sit? (a check only; it never stops the run)
-                warnings += grid_check.alignment_lines(
-                    frame, run, buildings, results.GROUND_GRID_SHIFT
-                )
+                warnings += grid_check.alignment_lines(frame, run, buildings)
             except Exception as error:
                 warnings.append("Grid alignment check failed: %s" % error)
         else:

@@ -24,12 +24,6 @@ from infrared_sdk.legend import legend_range
 from . import frame as frame_mod
 from . import terrain as terrain_mod
 
-# Measured offset of the cell grid, in cells. One live run (a 20 m box at 5..25 m
-# in the SDK frame, 1 m cells, bounds SW corner = polygon SW corner) left its hole
-# in cells 6..25, not 5..24: the cell centre is (index + 0.5 + GROUND_GRID_SHIFT)
-# cells from the corner. It rests on one run; the cause is not known.
-GROUND_GRID_SHIFT = -1.0
-
 
 def _legend(values: np.ndarray) -> Tuple[Optional[float], Optional[float]]:
     # The SDK measures the legend range (exact min and max of the finite values).
@@ -56,8 +50,10 @@ def ground_points(
     row, col = np.nonzero(np.isfinite(grid))  # row 0 is the south
     xyz = np.empty((row.size, 3), dtype=np.float64)
     corner_x, corner_y = frame_mod.grid_corner_sdk(frame, result.bounds)
-    xyz[:, 0] = corner_x + (col + 0.5 + GROUND_GRID_SHIFT) * cell_x
-    xyz[:, 1] = corner_y + (row + 0.5 + GROUND_GRID_SHIFT) * cell_y
+    # The SDK rule: cell (row, col) has its centre (col + 0.5, row + 0.5) cells
+    # from the SW corner of ``bounds``; ``grid_check`` confirms it on each run.
+    xyz[:, 0] = corner_x + (col + 0.5) * cell_x
+    xyz[:, 1] = corner_y + (row + 0.5) * cell_y
     xyz[:, 2] = 0.0
     moved = frame_mod.points_to_revit(frame, xyz.reshape(-1)).reshape(-1, 3)
     moved[:, 2] += z_offset

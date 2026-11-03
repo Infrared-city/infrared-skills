@@ -23,7 +23,7 @@ def _bounds_for_cells(n: int) -> tuple:
 def test_ground_points_skip_no_data_and_land_in_the_revit_frame() -> None:
     grid = np.full((512, 512), np.nan)
     grid[0, 0] = (
-        0.25  # SW cell: centre at (-0.5, -0.5) in the SDK frame (see GROUND_CELL_CENTRE)
+        0.25  # SW cell: centre half a cell in from the grid's SW corner (the SDK rule)
     )
     grid[1, 2] = 0.75
     result = SimpleNamespace(physical_grid=lambda: grid, bounds=_bounds_for_cells(512))
@@ -34,11 +34,11 @@ def test_ground_points_skip_no_data_and_land_in_the_revit_frame() -> None:
     assert out["cell_m"] == pytest.approx(1.0, abs=1e-3)
     x, y, z = out["points"][0]
     assert (x, y) == pytest.approx(
-        (-15.5, -15.5), abs=0.01
-    )  # polygon SW corner minus half a cell
+        (-14.5, -14.5), abs=0.01
+    )  # polygon SW corner (-15, -15) plus half a cell
     assert z == 2.0
     x2, y2, _ = out["points"][1]
-    assert (x2, y2) == pytest.approx((-13.5, -14.5), abs=0.01)  # col 2, row 1
+    assert (x2, y2) == pytest.approx((-12.5, -13.5), abs=0.01)  # col 2, row 1
 
 
 def _facade_result(values=(10.0, np.nan, 30.0)):

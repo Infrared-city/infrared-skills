@@ -2,10 +2,10 @@
 
 The SDK docs place a ground grid by its ``bounds``: row 0 is the south edge, and
 cell ``(r, c)`` has its centre ``(c + 0.5, r + 0.5)`` cells from the SW corner.
-``results.GROUND_GRID_SHIFT`` moves every cell by one more cell; it rests on one
-measured run. This check scores each shift on a real result: the server leaves
-the cells inside a building without a value (NaN), so the right shift puts the
-most building points into NaN cells.
+``results.ground_points`` follows that rule. This check scores it, and the
+shifts of one cell around it, on each real result: the server leaves the cells
+inside a building without a value (NaN), so the right placement puts the most
+building points into NaN cells. A line in the Watch text gives the scores.
 
 Building points: the centre of each flat (roof or floor) triangle above the
 ground, its corners moved 40 % towards that centre, and the points of a
@@ -101,7 +101,7 @@ def scores(
 
 
 def alignment_lines(
-    frame: frame_mod.SiteFrame, result: Any, buildings: Dict[str, dict], current: float
+    frame: frame_mod.SiteFrame, result: Any, buildings: Dict[str, dict]
 ) -> List[str]:
     """The text lines of the check for one ground result (empty if it cannot run)."""
     grid = np.asarray(result.physical_grid(), dtype=np.float64)
@@ -118,9 +118,13 @@ def alignment_lines(
     def pct(key: Tuple[int, int]) -> str:
         return "%.0f %%" % (100.0 * found[key]) if key in found else "n/a"
 
-    now = (int(current), int(current))
-    return [
+    lines = [
         "Grid alignment check (%d cells under buildings; share without a value): "
-        "SDK rule, shift 0: %s; this script's shift %d: %s; best: x %+d, y %+d cell(s): %s."
-        % (counted, pct((0, 0)), int(current), pct(now), best[0], best[1], pct(best))
+        "SDK rule: %s; best: x %+d, y %+d cell(s): %s."
+        % (counted, pct((0, 0)), best[0], best[1], pct(best))
     ]
+    if found[best] > found.get((0, 0), 0.0):
+        lines.append(
+            "Warning: the ground grid may be one cell off here. Please report this line."
+        )
+    return lines

@@ -124,13 +124,11 @@ legend for each target.
 
 - The run blocks Revit. Expect between 30 seconds and 5 minutes. Do not
   close Revit while it runs.
-- The ground grid is placed with a measured shift of one cell
-  (`GROUND_GRID_SHIFT` in `ir_dynamo/results.py`). One live run gave this value;
-  the SDK docs give no shift. Each ground run now checks it: the Watch text has a
-  "Grid alignment check" line with the share of the cells under the buildings
-  that have no value, for the SDK rule (shift 0), for the shift in use, and for
-  the best shift. Treat the cell position as correct to about one cell until
-  the check confirms one of them.
+- The ground grid is placed by the SDK rule (row 0 is the south edge, `bounds`
+  gives the place). Each ground run checks it: the Watch text has a "Grid
+  alignment check" line with the share of the cells under the buildings that
+  have no value, for the SDK rule and for the best shift of one cell. A warning
+  line follows if a shift fits better.
 - Dynamo in Revit 2026 uses Python 3.9. So this folder uses Python 3.9 syntax.
   This is the reason it does not follow the 3.11+ rule of the rest of this repository.
 - The SDK is pinned to `infrared-sdk` 1.0.0. The script refuses any other version.
