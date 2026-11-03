@@ -214,6 +214,7 @@ def _run(
                     "unit": out["unit"],
                     "analysis_type": out["analysis_type"],
                     "true_north_rad": site.true_north_rad,
+                    "document": doc.PathName or doc.Title,
                 }
             )
     if entries:

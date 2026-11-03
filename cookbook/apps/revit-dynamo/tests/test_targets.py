@@ -83,3 +83,11 @@ def test_merge_replaces_same_target_and_keeps_the_other() -> None:
     titles = {e["target"]: e["title"] for e in again["entries"]}
     assert titles == {"ground": "G2", "facades": "F"}
     assert t.load_entries(again) == again["entries"]
+
+
+def test_merge_drops_a_result_of_another_document() -> None:
+    old = {"entries": [{"target": "facades", "result": {"kind": "triangles"}, "document": "a.rvt"}]}
+    new_ground = {"target": "ground", "result": {"kind": "points"}, "document": "b.rvt"}
+    assert [e["target"] for e in t.merge_entries(old, [new_ground])["entries"]] == ["ground"]
+    same = dict(new_ground, document="a.rvt")
+    assert [e["target"] for e in t.merge_entries(old, [same])["entries"]] == ["ground", "facades"]

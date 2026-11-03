@@ -111,8 +111,15 @@ def load_entries(data: Any) -> List[Dict[str, Any]]:
 
 def merge_entries(old: Any, new: List[Dict[str, Any]]) -> Dict[str, Any]:
     """The file content after a run: the new entries replace the old ones of the same
-    target; entries of other targets stay (their shapes are still in the model)."""
+    target. An entry of another target stays only if it is from the same Revit
+    document (its shape is still in that model); a result of another model is
+    dropped, so "show-last" never draws it here."""
     fresh = {e["target"] for e in new}
-    kept = [e for e in load_entries(old) if e["target"] not in fresh]
+    documents = {e.get("document") for e in new}
+    kept = [
+        e
+        for e in load_entries(old)
+        if e["target"] not in fresh and e.get("document") in documents
+    ]
     ordered = sorted(kept + list(new), key=lambda e: SURFACES.index(e["target"]))
     return {"entries": ordered}
