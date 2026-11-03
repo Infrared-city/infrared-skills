@@ -8,8 +8,10 @@ the cells inside a building without a value (NaN), so the right shift puts the
 most building points into NaN cells.
 
 Building points: the centre of each flat (roof or floor) triangle above the
-ground, and its corners moved 40 % towards that centre (so a point is never on
-an outline, where a cell is half in, half out). No Revit import.
+ground, its corners moved 40 % towards that centre, and the points of a
+``LATTICE_M`` lattice inside the larger triangles. A lattice point is at least
+half a step from the outline, so one cell of shift moves the points near the
+outline out of the no-data cells. No Revit import.
 """
 
 from __future__ import annotations
@@ -23,6 +25,28 @@ from . import frame as frame_mod
 SHIFTS = (-1, 0, 1)
 FLAT = 0.9  # |normal z| of a roof or floor triangle
 ABOVE_M = 0.5  # flat triangles at the ground (a slab on grade) are not used
+LATTICE_M = 0.5
+MAX_LATTICE_TRIANGLES = 20000  # the largest ones; enough for a check
+
+
+def _lattice(tri: np.ndarray) -> np.ndarray:
+    """Points of a ``LATTICE_M`` lattice (offset half a step) inside one triangle (xy)."""
+    a, b, c = tri[0, :2], tri[1, :2], tri[2, :2]
+    low, high = tri[:, :2].min(axis=0), tri[:, :2].max(axis=0)
+    xs = np.arange(low[0] + LATTICE_M / 2, high[0], LATTICE_M)
+    ys = np.arange(low[1] + LATTICE_M / 2, high[1], LATTICE_M)
+    if xs.size == 0 or ys.size == 0:
+        return np.zeros((0, 2))
+    p = np.stack(np.meshgrid(xs, ys), axis=-1).reshape(-1, 2)
+    v0, v1, v2 = c - a, b - a, p - a
+    d00, d01, d11 = v0 @ v0, v0 @ v1, v1 @ v1
+    den = d00 * d11 - d01 * d01
+    if den == 0:
+        return np.zeros((0, 2))
+    d20, d21 = v2 @ v0, v2 @ v1
+    u = (d11 * d20 - d01 * d21) / den
+    v = (d00 * d21 - d01 * d20) / den
+    return p[(u >= 0) & (v >= 0) & (u + v <= 1)]
 
 
 def building_points(buildings: Dict[str, dict]) -> np.ndarray:
@@ -40,6 +64,11 @@ def building_points(buildings: Dict[str, dict]) -> np.ndarray:
         tri, centre = tri[keep], centre[keep]
         inner = tri + 0.4 * (centre[:, None, :] - tri)
         out.append(np.concatenate([centre[:, :2], inner[:, :, :2].reshape(-1, 2)]))
+        area = 0.5 * length[keep]
+        for k in np.argsort(-area)[:MAX_LATTICE_TRIANGLES]:
+            if area[k] < LATTICE_M * LATTICE_M:
+                break
+            out.append(_lattice(tri[k]))
     return np.concatenate(out) if out else np.zeros((0, 2))
 
 

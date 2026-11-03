@@ -14,8 +14,16 @@ def _roof(x0, y0, x1, y1, z=10.0) -> dict:
 
 def test_building_points_are_inside_the_roof_and_skip_the_ground_slab() -> None:
     pts = grid_check.building_points({"a": _roof(5, 5, 15, 10), "slab": _roof(0, 0, 50, 50, 0.0)})
-    assert len(pts) == 8  # 2 roof triangles: centre + 3 inner corners each
+    assert len(pts) > 8 * 20 / 2  # a 0.5 m lattice over the 10 x 5 m roof, plus 8
     assert pts[:, 0].min() > 5 and pts[:, 0].max() < 15 and pts[:, 1].min() > 5 and pts[:, 1].max() < 10
+
+
+def test_a_simple_box_roof_tells_the_shifts_apart() -> None:
+    no_data = np.zeros((30, 30), dtype=bool)
+    no_data[5:10, 5:15] = True
+    pts = grid_check.building_points({"box": _roof(5, 5, 15, 10)})  # 2 big triangles only
+    found, _ = grid_check.scores(no_data, (0.0, 0.0), (1.0, 1.0), pts)
+    assert found[(0, 0)] == 1.0 and all(v < 0.95 for k, v in found.items() if k != (0, 0))
 
 
 def _fine_roof(x0, y0, x1, y1, z=10.0) -> dict:

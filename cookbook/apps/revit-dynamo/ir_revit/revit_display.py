@@ -85,14 +85,15 @@ def _build_shape(
 ) -> Any:
     """One DirectShape with all triangles; each face takes the material of its bin.
 
-    A Revit ``Mesh`` has ONE material, and the builder makes one mesh per
-    connected face set. So each bin is its own face set; one face set for all
-    triangles drew the whole shape in a single colour.
+    A Revit ``Mesh`` has ONE material, and a ``TessellatedShapeBuilder`` with
+    the Mesh target gives one mesh, also from several face sets. So each colour
+    has its own builder, and the meshes of all colours form one DirectShape.
     """
     from Autodesk.Revit.DB import (  # type: ignore
         BuiltInCategory,
         DirectShape,
         ElementId,
+        GeometryObject,
         TessellatedFace,
         TessellatedShapeBuilder,
         TessellatedShapeBuilderFallback,
@@ -101,8 +102,11 @@ def _build_shape(
     )
     from System.Collections.Generic import List as NetList  # type: ignore
 
-    builder = TessellatedShapeBuilder()
+    objects = NetList[GeometryObject]()
     for k in np.unique(bins):
+        # One builder per colour: one builder gives ONE mesh (one material) even
+        # with several face sets (a live run: 62 colours, 1 mesh, 1 material).
+        builder = TessellatedShapeBuilder()
         builder.OpenConnectedFaceSet(False)
         material = material_ids[int(k)]
         for tri in feet[bins == k]:
@@ -111,15 +115,16 @@ def _build_shape(
                 corners.Add(XYZ(float(p[0]), float(p[1]), float(p[2])))
             builder.AddFace(TessellatedFace(corners, material))
         builder.CloseConnectedFaceSet()
-    builder.Target = TessellatedShapeBuilderTarget.Mesh
-    builder.Fallback = TessellatedShapeBuilderFallback.Salvage
-    builder.Build()
-    built = builder.GetBuildResult()
+        builder.Target = TessellatedShapeBuilderTarget.Mesh
+        builder.Fallback = TessellatedShapeBuilderFallback.Salvage
+        builder.Build()
+        for item in builder.GetBuildResult().GetGeometricalObjects():
+            objects.Add(item)
     shape = DirectShape.CreateElement(doc, ElementId(BuiltInCategory.OST_GenericModel))
     shape.ApplicationId = APP_ID  # how the next run finds and replaces it
     shape.ApplicationDataId = target  # "ground" or "facades"
-    objects = list(built.GetGeometricalObjects())
     shape.SetShape(objects)
+    objects = list(objects)
     try:
         shape.Name = "%s (%s)" % (SHAPE_NAME, target)  # shown in Properties; not every Revit allows it
     except Exception:
