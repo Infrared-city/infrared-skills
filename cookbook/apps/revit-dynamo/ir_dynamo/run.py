@@ -14,7 +14,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
-from . import env, meshes, payloads, results, settings
+from . import env, grid_check, meshes, payloads, results, settings
 from . import terrain as terrain_mod
 from . import frame as frame_mod
 
@@ -226,6 +226,12 @@ def run_analysis(
         say("reading the result")
         if surface == "ground":
             out["result"] = results.ground_points(frame, run, z_offset, sampler)
+            try:  # where does the matrix sit? (a check only; it never stops the run)
+                warnings += grid_check.alignment_lines(
+                    frame, run, buildings, results.GROUND_GRID_SHIFT
+                )
+            except Exception as error:
+                warnings.append("Grid alignment check failed: %s" % error)
         else:
             out["result"] = results.facade_triangles(frame, run, z_offset)
         out["ran"] = True

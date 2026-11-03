@@ -124,11 +124,13 @@ legend for each target.
 
 - The run blocks Revit. Expect between 30 seconds and 5 minutes. Do not
   close Revit while it runs.
-- Facade values show as one point at the centre of each result triangle.
-  They do not colour the faces. This is version 1.
 - The ground grid is placed with a measured shift of one cell
-  (`GROUND_GRID_SHIFT` in `ir_dynamo/results.py`). One live run gave this value.
-  The cause is not known yet. Treat the cell position as correct to about one cell.
+  (`GROUND_GRID_SHIFT` in `ir_dynamo/results.py`). One live run gave this value;
+  the SDK docs give no shift. Each ground run now checks it: the Watch text has a
+  "Grid alignment check" line with the share of the cells under the buildings
+  that have no value, for the SDK rule (shift 0), for the shift in use, and for
+  the best shift. Treat the cell position as correct to about one cell until
+  the check confirms one of them.
 - Dynamo in Revit 2026 uses Python 3.9. So this folder uses Python 3.9 syntax.
   This is the reason it does not follow the 3.11+ rule of the rest of this repository.
 - The SDK is pinned to `infrared-sdk` 1.0.0. The script refuses any other version.
@@ -149,7 +151,7 @@ legend for each target.
 
 ## Colours
 
-The result uses the colours of the Infrared platform, read from the SDK colour registry (free, cached). Each distinct colour is one Revit material, for example `Infrared svf 01`; the Watch text lists material, rgb, value range and unit. The `legend` input sets the colour range:
+The result uses the colours of the Infrared platform. The SDK renderer (`render_grid_image_local`, with the colour registry) draws the result; each cell takes the colour of its own pixel. The ground matrix is rendered as it came from the SDK (row 0 is the south edge). Each distinct colour is one Revit material, for example `Infrared svf 08AEC4`. The Watch text gives the values (count, min, max, percentiles), the legend in bins with the count of each bin, and the number of meshes and colours that Revit built. The `legend` input sets the colour range:
 
 - `trimmed` (default): the 2nd to 98th percentile of the values. A few extreme cells do not wash out the colours, so the variation is visible (for example the wind wake behind a building).
 - `exact`: the minimum and maximum of the result.
@@ -157,4 +159,4 @@ The result uses the colours of the Infrared platform, read from the SDK colour r
 
 To see the same result with another range, set `legend`, set `analysis` to `show-last` and press Run. This is free.
 
-UTCI and wind speed use a few flat platform colours; the other analyses are shown in 10 bins with the platform colours. If the registry cannot be reached, built-in colours are used and the Watch text says so.
+UTCI and wind speed use a few flat platform colours. Sky view factor, solar radiation, sun hours and daylight are smooth gradients: up to 256 colours, so up to 256 materials; the legend text shows them in 10 bins. If the registry cannot be reached, built-in colours are used and the Watch text says so.
