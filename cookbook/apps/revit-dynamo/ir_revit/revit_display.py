@@ -22,7 +22,7 @@ import numpy as np
 
 from ir_dynamo import cell_colors, colors, settings, summary
 
-from . import result_mesh, revit_location
+from . import result_mesh, revit_legend, revit_location
 
 SHAPE_NAME = "Infrared result"
 APP_ID = "Infrared Dynamo"
@@ -210,12 +210,22 @@ def show(
     except Exception as error:
         TransactionManager.Instance.ForceCloseTransaction()
         return "Display failed: %s (%d triangles)" % (error, len(feet))
+    low, high = float(legend.ramp_values[0]), float(legend.ramp_values[-1])
+    legend_notes = [
+        "Colour range (%s): %.3g - %.3g %s; values outside take the end colours."
+        % (colors.parse_range_mode(range_mode), low, high, unit)
+    ] + warnings
+    try:  # a legend that fails must not take the result with it
+        legend_line = revit_legend.draw_legend(doc, legend, title, unit, target, legend_notes)
+    except Exception as error:
+        legend_line = "Legend view not drawn: %s" % error
     TransactionManager.Instance.TransactionTaskDone()
     lines = [
         "Showed %s on %s (%s) as %d triangles, element %s (replaced %d old %s shape(s)). "
         "Use a Shaded or Realistic 3D view."
         % (title, target, unit, len(feet), shape.Id, removed, target),
         check,
+        legend_line,
         "Cell colours: drawn by the SDK renderer, %d distinct colour(s)%s."
         % (len(palette), ", smooth gradient" if gradient else ""),
     ]

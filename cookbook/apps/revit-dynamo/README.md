@@ -155,6 +155,8 @@ The result uses the colours of the Infrared platform. The SDK renderer (`render_
 - `exact`: the minimum and maximum of the result.
 - `platform`: the range that the platform uses. UTCI and wind speed have a fixed range there (wind speed: 0 to 20 m/s, so a 5 m/s wind shows in blue only); the other analyses use the 2nd to 98th percentile, as the platform renderer does.
 
+Each run also draws the legend in a drafting view: "Infrared legend - ground" and "Infrared legend - facades" (Project Browser > Drafting Views). It shows one colour swatch and value range per bin, the highest value on top, and the colour range in use. A new run of the same target redraws the same view, so you can put it on a sheet once. (The Revit API cannot create a Legend view; a drafting view can go on a sheet in the same way.)
+
 To see the same result with another range, set `legend`, set `analysis` to `show-last` and press Run. This is free.
 
 UTCI and wind speed use a few flat platform colours. Set `gradient` to `True` to draw them as a smooth gradient through the same colours (the platform itself shows the flat bins). Sky view factor, solar radiation, sun hours and daylight are smooth gradients: up to 256 colours, so up to 256 materials; the legend text shows them in 10 bins. If the registry cannot be reached, built-in colours are used and the Watch text says so.
