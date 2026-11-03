@@ -45,9 +45,12 @@ def value_lines(result: Dict[str, Any], target: str, unit: str) -> List[str]:
 
 
 def legend_count_lines(
-    legend: colors.Legend, values: Any, unit: str, range_mode: str, name: str = "Infrared"
+    legend: colors.Legend, values: Any, unit: str, range_mode: str
 ) -> List[str]:
-    """The legend range in use, and per bin: material, colour, range, count and share.
+    """The legend range in use, and per bin: colour, value range, count and share.
+
+    For a smooth platform gradient the bin colour is the colour at the bin's
+    middle; the cells themselves carry the exact SDK colour.
 
     Values outside the legend range are drawn in the first or last colour;
     a line gives how many.
@@ -67,6 +70,9 @@ def legend_count_lines(
         )
     counts = np.bincount(legend.bin_of(v), minlength=len(legend.bins)) if len(v) else []
     total = max(len(v), 1)
-    for line, count in zip(colors.legend_lines(legend, unit, name), counts):
-        lines.append("%s: %d (%.1f %%)" % (line, count, 100.0 * count / total))
+    for k, (b, count) in enumerate(zip(legend.bins, counts)):
+        lines.append(
+            "  bin %02d  rgb%s  %s .. %s %s: %d (%.1f %%)"
+            % (k + 1, b.rgb, _num(b.low), _num(b.high), unit, count, 100.0 * count / total)
+        )
     return lines

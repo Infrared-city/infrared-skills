@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import numpy as np
 
-from ir_dynamo.colors import Legend
 from ir_revit import result_mesh as rm
 
 
@@ -25,9 +24,7 @@ def test_facade_triangles_move_away_from_the_centre() -> None:
     assert np.allclose(moved[1, :, 0], -rm.FACADE_OFFSET_M)
 
 
-def test_coloured_triangles_repeat_the_ground_bin_per_cell() -> None:
-    ramp = np.linspace(0.0, 100.0, 101)
-    legend = Legend("x", [], ramp, np.minimum(np.arange(101) // 10, 9), "registry")
+def test_coloured_triangles_repeat_the_ground_colour_per_cell() -> None:
     result = {
         "kind": "points",
         "points": [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]],
@@ -36,6 +33,6 @@ def test_coloured_triangles_repeat_the_ground_bin_per_cell() -> None:
         "legend_min": 0.0,
         "legend_max": 100.0,
     }
-    tri, bins = rm.coloured_triangles(result, legend)
+    tri, bins = rm.coloured_triangles(result, [0, 9])
     assert tri.shape == (4, 3, 3)
     assert bins.tolist() == [0, 0, 9, 9]

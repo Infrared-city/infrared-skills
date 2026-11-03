@@ -41,14 +41,12 @@ in 10 equal bins, and a warning line. The run does not fail.
 
 from __future__ import annotations
 
-import struct
-import zlib
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
-from . import settings
+from .png import decode_png  # noqa: F401  (part of this module's API)
 
 try:  # the SDK is there in a real run; the pure functions work without it
     from infrared_sdk.legend import legend_range, registry_fixed_range
@@ -68,94 +66,6 @@ RANGE_MODES = ("trimmed", "exact", "platform")
 DEFAULT_RANGE_MODE = "trimmed"
 # Offline fallback, low -> high (viridis stops).
 GRADIENT = [(68, 1, 84), (59, 82, 139), (33, 145, 140), (94, 201, 98), (253, 231, 37)]
-
-_PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
-
-
-# --------------------------------------------------------------------- PNG
-
-
-def _paeth(a: int, b: int, c: int) -> int:
-    p = a + b - c
-    pa, pb, pc = abs(p - a), abs(p - b), abs(p - c)
-    if pa <= pb and pa <= pc:
-        return a
-    return b if pb <= pc else c
-
-
-def _unfilter(raw: bytes, height: int, stride: int, bpp: int) -> np.ndarray:
-    out = np.zeros((height, stride), dtype=np.uint8)
-    pos = 0
-    for y in range(height):
-        kind = raw[pos]
-        line = np.frombuffer(raw, dtype=np.uint8, count=stride, offset=pos + 1)
-        pos += stride + 1
-        prev = out[y - 1] if y else np.zeros(stride, dtype=np.uint8)
-        if kind == 0:
-            out[y] = line
-        elif kind == 2:  # Up
-            out[y] = (line.astype(np.uint16) + prev) & 255
-        else:  # Sub, Average, Paeth depend on the pixel to the left: a loop
-            row = out[y]
-            for i in range(stride):
-                left = int(row[i - bpp]) if i >= bpp else 0
-                if kind == 1:
-                    add = left
-                elif kind == 3:
-                    add = (left + int(prev[i])) >> 1
-                elif kind == 4:
-                    up_left = int(prev[i - bpp]) if i >= bpp else 0
-                    add = _paeth(left, int(prev[i]), up_left)
-                else:
-                    raise ValueError("PNG: unknown filter type %d." % kind)
-                row[i] = (int(line[i]) + add) & 255
-    return out
-
-
-def decode_png(data: bytes) -> np.ndarray:
-    """Decode the PNG the kernel writes: 8-bit RGB or RGBA, not interlaced.
-
-    Returns an array ``(height, width, 3 or 4)`` of ``uint8``.
-
-    Raises
-    ------
-    ValueError
-        For anything else (other colour type or bit depth, interlacing, a bad
-        chunk or checksum, truncated data).
-    """
-    if data[:8] != _PNG_SIGNATURE:
-        raise ValueError("PNG: bad signature, this is not a PNG file.")
-    pos, header, idat = 8, None, []
-    while pos + 8 <= len(data):
-        length, kind = struct.unpack(">I4s", data[pos : pos + 8])
-        body = data[pos + 8 : pos + 8 + length]
-        crc = data[pos + 8 + length : pos + 12 + length]
-        if len(body) != length or len(crc) != 4:
-            raise ValueError("PNG: the data is cut off in a %r chunk." % kind)
-        if struct.unpack(">I", crc)[0] != zlib.crc32(kind + body) & 0xFFFFFFFF:
-            raise ValueError("PNG: bad checksum in a %r chunk." % kind)
-        pos += 12 + length
-        if kind == b"IHDR":
-            header = struct.unpack(">IIBBBBB", body)
-        elif kind == b"IDAT":
-            idat.append(body)
-        elif kind == b"IEND":
-            break
-    if header is None or not idat:
-        raise ValueError("PNG: no header or no image data.")
-    width, height, depth, color, _compression, _filter, interlace = header
-    if depth != 8 or color not in (2, 6) or interlace != 0:
-        raise ValueError(
-            "PNG: only 8-bit RGB or RGBA without interlacing is supported "
-            "(got depth %d, colour type %d, interlace %d)." % (depth, color, interlace)
-        )
-    channels = 3 if color == 2 else 4
-    stride = width * channels
-    raw = zlib.decompress(b"".join(idat))
-    if len(raw) != height * (stride + 1):
-        raise ValueError("PNG: the image data has the wrong size.")
-    return _unfilter(raw, height, stride, channels).reshape(height, width, channels)
-
 
 # ------------------------------------------------------------------ legend
 
@@ -312,6 +222,61 @@ def _measured_range(
     return low, high
 
 
+def load_configurations(visual_configurations: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """The registry ``visualConfigurations`` (fetched and cached by the SDK)."""
+    if visual_configurations is not None:
+        return visual_configurations
+    from infrared_sdk.layers._registry import fetch_visual_configurations
+
+    return fetch_visual_configurations()[0]
+
+
+def resolve_range(
+    analysis_type: str,
+    low: Optional[float],
+    high: Optional[float],
+    values: Any,
+    range_mode: str,
+    visual_configurations: Dict[str, Any],
+) -> Tuple[float, float, Dict[str, Any], List[str]]:
+    """The colour range of a result and the registry to render it with.
+
+    Returns ``(low, high, configurations, warning_lines)``. In a measured mode
+    (``"trimmed"``, ``"exact"``) a config with ``steps`` gets ``steps = [low,
+    high]`` in a copy, so the renderer spreads the same platform colours over
+    that range. In ``"platform"`` mode the registry's fixed range wins.
+
+    Raises
+    ------
+    LookupError
+        When the registry has no entry for ``analysis_type``.
+    """
+    mode = parse_range_mode(range_mode)
+    if analysis_type not in visual_configurations:
+        raise LookupError("the colour registry has no entry for %r" % analysis_type)
+    warnings: List[str] = []
+    fixed = registry_fixed_range(analysis_type)
+    if mode == "platform" and fixed is not None:
+        low, high = fixed
+    else:
+        low, high = _measured_range(mode, values, low, high)
+    if low is None or high is None:
+        low, high = 0.0, 1.0
+    low, high = float(low), float(high)
+    if not high > low:
+        high = low + 1.0  # one value only: a range needs a width
+    config = visual_configurations[analysis_type]
+    if mode != "platform" and isinstance(config, dict) and config.get("steps"):
+        config = dict(config, steps=[low, high])
+        visual_configurations = dict(visual_configurations, **{analysis_type: config})
+    if mode != "platform" and fixed is not None:
+        warnings.append(
+            "Legend range (%s): %.4g .. %.4g. The platform always uses %.4g .. %.4g; "
+            "set legend to platform to see that." % (mode, low, high, fixed[0], fixed[1])
+        )
+    return low, high, visual_configurations, warnings
+
+
 def make_legend(
     analysis_type: str,
     low: Optional[float],
@@ -328,36 +293,11 @@ def make_legend(
     If the registry cannot be fetched or does not know the analysis, the
     fallback gradient is used and a line says so.
     """
-    warnings: List[str] = []
     mode = parse_range_mode(range_mode)
     try:
-        if visual_configurations is None:
-            from infrared_sdk.layers._registry import fetch_visual_configurations
-
-            visual_configurations = fetch_visual_configurations()[0]
-        if analysis_type not in visual_configurations:
-            raise LookupError("the colour registry has no entry for %r" % analysis_type)
-        fixed = registry_fixed_range(analysis_type)
-        if mode == "platform" and fixed is not None:
-            low, high = fixed
-        else:
-            low, high = _measured_range(mode, values, low, high)
-        if low is None or high is None:
-            low, high = 0.0, 1.0
-        low, high = float(low), float(high)
-        if not high > low:
-            high = low + 1.0  # one value only: a ramp needs a width
-        config = visual_configurations[analysis_type]
-        if mode != "platform" and isinstance(config, dict) and config.get("steps"):
-            # Spread the same platform colours over the chosen range.
-            config = dict(config, steps=[low, high])
-            visual_configurations = dict(visual_configurations, **{analysis_type: config})
-        if mode != "platform" and fixed is not None:
-            warnings.append(
-                "Legend range (%s): %.4g .. %.4g. The platform always uses %.4g .. %.4g; "
-                "set legend to platform to see that." % (mode, low, high, fixed[0], fixed[1])
-            )
-        ramp, rgb = value_colors(analysis_type, low, high, visual_configurations)
+        configs = load_configurations(visual_configurations)
+        low, high, configs, warnings = resolve_range(analysis_type, low, high, values, mode, configs)
+        ramp, rgb = value_colors(analysis_type, low, high, configs)
         bins, ramp_bin = collapse(ramp, rgb)
         if len(bins) > MAX_BINS:
             bins, ramp_bin = _evenly(ramp, FALLBACK_BINS)
@@ -365,7 +305,7 @@ def make_legend(
                 mid = np.nonzero(ramp_bin == k)[0]
                 bins[k] = Bin(tuple(int(c) for c in rgb[mid[len(mid) // 2]]), bins[k].low, bins[k].high)
             warnings.append(
-                "The platform draws %s as a smooth gradient; shown in %d bins with its colours."
+                "The platform draws %s as a smooth gradient; the legend shows it in %d bins."
                 % (analysis_type, FALLBACK_BINS)
             )
         return Legend(analysis_type, bins, ramp, ramp_bin, "registry"), warnings
@@ -376,25 +316,7 @@ def make_legend(
             pass  # the SDK is not there either: the exact range
         low = 0.0 if low is None else float(low)
         high = low + 1.0 if high is None or not float(high) > low else float(high)
-        warnings.append(
+        return fallback_legend(analysis_type, low, high), [
             "Colour registry not available (%s); using the built-in colours, "
             "not the platform colours." % error
-        )
-        return fallback_legend(analysis_type, low, high), warnings
-
-
-def legend_lines(legend: Legend, unit: str, name: str = "Infrared") -> List[str]:
-    """One line per bin: material name, colour and value range."""
-    return [
-        "  %s  rgb%s  %.4g .. %.4g %s" % (material_name(legend, k, name), b.rgb, b.low, b.high, unit)
-        for k, b in enumerate(legend.bins)
-    ]
-
-
-def material_name(legend: Legend, k: int, prefix: str = "Infrared") -> str:
-    """The Revit material of bin ``k``, for example ``"Infrared svf 03"``."""
-    short = next(
-        (a.key for a in settings.ANALYSES.values() if a.sdk_type == legend.analysis_type),
-        legend.analysis_type,
-    )
-    return "%s %s %02d" % (prefix, short, k + 1)
+        ]

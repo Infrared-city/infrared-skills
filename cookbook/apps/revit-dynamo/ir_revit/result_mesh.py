@@ -4,8 +4,8 @@
   with its corners on the terrain when the result has ``corner_z``;
 * facades: each result triangle, moved a little out of the wall.
 
-The colour bin of each value comes from ``ir_dynamo.colors.Legend`` (the platform
-colours of the SDK colour registry).
+The colour of each value is an index into a palette (``ir_dynamo.cell_colors``:
+the colour the SDK renderer gives that cell).
 """
 
 from __future__ import annotations
@@ -14,7 +14,6 @@ from typing import Any, Dict, Optional, Sequence, Tuple
 
 import numpy as np
 
-from ir_dynamo.colors import Legend
 
 GROUND_LIFT_M = 0.05  # above the ground, so the colours do not mix with a floor
 FACADE_OFFSET_M = 0.05  # out of the wall, for the same reason
@@ -71,14 +70,13 @@ def facade_triangles(triangles: Sequence[float]) -> np.ndarray:
     return tri + FACADE_OFFSET_M * normal[:, None, :]
 
 
-def coloured_triangles(result: Dict[str, Any], legend: Legend) -> Tuple[np.ndarray, np.ndarray]:
-    """Triangles ``(m, 3, 3)`` in Revit-frame metres and the legend bin of each one.
+def coloured_triangles(result: Dict[str, Any], index: Sequence[int]) -> Tuple[np.ndarray, np.ndarray]:
+    """Triangles ``(m, 3, 3)`` in Revit-frame metres and the colour index of each one.
 
-    A value without a bin (NaN) gets the first bin; results do not carry NaN
-    (``ir_dynamo.results`` leaves such cells out).
+    ``index[i]`` is the palette colour of ``result["values"][i]``.
     """
-    bins = np.maximum(legend.bin_of(result["values"]), 0)
+    colour = np.asarray(index, dtype=np.int64).reshape(-1)
     if result["kind"] == "points":
         tri = ground_triangles(result["points"], result["cell_m"], result.get("corner_z"))
-        return tri, np.repeat(bins, 2)
-    return facade_triangles(result["triangles"]), bins
+        return tri, np.repeat(colour, 2)
+    return facade_triangles(result["triangles"]), colour

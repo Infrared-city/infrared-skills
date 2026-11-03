@@ -264,14 +264,12 @@ def test_unknown_analysis_type_falls_back(monkeypatch) -> None:
     assert legend.source == "fallback" and warnings
 
 
-def test_legend_round_trips_through_a_dict_and_names_materials(monkeypatch) -> None:
+def test_legend_round_trips_through_a_dict(monkeypatch) -> None:
     monkeypatch.setattr(colors, "registry_fixed_range", lambda *a, **k: None)
     legend = _legend()
     again = colors.Legend.from_dict(legend.to_dict())
     assert again.bins == legend.bins
     assert again.bin_of([10.0, 90.0]).tolist() == legend.bin_of([10.0, 90.0]).tolist()
-    assert colors.material_name(legend, 0) == "Infrared svf 01"
-    assert colors.legend_lines(legend, "%")[0].startswith("  Infrared svf 01  rgb(")
 
 
 def test_one_hour_is_accepted_and_ranges_still_work() -> None:

@@ -4,6 +4,8 @@ Both functions return a dict with lists and numbers only:
 
 ground: ``{"kind": "points", "points": [[x, y, z], ...], "values": [...],
            "cell_m": float, "legend_min", "legend_max",
+           "grid_shape": [rows, cols], "cells": [[row, col], ...] (the place of
+           each value in the SDK matrix; row 0 is the south edge),
            "corner_z": [[sw, se, ne, nw], ...] (only with terrain)}``
 facades: ``{"kind": "triangles", "triangles": [x, y, z, ...] (9 per triangle),
             "values": [one per triangle], "legend_min", "legend_max"}``
@@ -73,6 +75,8 @@ def ground_points(
         "cell_m": float(cell_x),
         "legend_min": low,
         "legend_max": high,
+        "grid_shape": [int(rows), int(cols)],
+        "cells": np.stack([row, col], axis=1).tolist(),
     }
     if corner_z is not None:
         out["corner_z"] = corner_z

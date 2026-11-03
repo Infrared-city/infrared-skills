@@ -26,4 +26,5 @@ def test_legend_lines_count_each_bin_and_the_values_outside() -> None:
     lines = summary.legend_count_lines(_legend(), [-1.0, 1.0, 2.0, 7.0, 12.0], "m/s", "trimmed")
     assert lines[0] == "Legend range used (trimmed): 0 .. 10 m/s"
     assert "1 value(s) below and 1 above" in lines[1]
-    assert lines[2].endswith(": 3 (60.0 %)") and lines[3].endswith(": 2 (40.0 %)")
+    assert lines[2] == "  bin 01  rgb(0, 0, 255)  0 .. 4 m/s: 3 (60.0 %)"
+    assert lines[3].endswith(": 2 (40.0 %)")

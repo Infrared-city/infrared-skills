@@ -3,8 +3,9 @@
 * ground: one square per grid cell, a little above the ground;
 * facades: one triangle per result triangle, a little out of the wall.
 
-Each distinct colour of the platform colour scale is one material, named by
-analysis and bin, for example "Infrared svf 01" (low -> high).
+Each cell takes the colour the SDK renderer gives it (``ir_dynamo.cell_colors``).
+Each distinct colour is one material, named by analysis and colour, for example
+"Infrared svf 08AEC4". The Watch text gives the legend in bins, with counts.
 The shape stays in the model (it is "baked"); the next run of the same target
 (ground or facades) replaces it. Look at
 it in a Shaded or Realistic 3D view. The legend is in the Watch node text.
@@ -15,11 +16,11 @@ Dynamo wraps a node run in a transaction. This file asks Dynamo's
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Sequence, Tuple
 
 import numpy as np
 
-from ir_dynamo import colors, summary
+from ir_dynamo import cell_colors, colors, settings, summary
 
 from . import result_mesh, revit_location
 
@@ -28,8 +29,17 @@ APP_ID = "Infrared Dynamo"
 MATERIAL_PREFIX = "Infrared "
 
 
-def _materials(doc: Any, legend: colors.Legend) -> List[Any]:
-    """The bin materials of ``legend`` (reused by name, colours refreshed). Returns their ids."""
+def material_name(analysis_type: str, rgb: Sequence[int]) -> str:
+    """The material of one colour, for example ``"Infrared svf 08AEC4"``."""
+    short = next(
+        (a.key for a in settings.ANALYSES.values() if a.sdk_type == analysis_type),
+        analysis_type or "result",
+    )
+    return "%s%s %02X%02X%02X" % (MATERIAL_PREFIX, short, rgb[0], rgb[1], rgb[2])
+
+
+def _materials(doc: Any, analysis_type: str, palette: List[Tuple[int, int, int]]) -> List[Any]:
+    """One material per palette colour (reused by name). Returns their ids."""
     import clr  # type: ignore
     from Autodesk.Revit.DB import Color, FilteredElementCollector, Material  # type: ignore
 
@@ -38,12 +48,12 @@ def _materials(doc: Any, legend: colors.Legend) -> List[Any]:
         for m in list(FilteredElementCollector(doc).OfClass(clr.GetClrType(Material)))
     }
     ids = []
-    for k, bin_ in enumerate(legend.bins):
-        rgb = bin_.rgb
-        name = colors.material_name(legend, k, MATERIAL_PREFIX.strip())
+    for rgb in palette:
+        name = material_name(analysis_type, rgb)
         material = known.get(name)
         if material is None:
             material = doc.GetElement(Material.Create(doc, name))
+            known[name] = material
         material.Color = Color(*rgb)
         ids.append(material.Id)
     return ids
@@ -166,14 +176,26 @@ def show(
         values=result["values"],
         range_mode=range_mode,
     )
-    tri_m, bins = result_mesh.coloured_triangles(result, legend)
+    palette, index, notes = cell_colors.cell_colors(
+        analysis_type,
+        result["values"],
+        result["legend_min"],
+        result["legend_max"],
+        range_mode,
+        legend,
+        result.get("grid_shape"),
+        result.get("cells"),
+    )
+    tri_m, bins = result_mesh.coloured_triangles(result, index)
     feet = revit_location.site_m_to_internal_ft(tri_m.reshape(-1), true_north_rad)
     feet = feet.reshape(-1, 3, 3)
     doc = DocumentManager.Instance.CurrentDBDocument
     TransactionManager.Instance.EnsureInTransaction(doc)
     try:
         removed = _delete_old_shapes(doc, target)
-        shape, check = _build_shape(doc, feet, bins, _materials(doc, legend), target)
+        shape, check = _build_shape(
+            doc, feet, bins, _materials(doc, analysis_type, palette), target
+        )
     except Exception as error:
         TransactionManager.Instance.ForceCloseTransaction()
         return "Display failed: %s (%d triangles)" % (error, len(feet))
@@ -183,11 +205,10 @@ def show(
         "Use a Shaded or Realistic 3D view."
         % (title, target, unit, len(feet), shape.Id, removed, target),
         check,
+        "Cell colours: drawn by the SDK renderer, %d distinct colour(s)." % len(palette),
     ]
     lines += summary.value_lines(result, target, unit)
-    lines += ["Legend for %s (material: colour, value range: count):" % target]
-    lines += summary.legend_count_lines(
-        legend, result["values"], unit, range_mode, MATERIAL_PREFIX.strip()
-    )
-    lines += warnings
+    lines += ["Legend for %s (bin: colour, value range: count):" % target]
+    lines += summary.legend_count_lines(legend, result["values"], unit, range_mode)
+    lines += warnings + notes
     return "\n".join(lines)
