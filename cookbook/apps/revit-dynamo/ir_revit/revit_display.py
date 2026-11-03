@@ -73,7 +73,12 @@ def _delete_old_shapes(doc: Any, target: str) -> int:
 def _build_shape(
     doc: Any, feet: np.ndarray, bins: np.ndarray, material_ids: List[Any], target: str
 ) -> Any:
-    """One DirectShape with all triangles; each face takes the material of its bin."""
+    """One DirectShape with all triangles; each face takes the material of its bin.
+
+    A Revit ``Mesh`` has ONE material, and the builder makes one mesh per
+    connected face set. So each bin is its own face set; one face set for all
+    triangles drew the whole shape in a single colour.
+    """
     from Autodesk.Revit.DB import (  # type: ignore
         BuiltInCategory,
         DirectShape,
@@ -87,13 +92,15 @@ def _build_shape(
     from System.Collections.Generic import List as NetList  # type: ignore
 
     builder = TessellatedShapeBuilder()
-    builder.OpenConnectedFaceSet(False)
-    for tri, k in zip(feet, bins):
-        corners = NetList[XYZ]()
-        for p in tri:
-            corners.Add(XYZ(float(p[0]), float(p[1]), float(p[2])))
-        builder.AddFace(TessellatedFace(corners, material_ids[int(k)]))
-    builder.CloseConnectedFaceSet()
+    for k in np.unique(bins):
+        builder.OpenConnectedFaceSet(False)
+        material = material_ids[int(k)]
+        for tri in feet[bins == k]:
+            corners = NetList[XYZ]()
+            for p in tri:
+                corners.Add(XYZ(float(p[0]), float(p[1]), float(p[2])))
+            builder.AddFace(TessellatedFace(corners, material))
+        builder.CloseConnectedFaceSet()
     builder.Target = TessellatedShapeBuilderTarget.Mesh
     builder.Fallback = TessellatedShapeBuilderFallback.Salvage
     builder.Build()
@@ -101,12 +108,21 @@ def _build_shape(
     shape = DirectShape.CreateElement(doc, ElementId(BuiltInCategory.OST_GenericModel))
     shape.ApplicationId = APP_ID  # how the next run finds and replaces it
     shape.ApplicationDataId = target  # "ground" or "facades"
-    shape.SetShape(built.GetGeometricalObjects())
+    objects = list(built.GetGeometricalObjects())
+    shape.SetShape(objects)
     try:
         shape.Name = "%s (%s)" % (SHAPE_NAME, target)  # shown in Properties; not every Revit allows it
     except Exception:
         pass
-    return shape
+    materials = {
+        str(o.MaterialElementId) for o in objects if hasattr(o, "MaterialElementId")
+    }
+    check = "Revit built %d mesh(es) with %d material(s) for %d colour(s)." % (
+        len(objects),
+        len(materials),
+        len(np.unique(bins)),
+    )
+    return shape, check
 
 
 def show(
@@ -157,7 +173,7 @@ def show(
     TransactionManager.Instance.EnsureInTransaction(doc)
     try:
         removed = _delete_old_shapes(doc, target)
-        shape = _build_shape(doc, feet, bins, _materials(doc, legend), target)
+        shape, check = _build_shape(doc, feet, bins, _materials(doc, legend), target)
     except Exception as error:
         TransactionManager.Instance.ForceCloseTransaction()
         return "Display failed: %s (%d triangles)" % (error, len(feet))
@@ -166,6 +182,7 @@ def show(
         "Showed %s on %s (%s) as %d triangles, element %s (replaced %d old %s shape(s)). "
         "Use a Shaded or Realistic 3D view."
         % (title, target, unit, len(feet), shape.Id, removed, target),
+        check,
     ]
     lines += summary.value_lines(result, target, unit)
     lines += ["Legend for %s (material: colour, value range: count):" % target]
