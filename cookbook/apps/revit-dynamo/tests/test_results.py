@@ -80,8 +80,17 @@ def test_empty_legend_is_none() -> None:
     assert out["points"] == [] and out["legend_min"] is None
 
 
-def test_saved_real_grid_leaves_a_hole_exactly_where_the_box_is() -> None:
-    """A crop of a real ground SVF grid (20 m box at 5..25 m, buffer 5 m, 1 m cells)."""
+def test_saved_real_grid_fills_the_polygon_by_the_sdk_rule() -> None:
+    """A crop of a real ground SVF grid: a 30 m polygon (SW corner at Revit -15, -15),
+    1 m cells, a 20 x 20 m box inside.
+
+    The server leaves the cells outside the polygon without a value. Its valid
+    cells are rows and columns 0..29: by the SDK rule (centre at index + 0.5 from
+    the bounds SW corner) they fill the polygon exactly. The box hole is cells
+    6..25, one cell off the polygon's centre; the geometry sent with this run was
+    not recorded, so it cannot place the grid. ``grid_check`` scores the
+    placement against the sent geometry on each live run.
+    """
     import os
 
     crop = np.load(
@@ -100,16 +109,7 @@ def test_saved_real_grid_leaves_a_hole_exactly_where_the_box_is() -> None:
     )
     out = results.ground_points(F, result)
     pts = np.array(out["points"])
-    box = 10.0  # the box is 20 m wide, centred on the Revit origin
-    inside = (np.abs(pts[:, 0]) < box) & (np.abs(pts[:, 1]) < box)
-    assert inside.sum() == 0
-    # Cells right next to every wall are valid: centres 0.5 m from the wall.
-    for wx, wy in [
-        (-box - 0.5, 0.0),
-        (box + 0.5, 0.0),
-        (0.0, -box - 0.5),
-        (0.0, box + 0.5),
-    ]:
-        near = np.hypot(pts[:, 0] - wx, pts[:, 1] - wy) < 0.6
-        assert near.any(), (wx, wy)
-    assert len(pts) == 500
+    assert len(pts) == 500  # 30 x 30 cells minus the 20 x 20 hole
+    for axis in (0, 1):
+        assert pts[:, axis].min() == pytest.approx(-14.5, abs=0.01)  # polygon edge + half a cell
+        assert pts[:, axis].max() == pytest.approx(14.5, abs=0.01)
