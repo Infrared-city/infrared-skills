@@ -116,6 +116,7 @@ def show(
     true_north_rad: float,
     target: str,
     analysis_type: str = "",
+    range_mode: str = colors.DEFAULT_RANGE_MODE,
 ) -> str:
     """Draw the result as a coloured surface. Return the text for the Watch node.
 
@@ -133,6 +134,9 @@ def show(
     analysis_type : str
         The SDK analysis name; it picks the platform colours. Empty or unknown:
         the built-in gradient, with a warning line.
+    range_mode : str
+        The legend range: ``"trimmed"``, ``"exact"`` or ``"platform"``
+        (see ``ir_dynamo.colors``).
     """
     from RevitServices.Persistence import DocumentManager  # type: ignore
     from RevitServices.Transactions import TransactionManager  # type: ignore
@@ -140,7 +144,11 @@ def show(
     if len(result["values"]) == 0:
         return "The result has no values to show."
     legend, warnings = colors.make_legend(
-        analysis_type, result["legend_min"], result["legend_max"]
+        analysis_type,
+        result["legend_min"],
+        result["legend_max"],
+        values=result["values"],
+        range_mode=range_mode,
     )
     tri_m, bins = result_mesh.coloured_triangles(result, legend)
     feet = revit_location.site_m_to_internal_ft(tri_m.reshape(-1), true_north_rad)

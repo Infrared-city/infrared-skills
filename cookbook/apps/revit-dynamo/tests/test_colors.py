@@ -281,3 +281,26 @@ def test_one_hour_is_accepted_and_ranges_still_work() -> None:
     for bad in ("", "a", "25", "17-9", "1-2-3"):
         with pytest.raises(ValueError):
             parse_hours(bad)
+
+
+def test_trimmed_range_spreads_the_platform_colours_over_the_data(monkeypatch) -> None:
+    # Like wind speed: a fixed 0..20 platform scale, data only at 3..6.
+    monkeypatch.setattr(colors, "registry_fixed_range", lambda *a, **k: (-40.0, 46.0))
+    values = np.concatenate([np.linspace(3.0, 6.0, 1000), [0.0, 0.0, 30.0]])
+    platform, _ = colors.make_legend("thermal-comfort-index", 0.0, 30.0, VC, values, "platform")
+    used = set(platform.bin_of(values[:1000]).tolist())
+    assert len(used) <= 2  # the fixed scale: the data sits in one or two colours
+    legend, warnings = colors.make_legend("thermal-comfort-index", 0.0, 30.0, VC, values, "trimmed")
+    assert 3.0 <= legend.ramp_values[0] < 3.2 and 5.8 < legend.ramp_values[-1] <= 6.0
+    assert len(set(legend.bin_of(values[:1000]).tolist())) == len(legend.bins) >= 5
+    assert [b.rgb for b in legend.bins] == [b.rgb for b in platform.bins]  # same colours
+    assert "platform always uses -40 .. 46" in warnings[0]
+    exact, _ = colors.make_legend("thermal-comfort-index", 0.0, 30.0, VC, values, "exact")
+    assert exact.ramp_values[0] == 0.0 and exact.ramp_values[-1] == 30.0
+
+
+def test_range_mode_text() -> None:
+    assert colors.parse_range_mode("") == colors.DEFAULT_RANGE_MODE == "trimmed"
+    assert colors.parse_range_mode(" Platform ") == "platform"
+    with pytest.raises(ValueError, match="legend must be one of"):
+        colors.parse_range_mode("auto")

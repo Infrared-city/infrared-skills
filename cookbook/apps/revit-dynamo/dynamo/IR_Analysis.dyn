@@ -125,6 +125,15 @@
       "Value": "false",
       "Description": "Enables selection between True and False",
       "SelectedIndex": 0
+    },
+    {
+      "Id": "4b670cd3f7c84e58b823048f2e847d36",
+      "Name": "legend",
+      "Type": "string",
+      "Type2": "string",
+      "Value": "trimmed",
+      "Description": "Creates a string",
+      "SelectedIndex": 0
     }
   ],
   "Outputs": [],
@@ -372,8 +381,28 @@
       "InputValue": false
     },
     {
+      "ConcreteType": "CoreNodeModels.Input.StringInput, CoreNodeModels",
+      "NodeType": "StringInputNode",
+      "InputValue": "trimmed",
+      "Id": "4b670cd3f7c84e58b823048f2e847d36",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "ffd87c531f5a4878bf8db469ceee44a8",
+          "Name": "",
+          "Description": "String",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Creates a string"
+    },
+    {
       "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
-      "Code": "# Infrared analysis (ground, facades or both). No logic here: all of it is in the libs folder.\nimport os, sys, importlib\nlibs = os.path.expandvars(IN[0])\nif libs not in sys.path:\n    sys.path.insert(0, libs)\nfor name in ('ir_dynamo.settings', 'ir_dynamo.colors', 'ir_dynamo.targets', 'ir_dynamo.frame', 'ir_dynamo.terrain', 'ir_dynamo.meshes', 'ir_dynamo.payloads', 'ir_dynamo.results', 'ir_dynamo.env', 'ir_dynamo.run', 'ir_revit.revit_location', 'ir_revit.revit_geometry', 'ir_revit.result_mesh', 'ir_revit.revit_display', 'ir_revit.revit_apikey', 'ir_revit.entry'):\n    importlib.reload(importlib.import_module(name))  # picks up edited files\nfrom ir_revit.entry import run\nOUT = run(target=IN[2], elements=IN[1], analysis=IN[3], months=IN[4], hours=IN[5], preview_only=IN[6], fetch_context=IN[7], lat=IN[8], lon=IN[9], wind_speed=IN[10], wind_direction=IN[11], surfaces=IN[12], set_api_key=IN[13])\n",
+      "Code": "# Infrared analysis (ground, facades or both). No logic here: all of it is in the libs folder.\nimport os, sys, importlib\nlibs = os.path.expandvars(IN[0])\nif libs not in sys.path:\n    sys.path.insert(0, libs)\nfor name in ('ir_dynamo.settings', 'ir_dynamo.colors', 'ir_dynamo.targets', 'ir_dynamo.frame', 'ir_dynamo.terrain', 'ir_dynamo.meshes', 'ir_dynamo.payloads', 'ir_dynamo.results', 'ir_dynamo.env', 'ir_dynamo.run', 'ir_revit.revit_location', 'ir_revit.revit_geometry', 'ir_revit.result_mesh', 'ir_revit.revit_display', 'ir_revit.revit_apikey', 'ir_revit.entry'):\n    importlib.reload(importlib.import_module(name))  # picks up edited files\nfrom ir_revit.entry import run\nOUT = run(target=IN[2], elements=IN[1], analysis=IN[3], months=IN[4], hours=IN[5], preview_only=IN[6], fetch_context=IN[7], lat=IN[8], lon=IN[9], wind_speed=IN[10], wind_direction=IN[11], surfaces=IN[12], set_api_key=IN[13], legend=IN[14])\n",
       "Engine": "CPython3",
       "EngineName": "CPython3",
       "VariableInputPorts": true,
@@ -501,6 +530,15 @@
           "Id": "2a8337d3225248c984c69f0a79f61227",
           "Name": "IN[13]",
           "Description": "Input #13",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        },
+        {
+          "Id": "7bdf3cfdfaf8429f9ccaa825c67f02a6",
+          "Name": "IN[14]",
+          "Description": "Input #14",
           "UsingDefaultValue": false,
           "Level": 2,
           "UseLevels": false,
@@ -682,6 +720,12 @@
       "Start": "f4ce9c72bf1f4354bc238a748c5811ec",
       "End": "1977f6d17f7b407a83c053197f26580e",
       "Id": "1a5a3e560f5f4f73ba7aefcddcb0bf2e",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "ffd87c531f5a4878bf8db469ceee44a8",
+      "End": "7bdf3cfdfaf8429f9ccaa825c67f02a6",
+      "Id": "4f12ddb82c2e4a458a8ba7a1d3c23824",
       "IsHidden": "False"
     }
   ],
@@ -888,6 +932,16 @@
         "ShowGeometry": true,
         "X": 0.0,
         "Y": 1920.0
+      },
+      {
+        "Id": "4b670cd3f7c84e58b823048f2e847d36",
+        "Name": "legend",
+        "IsSetAsInput": true,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 0.0,
+        "Y": 2240.0
       }
     ],
     "Annotations": [

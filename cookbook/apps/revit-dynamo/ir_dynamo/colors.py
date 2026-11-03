@@ -17,11 +17,22 @@ sun hours, daylight) as a smooth 256-colour gradient although the registry says
 ``FALLBACK_BINS`` equal bins, each with the platform colour at its middle, and a
 line says so.
 
-Range: the registry's fixed range (``registry_fixed_range``: UTCI, wind speed)
-when there is one, else the result's own legend min and max. This is what the
-kernel does too: it colours a grid over the registry ``steps`` if the config has
-them, else over the finite min and max of the grid. A ramp that runs exactly
-over that range therefore gets the colours the platform draws for the data
+Range (``RANGE_MODES``, the modes of ``infrared_sdk.legend``):
+
+* ``"trimmed"`` (default in Revit): the 2nd to 98th percentile of the values
+  (``legend_range(..., "trimmed")``), so a few extreme cells do not wash out the
+  colours and the variation is visible;
+* ``"exact"``: the result's own min and max;
+* ``"platform"``: the registry's fixed range (``registry_fixed_range``: UTCI,
+  wind speed) when there is one, else the exact range. This is what the
+  platform draws. Example: wind speed is always 0..20 m/s there, so a 5 m/s
+  inflow shows in the three lowest (blue) colours only.
+
+The kernel colours a grid over the registry ``steps`` if the config has them,
+else over the finite min and max of the grid. For the two measured modes the
+``steps`` of a copy of the config are set to the chosen range, so the same
+platform colours are spread over it. A ramp that runs exactly over the range
+therefore gets the colours the platform draws for the data
 (``tests/test_colors.py`` renders a real data grid and compares cell by cell).
 
 Offline (the registry cannot be fetched): the old hand-written viridis gradient
@@ -40,16 +51,21 @@ import numpy as np
 from . import settings
 
 try:  # the SDK is there in a real run; the pure functions work without it
-    from infrared_sdk.legend import registry_fixed_range
+    from infrared_sdk.legend import legend_range, registry_fixed_range
 except ImportError:  # pragma: no cover
 
     def registry_fixed_range(analysis_type: str, variant: Optional[str] = None) -> Any:
+        return None
+
+    def legend_range(result: Any, mode: str = "exact", *, fixed: Any = None) -> Any:
         return None
 
 
 RAMP_SIZE = 512  # under the 960 px cap of the renderer: one pixel per value
 MAX_BINS = 32  # a registry scale with more colours is treated as a gradient
 FALLBACK_BINS = 10
+RANGE_MODES = ("trimmed", "exact", "platform")
+DEFAULT_RANGE_MODE = "trimmed"
 # Offline fallback, low -> high (viridis stops).
 GRADIENT = [(68, 1, 84), (59, 82, 139), (33, 145, 140), (94, 201, 98), (253, 231, 37)]
 
@@ -270,35 +286,77 @@ def fallback_legend(analysis_type: str, low: float, high: float) -> Legend:
     return Legend(analysis_type, bins, ramp, ramp_bin, "fallback")
 
 
+def parse_range_mode(text: Any) -> str:
+    """``"trimmed"``, ``"exact"`` or ``"platform"``; empty gives ``DEFAULT_RANGE_MODE``.
+
+    Raises
+    ------
+    ValueError
+        For any other text.
+    """
+    mode = str(text or "").strip().lower() or DEFAULT_RANGE_MODE
+    if mode not in RANGE_MODES:
+        raise ValueError("legend must be one of %s, not %r." % (", ".join(RANGE_MODES), text))
+    return mode
+
+
+def _measured_range(
+    mode: str, values: Any, low: Optional[float], high: Optional[float]
+) -> Tuple[Optional[float], Optional[float]]:
+    """The range in a measured mode. The SDK computes the "trimmed" percentiles."""
+    if mode == "trimmed" and values is not None and len(values):
+        grid = np.asarray(values, dtype=np.float64).reshape(1, -1)
+        found = legend_range(grid, "trimmed")
+        if found is not None:
+            return float(found[0]), float(found[1])
+    return low, high
+
+
 def make_legend(
     analysis_type: str,
     low: Optional[float],
     high: Optional[float],
     visual_configurations: Optional[Dict[str, Any]] = None,
+    values: Any = None,
+    range_mode: str = "platform",
 ) -> Tuple[Legend, List[str]]:
     """The legend for one result. Returns ``(legend, warning_lines)``.
 
     ``low``, ``high``: the legend min and max of the result (may be None for an
-    empty result). The registry's fixed range wins over them when it has one.
+    empty result). ``values``: the result values, for the ``"trimmed"`` range.
+    ``range_mode``: one of ``RANGE_MODES`` (see the module text).
     If the registry cannot be fetched or does not know the analysis, the
     fallback gradient is used and a line says so.
     """
     warnings: List[str] = []
+    mode = parse_range_mode(range_mode)
     try:
         if visual_configurations is None:
             from infrared_sdk.layers._registry import fetch_visual_configurations
 
             visual_configurations = fetch_visual_configurations()[0]
+        if analysis_type not in visual_configurations:
+            raise LookupError("the colour registry has no entry for %r" % analysis_type)
         fixed = registry_fixed_range(analysis_type)
-        if fixed is not None:
+        if mode == "platform" and fixed is not None:
             low, high = fixed
+        else:
+            low, high = _measured_range(mode, values, low, high)
         if low is None or high is None:
             low, high = 0.0, 1.0
         low, high = float(low), float(high)
         if not high > low:
             high = low + 1.0  # one value only: a ramp needs a width
-        if analysis_type not in visual_configurations:
-            raise LookupError("the colour registry has no entry for %r" % analysis_type)
+        config = visual_configurations[analysis_type]
+        if mode != "platform" and isinstance(config, dict) and config.get("steps"):
+            # Spread the same platform colours over the chosen range.
+            config = dict(config, steps=[low, high])
+            visual_configurations = dict(visual_configurations, **{analysis_type: config})
+        if mode != "platform" and fixed is not None:
+            warnings.append(
+                "Legend range (%s): %.4g .. %.4g. The platform always uses %.4g .. %.4g; "
+                "set legend to platform to see that." % (mode, low, high, fixed[0], fixed[1])
+            )
         ramp, rgb = value_colors(analysis_type, low, high, visual_configurations)
         bins, ramp_bin = collapse(ramp, rgb)
         if len(bins) > MAX_BINS:
@@ -312,6 +370,10 @@ def make_legend(
             )
         return Legend(analysis_type, bins, ramp, ramp_bin, "registry"), warnings
     except Exception as error:  # offline, a registry change: never fail the run
+        try:
+            low, high = _measured_range(mode, values, low, high)
+        except Exception:
+            pass  # the SDK is not there either: the exact range
         low = 0.0 if low is None else float(low)
         high = low + 1.0 if high is None or not float(high) > low else float(high)
         warnings.append(

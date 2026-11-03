@@ -96,7 +96,8 @@ Other inputs: `fetch_context` adds public buildings around your selection.
 `wind` analysis (ground). `surfaces` (`facades`, `roofs` or `all`) is for the facade part.
 
 `analysis = show-last` draws the saved results again, free. The script saves the
-last paid result of each target in `.infraredevit-dynamo-last-result.json`
+last paid result of each target in `.infrared
+evit-dynamo-last-result.json`
 (a file from an older version, with one result, still works).
 
 If you edit a file in `ir_dynamo` or `revit`, press Run again. The script
@@ -148,4 +149,12 @@ legend for each target.
 
 ## Colours
 
-The result uses the colours of the Infrared platform, read from the SDK colour registry (free, cached). Each distinct colour is one Revit material, for example `Infrared svf 01`; the Watch text lists material, rgb, value range and unit. UTCI and wind speed have a fixed registry range and a few flat colours; the other analyses use the range of the result and are shown in 10 bins with the platform colours. If the registry cannot be reached, built-in colours are used and the Watch text says so.
+The result uses the colours of the Infrared platform, read from the SDK colour registry (free, cached). Each distinct colour is one Revit material, for example `Infrared svf 01`; the Watch text lists material, rgb, value range and unit. The `legend` input sets the colour range:
+
+- `trimmed` (default): the 2nd to 98th percentile of the values. A few extreme cells do not wash out the colours, so the variation is visible (for example the wind wake behind a building).
+- `exact`: the minimum and maximum of the result.
+- `platform`: the range that the platform uses. UTCI and wind speed have a fixed range there (wind speed: 0 to 20 m/s, so a 5 m/s wind shows in blue only); the other analyses use the exact range.
+
+To see the same result with another range, set `legend`, set `analysis` to `show-last` and press Run. This is free.
+
+UTCI and wind speed use a few flat platform colours; the other analyses are shown in 10 bins with the platform colours. If the registry cannot be reached, built-in colours are used and the Watch text says so.
