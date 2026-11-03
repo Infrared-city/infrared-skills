@@ -116,7 +116,7 @@ def show(
     true_north_rad: float,
     target: str,
     analysis_type: str = "",
-    range_mode: str = colors.DEFAULT_RANGE_MODE,
+    range_mode: str = "",
 ) -> str:
     """Draw the result as a coloured surface. Return the text for the Watch node.
 
@@ -136,7 +136,7 @@ def show(
         the built-in gradient, with a warning line.
     range_mode : str
         The legend range: ``"trimmed"``, ``"exact"`` or ``"platform"``
-        (see ``ir_dynamo.colors``).
+        (see ``ir_dynamo.colors``). Empty: the default.
     """
     from RevitServices.Persistence import DocumentManager  # type: ignore
     from RevitServices.Transactions import TransactionManager  # type: ignore
