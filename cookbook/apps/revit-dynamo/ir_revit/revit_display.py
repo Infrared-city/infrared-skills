@@ -19,7 +19,7 @@ from typing import Any, Dict, List
 
 import numpy as np
 
-from ir_dynamo import colors
+from ir_dynamo import colors, summary
 
 from . import result_mesh, revit_location
 
@@ -166,8 +166,11 @@ def show(
         "Showed %s on %s (%s) as %d triangles, element %s (replaced %d old %s shape(s)). "
         "Use a Shaded or Realistic 3D view."
         % (title, target, unit, len(feet), shape.Id, removed, target),
-        "Legend for %s (material: value range):" % target,
     ]
-    lines += colors.legend_lines(legend, unit, MATERIAL_PREFIX.strip())
+    lines += summary.value_lines(result, target, unit)
+    lines += ["Legend for %s (material: colour, value range: count):" % target]
+    lines += summary.legend_count_lines(
+        legend, result["values"], unit, range_mode, MATERIAL_PREFIX.strip()
+    )
     lines += warnings
     return "\n".join(lines)

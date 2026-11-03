@@ -1,0 +1,29 @@
+"""The result and legend lines of ir_dynamo.summary (no network, no Revit)."""
+
+from __future__ import annotations
+
+import numpy as np
+
+from ir_dynamo import summary
+from ir_dynamo.colors import Bin, Legend
+
+
+def _legend() -> Legend:
+    ramp = np.linspace(0.0, 10.0, 11)
+    bins = [Bin((0, 0, 255), 0.0, 4.0), Bin((255, 0, 0), 5.0, 10.0)]
+    return Legend("wind-speed", bins, ramp, (ramp >= 5.0).astype(int), "registry")
+
+
+def test_value_lines_give_count_min_max_and_the_sdk_range() -> None:
+    result = {"values": [1.0, 2.0, 3.0, float("nan")], "legend_min": 1.0, "legend_max": 3.0}
+    text = "\n".join(summary.value_lines(result, "ground", "m/s"))
+    assert "4 value(s), 1 without a number" in text
+    assert "min 1, max 3, mean 2, median 2" in text
+    assert "legend_min .. legend_max (SDK): 1 .. 3" in text
+
+
+def test_legend_lines_count_each_bin_and_the_values_outside() -> None:
+    lines = summary.legend_count_lines(_legend(), [-1.0, 1.0, 2.0, 7.0, 12.0], "m/s", "trimmed")
+    assert lines[0] == "Legend range used (trimmed): 0 .. 10 m/s"
+    assert "1 value(s) below and 1 above" in lines[1]
+    assert lines[2].endswith(": 3 (60.0 %)") and lines[3].endswith(": 2 (40.0 %)")
