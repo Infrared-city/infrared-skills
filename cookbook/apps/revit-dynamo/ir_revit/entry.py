@@ -27,6 +27,7 @@ LAST_RESULT_FILE = os.path.join(
     os.path.expanduser("~"), ".infrared", "revit-dynamo-last-result.json"
 )
 SHOW_LAST = "show-last"
+SHOW_LAST_NAMES = (SHOW_LAST, "show-latest", "show last", "last")
 
 
 def _log(lines: List[str]) -> None:
@@ -147,7 +148,7 @@ def _run(
         range_mode = colors.parse_range_mode(legend)
     except ValueError as error:
         return ["Error: %s" % error]
-    if str(analysis).strip().lower() == SHOW_LAST:
+    if str(analysis).strip().lower() in SHOW_LAST_NAMES:
         return _show_last(range_mode, bool(gradient))
     try:
         to_run, skipped = targets.plan_runs(target, analysis)

@@ -57,7 +57,8 @@ def plan_runs(target: Any, label: str) -> Tuple[List[str], List[str]]:
     run = [s for s in surfaces if _runs_on(label, s)]
     if not run:
         raise ValueError(
-            "Analysis %r is unknown. Use one of: %s." % (label, ", ".join(all_labels()))
+            "Analysis %r is unknown. Use one of: %s; or show-last to draw the last "
+            "result again (free)." % (label, ", ".join(all_labels()))
         )
     skipped = [
         "Skipped %s: the analysis %r does not run on %s (it runs on %s only)."
