@@ -23,17 +23,22 @@ Range (``RANGE_MODES``, the modes of ``infrared_sdk.legend``):
   (``legend_range(..., "trimmed")``), so a few extreme cells do not wash out the
   colours and the variation is visible;
 * ``"exact"``: the result's own min and max;
-* ``"platform"``: the registry's fixed range (``registry_fixed_range``: UTCI,
-  wind speed) when there is one, else the exact range. This is what the
-  platform draws. Example: wind speed is always 0..20 m/s there, so a 5 m/s
+* ``"platform"``: what the platform draws. The registry's fixed range
+  (``registry_fixed_range``: UTCI, wind speed) when there is one, else the
+  trimmed range. Example: wind speed is always 0..20 m/s there, so a 5 m/s
   inflow shows in the three lowest (blue) colours only.
 
 The kernel colours a grid over the registry ``steps`` if the config has them,
-else over the finite min and max of the grid. For the two measured modes the
-``steps`` of a copy of the config are set to the chosen range, so the same
-platform colours are spread over it. A ramp that runs exactly over the range
-therefore gets the colours the platform draws for the data
-(``tests/test_colors.py`` renders a real data grid and compares cell by cell).
+else over the 2nd to 98th percentile of the grid's finite cells (SDK 1.0.0
+has no key for a fixed range there). So:
+
+* a config with ``steps``: in the two measured modes the ``steps`` of a copy
+  are set to the chosen range; the same platform colours spread over it;
+* a config without ``steps``: ``pad_values`` adds cells at the range's ends,
+  enough that the 2nd and 98th percentile ARE the range ends.
+
+A ramp over the range therefore gets the colours the platform draws for the
+data (``tests/test_colors.py`` renders a real data grid and compares).
 
 Offline (the registry cannot be fetched): the old hand-written viridis gradient
 in 10 equal bins, and a warning line. The run does not fail.
@@ -128,6 +133,18 @@ class Legend:
         )
 
 
+def pad_values(low: float, high: float, count: int) -> List[float]:
+    """Cells to add to a grid of ``count`` values so that a config without
+    ``steps`` is coloured over exactly ``low`` .. ``high``.
+
+    The kernel then uses the 2nd and 98th percentile (linear) of all cells. With
+    more than 2 % of the cells at each end (``count // 40 + 4`` > 0.021 n + 1),
+    those percentiles are ``low`` and ``high``, if the values are clipped to it.
+    """
+    k = int(count) // 40 + 4
+    return [float(low)] * k + [float(high)] * k
+
+
 def value_colors(
     analysis_type: str,
     low: float,
@@ -138,23 +155,29 @@ def value_colors(
     """The colour the SDK renderer gives to ``size`` values from ``low`` to ``high``.
 
     Returns ``(ramp_values, ramp_rgb)``: shapes ``(size,)`` and ``(size, 3)``.
-    The ramp is a 1-row grid; the kernel colours it over its own min and max
-    (``low`` .. ``high``), or over the registry ``steps`` when the config has them.
+    The ramp is a 1-row grid (plus ``pad_values`` rows for a config without
+    ``steps``, so it is coloured over exactly ``low`` .. ``high``).
     """
     from infrared_sdk.layers.image_local import render_grid_image_local
 
     if size > 900:
         raise ValueError("size must stay under the 960 px cap of the renderer.")
     ramp = np.linspace(float(low), float(high), size)
+    grid: List[List[Any]] = [ramp.tolist()]
+    config = (visual_configurations or {}).get(analysis_type)
+    if isinstance(config, dict) and not config.get("steps"):
+        pad: List[Any] = pad_values(low, high, size)
+        pad += [None] * (-len(pad) % size)
+        grid += [pad[i : i + size] for i in range(0, len(pad), size)]
     png = render_grid_image_local(
-        grid=[ramp.tolist()],
+        grid=grid,
         analysis_type=analysis_type,
         visual_configurations=visual_configurations,
         max_long_axis_px=0,  # every cell, never resampled
     )
     image = decode_png(png)
-    if image.shape[0] != 1 or image.shape[1] != size:
-        raise ValueError("The rendered ramp has the size %s, not 1 x %d." % (image.shape[:2], size))
+    if image.shape[0] != len(grid) or image.shape[1] != size:
+        raise ValueError("The rendered ramp has the size %s, not %d x %d." % (image.shape[:2], len(grid), size))
     return ramp, image[0, :, :3].astype(int)
 
 
@@ -258,8 +281,9 @@ def resolve_range(
     fixed = registry_fixed_range(analysis_type)
     if mode == "platform" and fixed is not None:
         low, high = fixed
-    else:
-        low, high = _measured_range(mode, values, low, high)
+    else:  # the platform colours a scale without a fixed range over the trimmed range
+        measured = "trimmed" if mode == "platform" else mode
+        low, high = _measured_range(measured, values, low, high)
     if low is None or high is None:
         low, high = 0.0, 1.0
     low, high = float(low), float(high)
@@ -277,6 +301,19 @@ def resolve_range(
     return low, high, visual_configurations, warnings
 
 
+def without_steps(configs: Dict[str, Any], analysis_type: str) -> Dict[str, Any]:
+    """A copy of the registry with no ``steps`` for ``analysis_type``.
+
+    The renderer then draws a smooth gradient through the platform colours, as it
+    does for sky view factor (``gradient``); ``pad_values`` pins its range.
+    """
+    config = configs.get(analysis_type)
+    if not isinstance(config, dict) or "steps" not in config:
+        return configs
+    config = {k: v for k, v in config.items() if k != "steps"}
+    return dict(configs, **{analysis_type: config})
+
+
 def make_legend(
     analysis_type: str,
     low: Optional[float],
@@ -284,8 +321,12 @@ def make_legend(
     visual_configurations: Optional[Dict[str, Any]] = None,
     values: Any = None,
     range_mode: str = "platform",
+    gradient: bool = False,
 ) -> Tuple[Legend, List[str]]:
     """The legend for one result. Returns ``(legend, warning_lines)``.
+
+    ``gradient``: draw a scale with ``steps`` (wind speed, UTCI) as a smooth
+    gradient through the same colours, see ``without_steps``.
 
     ``low``, ``high``: the legend min and max of the result (may be None for an
     empty result). ``values``: the result values, for the ``"trimmed"`` range.
@@ -297,6 +338,8 @@ def make_legend(
     try:
         configs = load_configurations(visual_configurations)
         low, high, configs, warnings = resolve_range(analysis_type, low, high, values, mode, configs)
+        if gradient:
+            configs = without_steps(configs, analysis_type)
         ramp, rgb = value_colors(analysis_type, low, high, configs)
         bins, ramp_bin = collapse(ramp, rgb)
         if len(bins) > MAX_BINS:

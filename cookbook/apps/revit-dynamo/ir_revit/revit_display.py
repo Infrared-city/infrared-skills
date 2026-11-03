@@ -148,6 +148,7 @@ def show(
     target: str,
     analysis_type: str = "",
     range_mode: str = "",
+    gradient: bool = False,
 ) -> str:
     """Draw the result as a coloured surface. Return the text for the Watch node.
 
@@ -168,6 +169,9 @@ def show(
     range_mode : str
         The legend range: ``"trimmed"``, ``"exact"`` or ``"platform"``
         (see ``ir_dynamo.colors``). Empty: the default.
+    gradient : bool
+        True: a scale with flat platform bins (wind speed, UTCI) is drawn as a
+        smooth gradient through the same colours.
     """
     from RevitServices.Persistence import DocumentManager  # type: ignore
     from RevitServices.Transactions import TransactionManager  # type: ignore
@@ -180,6 +184,7 @@ def show(
         result["legend_max"],
         values=result["values"],
         range_mode=range_mode,
+        gradient=gradient,
     )
     palette, index, notes = cell_colors.cell_colors(
         analysis_type,
@@ -190,6 +195,7 @@ def show(
         legend,
         result.get("grid_shape"),
         result.get("cells"),
+        gradient=gradient,
     )
     tri_m, bins = result_mesh.coloured_triangles(result, index)
     feet = revit_location.site_m_to_internal_ft(tri_m.reshape(-1), true_north_rad)
@@ -210,7 +216,8 @@ def show(
         "Use a Shaded or Realistic 3D view."
         % (title, target, unit, len(feet), shape.Id, removed, target),
         check,
-        "Cell colours: drawn by the SDK renderer, %d distinct colour(s)." % len(palette),
+        "Cell colours: drawn by the SDK renderer, %d distinct colour(s)%s."
+        % (len(palette), ", smooth gradient" if gradient else ""),
     ]
     lines += summary.value_lines(result, target, unit)
     lines += ["Legend for %s (bin: colour, value range: count):" % target]

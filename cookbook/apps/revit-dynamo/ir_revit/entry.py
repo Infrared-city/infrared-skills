@@ -96,6 +96,7 @@ def _run(
     wind_direction: float = 270,
     surfaces: str = "all",
     legend: str = "",
+    gradient: bool = False,
 ) -> List[str]:
     """Preview or run one analysis on the selected elements.
 
@@ -125,6 +126,9 @@ def _run(
         Colour range: ``"trimmed"`` (default: 2-98 % of the values),
         ``"exact"`` (min..max) or ``"platform"`` (the fixed platform range).
         Change it and use "show-last" to see the same result again, free.
+    gradient : bool
+        True: wind speed and UTCI are drawn as a smooth gradient through the
+        platform colours instead of the platform's flat bins.
 
     Returns
     -------
@@ -144,7 +148,7 @@ def _run(
     except ValueError as error:
         return ["Error: %s" % error]
     if str(analysis).strip().lower() == SHOW_LAST:
-        return _show_last(range_mode)
+        return _show_last(range_mode, bool(gradient))
     try:
         to_run, skipped = targets.plan_runs(target, analysis)
         env.setup()
@@ -219,7 +223,7 @@ def _run(
             )
     if entries:
         _save_last(entries)  # paid results are kept: "show-last" draws them again for free
-        lines += [_show(entry, range_mode) for entry in entries]
+        lines += [_show(entry, range_mode, bool(gradient)) for entry in entries]
     return lines
 
 
@@ -236,7 +240,7 @@ def _save_last(entries: List[Dict[str, Any]]) -> None:
         pass
 
 
-def _show(entry: Dict[str, Any], range_mode: str) -> str:
+def _show(entry: Dict[str, Any], range_mode: str, gradient: bool) -> str:
     _progress("%s: drawing %d values in Revit" % (entry["target"], len(entry["result"]["values"])))
     return revit_display.show(
         entry["result"],
@@ -247,10 +251,11 @@ def _show(entry: Dict[str, Any], range_mode: str) -> str:
         # Files saved before the colour registry have no analysis_type: use the title.
         entry.get("analysis_type") or settings.sdk_type_of_title(entry.get("title", "")),
         range_mode,
+        gradient,
     )
 
 
-def _show_last(range_mode: str) -> List[str]:
+def _show_last(range_mode: str, gradient: bool) -> List[str]:
     """Draw the saved results again, without a new run (analysis = "show-last")."""
     if not os.path.isfile(LAST_RESULT_FILE):
         return ["There is no saved result yet. Run an analysis first."]
@@ -259,5 +264,5 @@ def _show_last(range_mode: str) -> List[str]:
     if not entries:
         return ["The saved result file has no result. Run an analysis first."]
     return ["Showing the last saved result(s) (no new run)."] + [
-        _show(e, range_mode) for e in entries
+        _show(e, range_mode, gradient) for e in entries
     ]

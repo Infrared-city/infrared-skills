@@ -48,8 +48,14 @@ def render_values(
     configs: Dict[str, Any],
     grid_shape: Optional[Sequence[int]] = None,
     cells: Optional[Sequence[Sequence[int]]] = None,
+    pad: Optional[Tuple[float, float]] = None,
 ) -> np.ndarray:
-    """The SDK colour of each value: ``(n, 3)`` ints. NaN values get no colour (0, 0, 0)."""
+    """The SDK colour of each value: ``(n, 3)`` ints. NaN values get no colour (0, 0, 0).
+
+    ``pad = (low, high)`` adds ``colors.pad_values`` cells below the grid, so a
+    config without ``steps`` is coloured over exactly that range (the renderer
+    uses the 2nd and 98th percentile of the cells). They are not in the answer.
+    """
     from infrared_sdk.layers.image_local import render_grid_image_local
 
     v = np.asarray(values, dtype=np.float64)
@@ -57,6 +63,10 @@ def render_values(
     grid: List[List[Optional[float]]] = [[None] * cols for _ in range(rows)]
     for r, c, x in zip(row.tolist(), col.tolist(), v.tolist()):
         grid[r][c] = None if math.isnan(x) else x
+    if pad is not None:
+        flat: List[Optional[float]] = list(colors.pad_values(pad[0], pad[1], len(v)))
+        flat += [None] * (-len(flat) % cols)
+        grid += [flat[i : i + cols] for i in range(0, len(flat), cols)]
     png = render_grid_image_local(
         grid=grid,
         analysis_type=analysis_type,
@@ -64,9 +74,10 @@ def render_values(
         max_long_axis_px=0,  # one pixel per cell
     )
     image = decode_png(png)
-    if image.shape[0] != rows or image.shape[1] != cols:
+    if image.shape[0] != len(grid) or image.shape[1] != cols:
         raise ValueError(
-            "The SDK image is %d x %d, not the grid's %d x %d." % (image.shape[0], image.shape[1], rows, cols)
+            "The SDK image is %d x %d, not the grid's %d x %d."
+            % (image.shape[0], image.shape[1], len(grid), cols)
         )
     rgb = image[row, col, :3].astype(int)
     rgb[np.isnan(v)] = 0
@@ -83,21 +94,28 @@ def cell_colors(
     grid_shape: Optional[Sequence[int]] = None,
     cells: Optional[Sequence[Sequence[int]]] = None,
     visual_configurations: Optional[Dict[str, Any]] = None,
+    gradient: bool = False,
 ) -> Tuple[List[Tuple[int, int, int]], np.ndarray, List[str]]:
     """``(palette, index, warning_lines)`` for the values of one result.
 
     ``palette``: the distinct colours, low value first. ``index[i]``: the colour
     of ``values[i]`` in it. If the SDK renderer cannot be used (offline, an
     analysis without a registry entry), each value takes the colour of its
-    ``legend`` bin and a line says so.
+    ``legend`` bin and a line says so. ``gradient``: see ``colors.without_steps``;
+    a scale without ``steps`` gets its values clipped to the range, which is
+    pinned with ``pad``.
     """
     v = np.asarray(values, dtype=np.float64)
     mode = colors.parse_range_mode(range_mode)
     try:
         configs = colors.load_configurations(visual_configurations)
         lo, hi, configs, _ = colors.resolve_range(analysis_type, low, high, v, mode, configs)
-        drawn = v if mode == "platform" else np.clip(v, lo, hi)  # NaN stays NaN
-        rgb = render_values(drawn, analysis_type, configs, grid_shape, cells)
+        if gradient:
+            configs = colors.without_steps(configs, analysis_type)
+        stepped = bool(configs[analysis_type].get("steps"))
+        pad = None if stepped else (lo, hi)  # pin the range of a gradient scale
+        drawn = v if mode == "platform" and stepped else np.clip(v, lo, hi)  # NaN stays NaN
+        rgb = render_values(drawn, analysis_type, configs, grid_shape, cells, pad)
         note = []
     except Exception as error:  # never fail the drawing for the colours
         bins = np.maximum(legend.bin_of(v), 0)

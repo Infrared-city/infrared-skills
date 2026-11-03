@@ -48,7 +48,8 @@ def test_a_cell_gets_the_pixel_the_sdk_draws_for_the_matrix() -> None:
     grid = np.random.default_rng(3).random((7, 11)) * 400.0
     grid[2, 3] = np.nan
     row, col = np.nonzero(np.isfinite(grid))
-    rgb = _colours("solar-radiation", grid[row, col], "exact", grid_shape=grid.shape,
+    # "platform": the range the renderer itself takes (2nd..98th percentile).
+    rgb = _colours("solar-radiation", grid[row, col], "platform", grid_shape=grid.shape,
                    cells=np.c_[row, col])
     sdk = colors.decode_png(render_grid_image_local(
         grid=[[None if np.isnan(x) else x for x in r] for r in grid.tolist()],
@@ -78,3 +79,29 @@ def test_offline_falls_back_to_the_legend_colours() -> None:
     palette, index, notes = cc.cell_colors("no-such", [0.0, 1.0], 0.0, 1.0, "exact", legend,
                                            visual_configurations=VC)
     assert len(palette) == 2 and index.tolist() == [0, 1] and "not used" in notes[0]
+
+
+def _gradient(values, mode):
+    legend, _ = colors.make_legend("wind-speed", None, None, VC, values, mode, gradient=True)
+    palette, index, notes = cc.cell_colors(
+        "wind-speed", values, float(np.min(values)), float(np.max(values)), mode, legend,
+        visual_configurations=VC, gradient=True,
+    )
+    assert notes == []
+    return np.asarray(palette)[index], legend
+
+
+def test_gradient_wind_is_smooth_and_spans_the_platform_colours() -> None:
+    values = np.linspace(3.0, 6.0, 400)
+    rgb, legend = _gradient(values, "exact")
+    assert len({tuple(c) for c in rgb}) > 50  # a gradient, not 10 flat bins
+    assert tuple(rgb[0]) == tuple(WIND[0]) and tuple(rgb[-1]) == tuple(WIND[-1])
+    assert len(legend.bins) == colors.FALLBACK_BINS  # the legend text stays 10 bins
+
+
+def test_gradient_keeps_the_platform_range_in_platform_mode() -> None:
+    values = np.linspace(3.0, 6.0, 400)
+    rgb, legend = _gradient(values, "platform")
+    assert legend.ramp_values[0] == 0.0 and legend.ramp_values[-1] == 20.0
+    assert tuple(rgb[-1]) != tuple(WIND[-1])  # 6 m/s is low on a 0..20 scale
+    assert len({tuple(c) for c in rgb}) > 10

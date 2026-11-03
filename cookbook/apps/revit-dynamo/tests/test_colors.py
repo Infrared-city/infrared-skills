@@ -214,12 +214,15 @@ def test_ramp_colours_match_what_the_renderer_draws_for_real_data(
     monkeypatch, analysis_type, fixed, data_low, data_high
 ) -> None:
     """The proof that the ramp range is the kernel's range: colour a data grid with
-    the renderer and compare every cell with the ramp colour at its value."""
+    the renderer and compare every cell with the ramp colour at its value.
+
+    The kernel colours a scale without ``steps`` over the 2nd..98th percentile
+    of the grid, so that is the platform range (``range_mode="platform"``)."""
     monkeypatch.setattr(colors, "registry_fixed_range", lambda *a, **k: fixed)
     rng = np.random.RandomState(7)
     data = rng.uniform(data_low, data_high, (40, 50))
-    data[0, 0], data[0, 1] = data_low, data_high  # the grid's own min and max
-    low, high = fixed if fixed else (data_low, data_high)
+    data[0, 0], data[0, 1] = data_low, data_high
+    low, high = fixed if fixed else tuple(np.percentile(data, [2, 98]))
     ramp, ramp_rgb = colors.value_colors(analysis_type, low, high, VC)
     png = render_grid_image_local(
         grid=data.tolist(),
@@ -233,8 +236,8 @@ def test_ramp_colours_match_what_the_renderer_draws_for_real_data(
     # A gradient may differ by a rounding step; a flat scale only at a bin edge.
     assert (off > 6).mean() < 0.01, (off > 6).mean()
     # And the legend bin colour is the ramp colour at the bin: same range, same bins.
-    legend, _ = colors.make_legend(analysis_type, data_low, data_high, VC)
-    assert legend.ramp_values[0] == low and legend.ramp_values[-1] == high
+    legend, _ = colors.make_legend(analysis_type, data_low, data_high, VC, data.ravel(), "platform")
+    assert legend.ramp_values[0] == pytest.approx(low) and legend.ramp_values[-1] == pytest.approx(high)
 
 
 def test_fixed_range_wins_over_the_result_range(monkeypatch) -> None:

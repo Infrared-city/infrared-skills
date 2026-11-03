@@ -155,8 +155,8 @@ The result uses the colours of the Infrared platform. The SDK renderer (`render_
 
 - `trimmed` (default): the 2nd to 98th percentile of the values. A few extreme cells do not wash out the colours, so the variation is visible (for example the wind wake behind a building).
 - `exact`: the minimum and maximum of the result.
-- `platform`: the range that the platform uses. UTCI and wind speed have a fixed range there (wind speed: 0 to 20 m/s, so a 5 m/s wind shows in blue only); the other analyses use the exact range.
+- `platform`: the range that the platform uses. UTCI and wind speed have a fixed range there (wind speed: 0 to 20 m/s, so a 5 m/s wind shows in blue only); the other analyses use the 2nd to 98th percentile, as the platform renderer does.
 
 To see the same result with another range, set `legend`, set `analysis` to `show-last` and press Run. This is free.
 
-UTCI and wind speed use a few flat platform colours. Sky view factor, solar radiation, sun hours and daylight are smooth gradients: up to 256 colours, so up to 256 materials; the legend text shows them in 10 bins. If the registry cannot be reached, built-in colours are used and the Watch text says so.
+UTCI and wind speed use a few flat platform colours. Set `gradient` to `True` to draw them as a smooth gradient through the same colours (the platform itself shows the flat bins). Sky view factor, solar radiation, sun hours and daylight are smooth gradients: up to 256 colours, so up to 256 materials; the legend text shows them in 10 bins. If the registry cannot be reached, built-in colours are used and the Watch text says so.
