@@ -6,15 +6,17 @@ selection, every terrain element of the document is used.
 
 One building per element. Its id is the ElementId as text. The triangles come
 from the solids of the element at Fine detail, including the solids inside
-family instances. A TopographySurface gives a Mesh instead of a Solid: its
-triangles are read directly. Feet become metres and the model is turned to true
+family instances. A TopographySurface, a DirectShape or an imported model can
+give a Mesh instead of a Solid: its triangles are read directly. The result
+shapes this script draws (``revit_display.APP_ID``) are never read back. Feet become metres and the model is turned to true
 north by ``revit_location``.
 
 Revit API calls used here (nothing else): ``Element.get_Geometry``, ``Options``,
 ``Solid.Faces``, ``Face.Triangulate``, ``Face.GetBoundingBox``,
 ``Face.ComputeNormal``, ``Mesh.NumTriangles``, ``Mesh.get_Triangle``,
 ``MeshTriangle.get_Vertex``, ``GeometryInstance.GetInstanceGeometry``,
-``FilteredElementCollector.OfClass`` with ``Toposolid`` / ``TopographySurface``.
+``FilteredElementCollector.OfClass`` with ``Toposolid`` / ``TopographySurface``,
+``Element.Category``, ``Element.ApplicationId`` (a DirectShape).
 """
 
 from __future__ import annotations
@@ -145,6 +147,34 @@ def _options() -> Any:
     return options
 
 
+def _element_feet(element: Any, options: Any) -> List[float]:
+    """The triangles of the solids and meshes of one element: flat x, y, z in feet."""
+    feet: List[float] = []
+    for item in _solids(element.get_Geometry(options), meshes=True):
+        if hasattr(item, "NumTriangles"):  # a Mesh
+            feet.extend(_mesh_triangles_ft(item))
+        else:
+            feet.extend(_solid_triangles_ft(item))
+    return feet
+
+
+def describe(element: Any) -> str:
+    """``"Walls, Wall"``: the category and the class of an element, for a message."""
+    category = getattr(getattr(element, "Category", None), "Name", None) or "no category"
+    try:
+        kind = element.GetType().Name
+    except Exception:
+        kind = type(element).__name__
+    return "%s, %s" % (category, kind)
+
+
+def is_own_result(element: Any) -> bool:
+    """True for a result shape that this script drew (it must not be analysed)."""
+    from .revit_display import APP_ID
+
+    return getattr(element, "ApplicationId", None) == APP_ID
+
+
 def _terrain_feet(element: Any, options: Any) -> List[float]:
     feet: List[float] = []
     for item in _solids(element.get_Geometry(options), meshes=True):
@@ -200,15 +230,21 @@ def collect_scene(
             warnings.append("Terrain %s has no geometry. It is skipped." % key)
             continue
         terrain[key] = revit_location.internal_ft_to_site_m(feet, true_north_rad).tolist()
+    own = 0
     for element in picked:
         if is_terrain(element):
             continue
+        if is_own_result(element):
+            own += 1
+            continue
         key = element_key(element)
-        feet = []
-        for solid in _solids(element.get_Geometry(options)):
-            feet.extend(_solid_triangles_ft(solid))
+        feet = _element_feet(element, options)
         if not feet:
-            warnings.append("Element %s has no solid geometry. It is skipped." % key)
+            warnings.append(
+                "Element %s (%s) has no 3D geometry. It is skipped." % (key, describe(element))
+            )
             continue
         buildings[key] = revit_location.internal_ft_to_site_m(feet, true_north_rad).tolist()
+    if own:
+        warnings.append("%d Infrared result shape(s) in the selection are not analysed." % own)
     return buildings, terrain, warnings
