@@ -28,22 +28,30 @@ MM_TO_FT = 1.0 / 304.8
 
 
 def element_name(element: Any) -> str:
-    """The name of an element, also of an ElementType.
+    """The name of an element, also of an ElementType. Empty if no way works.
 
     Dynamo's CPython3 cannot read ``ElementType.Name`` ("property cannot be
-    read": the type declares only a setter). The getter of ``Element.Name``
-    works; the type-name parameter is the fallback.
+    read": the type declares only a setter), and the getter of ``Element.Name``
+    can give None there. So try, in order: the property, the base getter, and
+    the type-name parameters. A None or empty answer counts as a failure.
     """
     from Autodesk.Revit.DB import BuiltInParameter, Element  # type: ignore
 
-    try:
-        return str(Element.Name.__get__(element))
-    except Exception:
-        pass
-    try:
-        return str(element.get_Parameter(BuiltInParameter.ALL_MODEL_TYPE_NAME).AsString())
-    except Exception:
-        return str(element.Name)
+    ways = (
+        lambda: element.Name,
+        lambda: Element.Name.__get__(element, Element),
+        lambda: element.get_Parameter(BuiltInParameter.ALL_MODEL_TYPE_NAME).AsString(),
+        lambda: element.get_Parameter(BuiltInParameter.SYMBOL_NAME_PARAM).AsString(),
+        lambda: element.get_Parameter(BuiltInParameter.VIEW_NAME).AsString(),
+    )
+    for way in ways:
+        try:
+            name = way()
+        except Exception:
+            continue
+        if name:
+            return str(name)
+    return ""
 
 
 def _by_class(doc: Any, cls: Any, view_id: Any = None) -> List[Any]:
@@ -146,4 +154,4 @@ def draw_legend(
     text_type = doc.GetDefaultElementTypeId(ElementTypeGroup.TextNoteType)
     for t in texts:
         TextNote.Create(doc, view.Id, XYZ(t.x * MM_TO_FT, t.y * MM_TO_FT, 0), t.text, text_type)
-    return "Legend view: \"%s\" (Project Browser > Drafting Views)." % element_name(view)
+    return "Legend view: \"%s\" (Project Browser > Drafting Views)." % (element_name(view) or VIEW_PREFIX + target)

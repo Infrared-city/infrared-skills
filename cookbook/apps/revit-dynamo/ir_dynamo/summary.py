@@ -5,7 +5,8 @@ No Revit import (tested with pytest).
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from collections import Counter
+from typing import Any, Dict, List, Sequence
 
 import numpy as np
 
@@ -76,3 +77,17 @@ def legend_count_lines(
             % (k + 1, b.rgb, _num(b.low), _num(b.high), unit, count, 100.0 * count / total)
         )
     return lines
+
+
+def selection_line(label: str, descriptions: Sequence[str], top: int = 8) -> str:
+    """One line with the count of each category in a selection, the largest first.
+
+    ``descriptions`` holds one ``"Category, Class"`` text per element
+    (``ir_revit.revit_geometry.describe``). Only the category is counted.
+    """
+    counts = Counter(d.split(",")[0].strip() or "no category" for d in descriptions)
+    parts = ["%d %s" % (n, name) for name, n in counts.most_common(top)]
+    rest = len(counts) - len(parts)
+    if rest > 0:
+        parts.append("%d more categor%s" % (rest, "y" if rest == 1 else "ies"))
+    return "%s: %d element(s)%s" % (label, len(descriptions), (": " + ", ".join(parts)) if parts else "")

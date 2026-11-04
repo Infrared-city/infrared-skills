@@ -46,8 +46,9 @@ The zip holds Windows x64 packages only. The script refuses an SDK other than 1.
 | `legend` | `trimmed` (default), `exact`, `platform` | The colour range, see section 6 |
 | `gradient` | `True` / `False` | Wind speed and UTCI as a smooth gradient |
 | `set_api_key` | `True` / `False` | Opens the key dialog and stops |
+| `terrain` | a second element selection | The ground, of any type (Toposolid, floor, mass, import). The ground result is drawn on it |
 
-Selection: walls, floors, roofs, masses, families, DirectShapes and imported meshes work. Select the terrain (Toposolid or Topography) with the buildings, or the script uses every terrain of the document. Wind does not accept terrain: the buildings are lowered to their base, and the result is drawn on the terrain.
+Selection: walls, floors, roofs, masses, families, DirectShapes and imported meshes work. Put the ground in the `terrain` selection: any element type works there. With an empty `terrain` selection, the Toposolids and Topography surfaces of the main selection are the terrain, else every terrain of the document. Without terrain the ground is a flat plane at Revit elevation 0. A linked Revit model is not read. Wind does not accept terrain: the buildings are lowered to their base, and the result is drawn on the terrain.
 
 ## 5. What a run does
 

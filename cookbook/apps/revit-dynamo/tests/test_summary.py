@@ -28,3 +28,11 @@ def test_legend_lines_count_each_bin_and_the_values_outside() -> None:
     assert "1 value(s) below and 1 above" in lines[1]
     assert lines[2] == "  bin 01  rgb(0, 0, 255)  0 .. 4 m/s: 3 (60.0 %)"
     assert lines[3].endswith(": 2 (40.0 %)")
+
+
+def test_selection_line_counts_categories_largest_first() -> None:
+    line = summary.selection_line(
+        "Selection", ["Walls, Wall", "Floors, Floor", "Walls, Wall", "Toposolid, Toposolid"], top=2
+    )
+    assert line == "Selection: 4 element(s): 2 Walls, 1 Floors, 1 more category"
+    assert summary.selection_line("Terrain input", []) == "Terrain input: 0 element(s)"

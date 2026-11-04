@@ -1,8 +1,10 @@
 """Selected Revit elements -> triangles in the Revit frame (metres, true north).
 
-The selection is split in two: terrain (a Toposolid, or a legacy
-TopographySurface) and buildings (everything else). With no terrain in the
-selection, every terrain element of the document is used.
+The terrain is what the ``terrain`` input holds, of any type (a Toposolid, a
+floor, a mass, an import). With an empty ``terrain`` input, the Toposolids and
+TopographySurfaces in the main selection are terrain; with none there either,
+every terrain element of the document is used. Everything else is a building.
+A linked Revit model is not read (its elements are in another document).
 
 One building per element. Its id is the ElementId as text. The triangles come
 from the solids of the element at Fine detail, including the solids inside
@@ -22,6 +24,8 @@ Revit API calls used here (nothing else): ``Element.get_Geometry``, ``Options``,
 from __future__ import annotations
 
 from typing import Any, Dict, Iterator, List, Tuple
+
+from ir_dynamo import summary
 
 from . import revit_location
 
@@ -168,6 +172,21 @@ def describe(element: Any) -> str:
     return "%s, %s" % (category, kind)
 
 
+def is_link(element: Any) -> bool:
+    """True for a linked Revit model (``RevitLinkInstance``)."""
+    try:
+        return element.GetType().Name == "RevitLinkInstance"
+    except Exception:
+        return False
+
+
+def _link_warning(element: Any) -> str:
+    return (
+        "Element %s is a linked Revit model. Its elements are not read: open the "
+        "linked file, or bind the link, and select the elements there." % element_key(element)
+    )
+
+
 def is_own_result(element: Any) -> bool:
     """True for a result shape that this script drew (it must not be analysed)."""
     from .revit_display import APP_ID
@@ -186,19 +205,22 @@ def _terrain_feet(element: Any, options: Any) -> List[float]:
 
 
 def collect_scene(
-    doc: Any, elements: Any, true_north_rad: float
+    doc: Any, elements: Any, true_north_rad: float, terrain_selection: Any = None
 ) -> Tuple[Dict[str, List[float]], Dict[str, List[float]], List[str]]:
     """Read the selected elements: buildings and terrain.
 
     Parameters
     ----------
     doc : Autodesk.Revit.DB.Document
-        Used only to find the terrain when the selection holds none.
+        Used only to find the terrain when no terrain is selected.
     elements : Any
         What the Dynamo "Select Model Elements" node gives: elements or lists
         of elements (Dynamo wrappers or Revit API elements).
     true_north_rad : float
         ``revit_location.SiteLocation.true_north_rad``.
+    terrain_selection : Any
+        The ``terrain`` input (same shape as ``elements``). Each element in it
+        is terrain, of any type, and is not a building.
 
     Returns
     -------
@@ -207,37 +229,52 @@ def collect_scene(
         metres, Revit frame (x east, y true north, z up). Terrain triangles are
         the upward faces only.
     warnings : list of str
-        One text for each element that gave no geometry, and a line when the
-        terrain was taken from the document.
+        The categories of the selection, one text for each element that gave
+        no geometry, and a line that says where the terrain came from.
     """
     options = _options()
     buildings: Dict[str, List[float]] = {}
     terrain: Dict[str, List[float]] = {}
-    warnings: List[str] = []
     picked = [unwrap(item) for item in flatten(elements)]
-    terrain_elements = [e for e in picked if is_terrain(e)]
-    if not terrain_elements:
-        terrain_elements = _document_terrain(doc)
+    chosen = [unwrap(item) for item in flatten(terrain_selection)]
+    warnings: List[str] = [summary.selection_line("Selection", [describe(e) for e in picked])]
+    if chosen:
+        warnings.append(summary.selection_line("Terrain input", [describe(e) for e in chosen]))
+        terrain_elements = chosen
+    else:
+        terrain_elements = [e for e in picked if is_terrain(e)]
         if terrain_elements:
+            warnings.append("Terrain: the Toposolids and Topography surfaces of the selection.")
+        else:
+            terrain_elements = _document_terrain(doc)
             warnings.append(
-                "No terrain selected: using the %d terrain element(s) of the document."
+                "No terrain selected: using the %d terrain element(s) of the document. "
+                "Select the ground in the terrain input if it is a floor, a mass or an import."
                 % len(terrain_elements)
             )
+    terrain_keys = set()
     for element in terrain_elements:
         key = element_key(element)
+        terrain_keys.add(key)
+        if is_link(element):
+            warnings.append(_link_warning(element))
+            continue
         feet = _terrain_feet(element, options)
         if not feet:
-            warnings.append("Terrain %s has no geometry. It is skipped." % key)
+            warnings.append("Terrain %s (%s) has no geometry. It is skipped." % (key, describe(element)))
             continue
         terrain[key] = revit_location.internal_ft_to_site_m(feet, true_north_rad).tolist()
     own = 0
     for element in picked:
-        if is_terrain(element):
+        key = element_key(element)
+        if key in terrain_keys or (not chosen and is_terrain(element)):
             continue
         if is_own_result(element):
             own += 1
             continue
-        key = element_key(element)
+        if is_link(element):
+            warnings.append(_link_warning(element))
+            continue
         feet = _element_feet(element, options)
         if not feet:
             warnings.append(

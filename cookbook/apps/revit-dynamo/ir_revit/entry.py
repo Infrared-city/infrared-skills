@@ -98,6 +98,7 @@ def _run(
     surfaces: str = "all",
     legend: str = "",
     gradient: bool = False,
+    terrain: Any = None,
 ) -> List[str]:
     """Preview or run one analysis on the selected elements.
 
@@ -130,6 +131,11 @@ def _run(
     gradient : bool
         True: wind speed and UTCI are drawn as a smooth gradient through the
         platform colours instead of the platform's flat bins.
+    terrain : Any
+        The output of a second "Select Model Elements" node: the ground, of
+        any type (a Toposolid, a floor, a mass, an import). The ground result
+        is drawn on it. Empty: the Toposolids of the selection, else of the
+        document.
 
     Returns
     -------
@@ -158,20 +164,20 @@ def _run(
             doc, _optional_float(lat, "lat"), _optional_float(lon, "lon")
         )
         _progress("reading geometry from Revit")
-        buildings, terrain, notes = revit_geometry.collect_scene(
-            doc, elements, site.true_north_rad
+        buildings, terrain_m, notes = revit_geometry.collect_scene(
+            doc, elements, site.true_north_rad, terrain
         )
         _progress(
             "geometry read: %d building(s) with %d triangles, %d terrain element(s)"
-            % (len(buildings), sum(len(v) for v in buildings.values()) // 9, len(terrain))
+            % (len(buildings), sum(len(v) for v in buildings.values()) // 9, len(terrain_m))
         )
         if not buildings:
             return [
                 "No building geometry found. Select walls, floors, roofs or masses "
-                "(and the terrain, if you like)."
+                "(and the ground in the terrain input)."
             ] + notes
         lines = [
-            "Terrain: %d element(s)." % len(terrain),
+            "Terrain: %d element(s) with geometry." % len(terrain_m),
             "Location: lon %.5f, lat %.5f (%s), true north %.1f deg."
             % (site.lon, site.lat, site.source, math.degrees(site.true_north_rad)),
         ] + skipped
@@ -191,7 +197,7 @@ def _run(
                 months=months,
                 hours=hours,
                 fetch_context=bool(fetch_context),
-                terrain_m=terrain,
+                terrain_m=terrain_m,
                 wind_speed=float(wind_speed),
                 wind_direction=int(round(float(wind_direction))),
                 surfaces=surfaces,

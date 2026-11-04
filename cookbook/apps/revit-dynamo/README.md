@@ -83,7 +83,8 @@ Leave `lat` and `lon` empty to use the project location.
 1. Open the script. Check that `libs_folder` is the folder you unzipped to.
 2. Open a 3D view (Shaded or Realistic). The result is a shape in the model, so every view shows it.
 3. Select your buildings in Revit. In Dynamo, click "Select Model Elements" and
-   press Select. Walls, floors, roofs, masses and families all work.
+   press Select. Walls, floors, roofs, masses and families all work. Select the
+   ground in the `terrain` node (see "Terrain and the ground level").
 4. Set `target` (`ground`, `facades` or `both`) and `analysis` (a label from the table above, or `show-last`).
 5. Set `months` (for example `6-8`) and `hours` (for example `8-18`, or one hour like `13`).
 6. Keep `preview_only` at `True`. Press Run. The Watch node shows the number
@@ -104,7 +105,11 @@ reloads the files. You do not need to restart Revit.
 
 ## Terrain and the ground level
 
-Select the terrain (a Toposolid or a Topography surface) together with the buildings. If you select no terrain, the script uses every terrain element of the document and says so in the Watch text.
+Select the ground in the `terrain` node (a second "Select Model Elements" node). Any element works there: a Toposolid, a Topography surface, a floor, a mass or an imported mesh. The script uses its upward faces only, and does not analyse it as a building.
+
+If the `terrain` node is empty, the Toposolids and Topography surfaces of the main selection are the terrain. If there are none, the script uses every terrain element of the document. The Watch text says which, and lists the categories of the selection, so you can see what the script found.
+
+A linked Revit model (RVT link) is not read, also not its terrain. Open the linked file, or bind the link, and select the elements there.
 
 - With terrain, z = 0 of the analysis is the lowest terrain point near the buildings. Parts of buildings below the terrain (foundations) are left out. The ground result is drawn on the terrain.
 - Without terrain, the ground is Revit elevation 0.
