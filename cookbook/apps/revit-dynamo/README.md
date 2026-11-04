@@ -1,7 +1,7 @@
 # Infrared in Revit 2026 (Dynamo)
 
 One Dynamo script, `IR_Analysis.dyn`, runs an Infrared analysis on the buildings you select in Revit.
-It shows the result in the active view, with a legend. The `target` input chooses
+It shows the result as a coloured surface in the model, with a legend. The `target` input chooses
 what it analyses: `ground`, `facades` (walls and roofs) or `both`.
 
 | `target` | What it analyses | Analyses (`analysis` input) |
@@ -21,7 +21,7 @@ the Watch text says that the other target was skipped.
 2. The script reads their geometry and the project location.
 3. The script shows the cost of the run. This is free.
 4. You set `preview_only` to `False`. The script runs the analysis on the Infrared servers.
-5. Revit shows coloured points in the active view.
+5. Revit shows a coloured surface in the model and a legend in a drafting view.
 
 ## Requirements
 
@@ -34,7 +34,7 @@ the Watch text says that the other target was skipped.
 Choose one way.
 
 **Download.** Get `infrared-dynamo-libs.zip`. Unzip it into this folder:
-`%APPDATA%\Infrared\revit-dynamo`. The folder must now hold `ir_dynamo`, `revit`,
+`%APPDATA%\Infrared\revit-dynamo`. The folder must now hold `ir_dynamo`, `ir_revit`,
 `dynamo` and the SDK packages.
 
 **Build it.** Run this on any machine that has Python 3.9 or later and pip:
@@ -81,7 +81,7 @@ Leave `lat` and `lon` empty to use the project location.
 ## Run IR_Analysis
 
 1. Open the script. Check that `libs_folder` is the folder you unzipped to.
-2. Open a 3D view or a plan view. The result goes into the active view.
+2. Open a 3D view (Shaded or Realistic). The result is a shape in the model, so every view shows it.
 3. Select your buildings in Revit. In Dynamo, click "Select Model Elements" and
    press Select. Walls, floors, roofs, masses and families all work.
 4. Set `target` (`ground`, `facades` or `both`) and `analysis` (a label from the table above, or `show-last`).
@@ -96,11 +96,10 @@ Other inputs: `fetch_context` adds public buildings around your selection.
 `wind` analysis (ground). `surfaces` (`facades`, `roofs` or `all`) is for the facade part.
 
 `analysis = show-last` draws the saved results again, free. The script saves the
-last paid result of each target in `.infrared
-evit-dynamo-last-result.json`
-(a file from an older version, with one result, still works).
+last paid result of each target in `.infrared\revit-dynamo-last-result.json` in your
+user folder (a file from an older version, with one result, still works).
 
-If you edit a file in `ir_dynamo` or `revit`, press Run again. The script
+If you edit a file in `ir_dynamo` or `ir_revit`, press Run again. The script
 reloads the files. You do not need to restart Revit.
 
 ## Terrain and the ground level
@@ -113,12 +112,17 @@ Select the terrain (a Toposolid or a Topography surface) together with the build
 
 ## What you see
 
-Coloured points in the active view. Blue is a low value. Red is a high value.
-The legend has the name of the analysis and the unit. The Watch node shows a
-status text: the location, the cost, and how many points Revit shows.
+A coloured surface in the model (a DirectShape in Generic Models): a square per
+ground cell, a triangle per facade cell. Look at it in a Shaded or Realistic 3D view.
+The colours are the platform colours (see Colours). The Watch node shows a status
+text: the location, the cost, the values and the legend.
 Each target has its own shape in the model. A new ground run replaces only the old
 ground shape, and a facade run only the old facade shape. The Watch text has a
 legend for each target.
+
+To delete a result, select the shape in a 3D view and delete it. Delete the legend
+drafting view in the Project Browser. Manage > Purge Unused removes the
+`Infrared ...` materials.
 
 ## Limits
 

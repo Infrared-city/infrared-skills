@@ -6,7 +6,7 @@ Run on any machine that has pip:
 
 It installs ``infrared-sdk[geodata]==1.0.0`` and its dependencies into
 ``build/libs`` as wheels for Python 3.9 on win_amd64, copies ``ir_dynamo``,
-``revit`` and ``dynamo`` (the ``.dyn`` files) beside them, and writes
+``ir_revit`` and ``dynamo`` (the ``.dyn`` files) beside them, and writes
 ``build/infrared-dynamo-libs.zip``. The zip has no top folder: the user unzips it
 into one folder (the libs folder) and gives that folder to the Dynamo script.
 ``build/`` is not committed.
