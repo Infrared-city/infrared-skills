@@ -59,3 +59,9 @@ def test_grid_cell_size_matches_the_polygon_extent() -> None:
     cx, cy = frame.grid_cell_m((min(lons), min(lats), max(lons), max(lats)), (30, 30))
     assert cx == pytest.approx(1.0, abs=1e-3)
     assert cy == pytest.approx(1.0, abs=1e-3)
+
+
+def test_point_lonlat_moves_north_and_east() -> None:
+    assert frame.point_lonlat(LON, LAT, 0.0, 0.0) == pytest.approx((LON, LAT))
+    lon, lat = frame.point_lonlat(LON, LAT, 100.0, 1000.0)
+    assert lon > LON and lat == pytest.approx(LAT + 1000.0 / 111_200.0, abs=1e-4)

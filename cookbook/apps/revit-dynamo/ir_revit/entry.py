@@ -18,7 +18,7 @@ from typing import Any, Dict, List, Optional
 
 from ir_dynamo import colors, settings, targets
 
-from . import revit_apikey, revit_display, revit_geometry, revit_location
+from . import revit_apikey, revit_display, revit_export, revit_geometry, revit_location
 
 # Dynamo keeps the Watch text nowhere. Each run writes its lines here, so the
 # user (or a helper) can read the last run. The API key is never in these lines.
@@ -112,6 +112,8 @@ def _run(
     analysis, months, hours : str
         See ``ir_dynamo.settings`` (labels) and ``ir_dynamo.run.run_analysis``.
         ``analysis = "show-last"`` draws the saved results again, free.
+        ``analysis = "export-obj"`` writes the selection and the terrain as an
+        OBJ file for the platform upload, free (``revit_export``).
     preview_only : bool
         True: free preview, no tokens.
     fetch_context : bool
@@ -156,6 +158,18 @@ def _run(
         return ["Error: %s" % error]
     if str(analysis).strip().lower() in SHOW_LAST_NAMES:
         return _show_last(range_mode, bool(gradient))
+    if revit_export.is_export(analysis):
+        try:
+            return revit_export.export_obj(
+                DocumentManager.Instance.CurrentDBDocument,
+                elements,
+                terrain,
+                _optional_float(lat, "lat"),
+                _optional_float(lon, "lon"),
+                _progress,
+            )
+        except (ValueError, RuntimeError, OSError) as error:
+            return ["Error: %s" % error]
     try:
         to_run, skipped = targets.plan_runs(target, analysis)
         env.setup()

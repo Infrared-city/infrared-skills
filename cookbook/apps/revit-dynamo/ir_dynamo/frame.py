@@ -102,6 +102,12 @@ def make_frame(
     )
 
 
+def point_lonlat(site_lon: float, site_lat: float, x: float, y: float) -> Tuple[float, float]:
+    """``(lon, lat)`` of a Revit-frame point (metres east and north of the site)."""
+    lon, lat = unproject(site_lon, site_lat, x, y)
+    return float(lon), float(lat)
+
+
 def _move(flat: Sequence[float], affine: FrameAffine) -> np.ndarray:
     """Move a flat ``[x, y, z, ...]`` array through an affine (float64)."""
     if len(flat) == 0:

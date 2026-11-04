@@ -58,7 +58,7 @@ def plan_runs(target: Any, label: str) -> Tuple[List[str], List[str]]:
     if not run:
         raise ValueError(
             "Analysis %r is unknown. Use one of: %s; or show-last to draw the last "
-            "result again (free)." % (label, ", ".join(all_labels()))
+            "result again (free); or export-obj to write an OBJ file for the platform (free)." % (label, ", ".join(all_labels()))
         )
     skipped = [
         "Skipped %s: the analysis %r does not run on %s (it runs on %s only)."

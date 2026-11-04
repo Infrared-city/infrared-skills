@@ -85,7 +85,7 @@ Leave `lat` and `lon` empty to use the project location.
 3. Select your buildings in Revit. In Dynamo, click "Select Model Elements" and
    press Select. Walls, floors, roofs, masses and families all work. Select the
    ground in the `terrain` node (see "Terrain and the ground level").
-4. Set `target` (`ground`, `facades` or `both`) and `analysis` (a label from the table above, or `show-last`).
+4. Set `target` (`ground`, `facades` or `both`) and `analysis` (a label from the table above, `show-last` or `export-obj`).
 5. Set `months` (for example `6-8`) and `hours` (for example `8-18`, or one hour like `13`).
 6. Keep `preview_only` at `True`. Press Run. The Watch node shows the number
    of tiles, jobs and tokens.
@@ -99,6 +99,9 @@ Other inputs: `fetch_context` adds public buildings around your selection.
 `analysis = show-last` draws the saved results again, free. The script saves the
 last paid result of each target in `.infrared\revit-dynamo-last-result.json` in your
 user folder (a file from an older version, with one result, still works).
+
+`analysis = export-obj` writes the selection as an OBJ file for the platform upload, free.
+See "Export to the Infrared platform".
 
 If you edit a file in `ir_dynamo` or `ir_revit`, press Run again. The script
 reloads the files. You do not need to restart Revit.
@@ -114,6 +117,26 @@ A linked Revit model (RVT link) is not read, also not its terrain. Open the link
 - With terrain, z = 0 of the analysis is the lowest terrain point near the buildings. Parts of buildings below the terrain (foundations) are left out. The ground result is drawn on the terrain.
 - Without terrain, the ground is Revit elevation 0.
 - Wind does not accept terrain. The buildings are lowered to their own base and the result is still drawn on the terrain.
+
+## Export to the Infrared platform
+
+The platform upload (platform.infrared.city) reads GeoJSON, OBJ and EPW files, not RVT or IFC.
+Set `analysis` to `export-obj` and press Run. This is free: there is no API call, and no key is needed.
+The script writes `Documents\Infrared\<model name>-<date>-<time>.obj`. The Watch text gives the path.
+
+The file:
+
+- is in metres, with Y up and -Z north (true north), the usual OBJ axes;
+- has one object per element, named `building_<ElementId>`, and one per terrain element, named `ground_<ElementId>`;
+- leaves out the parts below the ground (basements, foundations), because the platform puts the lowest point of the model on its ground;
+- holds the terrain near the buildings (50 m around them), from the `terrain` node.
+
+The OBJ has no georeference. The Watch text gives the longitude and latitude of the middle of the buildings.
+On the platform, upload the file, drag the model to that point on the map, and then select Save.
+In "Review model", check that the unit is metres and that the buildings are buildings.
+
+Keep the file below 40 MB, the platform limit. Select the outer shell only: no railings,
+furniture or curtain wall mullions. The Watch text gives the file size.
 
 ## What you see
 

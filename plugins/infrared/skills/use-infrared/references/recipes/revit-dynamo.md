@@ -36,7 +36,7 @@ The zip holds Windows x64 packages only. The script refuses an SDK other than 1.
 | Input | Values | Notes |
 |---|---|---|
 | `target` | `ground`, `facades`, `both` | `both` is two runs and two costs |
-| `analysis` | a label from section 1, or `show-last` | `show-last` draws the saved results again, free |
+| `analysis` | a label from section 1, `show-last` or `export-obj` | `show-last` draws the saved results again, free. `export-obj` writes an OBJ file for the platform upload, free |
 | `months`, `hours` | `6-8`, `8-18`, `13` | For solar, sun hours and UTCI |
 | `preview_only` | `True` / `False` | `True` shows tiles, jobs and tokens, free. Always preview first |
 | `fetch_context` | `True` / `False` | Public buildings around the selection |
@@ -70,6 +70,17 @@ Selection: walls, floors, roofs, masses, families, DirectShapes and imported mes
   - `platform`: the fixed range of the platform where it has one (wind speed 0 to 20 m/s, UTCI -40 to 46 °C), else the 2nd to 98th percentile. A 5 m/s wind shows in blue only.
 - **Another range, free.** Change `legend` or `gradient`, set `analysis` to `show-last` and press Run. The saved results are in `~/.infrared/revit-dynamo-last-result.json`, one entry per target and per Revit document.
 - **Delete a result.** Select the shape in a 3D view and delete it. Delete the legend drafting view in the Project Browser. Manage > Purge Unused removes the `Infrared ...` materials.
+
+## 6a. Export to the platform
+
+The platform upload reads GeoJSON, OBJ and EPW, not RVT or IFC ([`platform-byo-upload.md`](../platform-byo-upload.md)). `analysis = export-obj` writes `Documents\Infrared\<model>-<date>-<time>.obj`. It makes no API call and needs no key.
+
+- Metres, Y up, -Z north. One object per element: `building_<ElementId>`, `ground_<ElementId>`. No `usemtl` lines: a Revit material name like "Concrete" is a ground word for the platform classifier.
+- The parts below the ground are left out: the platform puts the lowest point on its ground, so a basement would lift the building.
+- The terrain within 50 m of the buildings is in the file.
+- The OBJ has no georeference. The Watch text gives the longitude and latitude of the middle of the buildings; the user drags the model there before Save.
+- The platform limit is 40 MB. The Watch text gives the size.
+- Not yet checked on the platform: that it reads the axes as Y up, and that a sloped `ground_*` object keeps its heights.
 
 ## 7. Change the script for the user
 

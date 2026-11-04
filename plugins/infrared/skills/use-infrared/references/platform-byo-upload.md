@@ -1,6 +1,6 @@
 # Platform file upload — producing a file the platform accepts
 
-How to save a file from Rhino, Grasshopper, QGIS, ArcGIS, Blender, or SketchUp
+How to save a file from Rhino, Grasshopper, QGIS, ArcGIS, Blender, SketchUp, or Revit
 so that platform.infrared.city accepts it at the first try.
 
 This is the **file** contract for the platform. For in-memory payloads in your
@@ -33,6 +33,7 @@ minimal) and `cookbook/sample-data/vienna-demo/` (real Vienna open data).
 | ArcGIS | Shapefile truncates field names to 10 characters, hence `buildingto` / `buildingbo`. Write GeoJSON — there is no shapefile adapter. |
 | Blender | Scene unit metres, scale 1.0. Name every object. |
 | SketchUp | Write OBJ in metres. Name each group. |
+| Revit | Revit has no OBJ export. Use the Dynamo script: `analysis = export-obj` ([recipes/revit-dynamo.md](recipes/revit-dynamo.md)). |
 | OSM data | `building:levels` and `diameter_crown` work as-is. Convert `circumference` to a height first. |
 
 ## Accepted formats
