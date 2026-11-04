@@ -2,8 +2,8 @@
 
 Build a SketchUp extension: the user clicks a point in the model, the plugin sends the
 buildings around it, and the result appears in the model as a coloured ground plane.
-The same shape works for other CAD tools (Revit, Archicad, Blender): only the geometry
-export and the drawing change.
+The same shape works for other CAD tools (Archicad, Blender): only the geometry
+export and the drawing change. For Revit, use the Dynamo script: [`revit-dynamo.md`](revit-dynamo.md).
 
 ## The shape: a thin plugin and a small Python service
 

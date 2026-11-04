@@ -1,6 +1,6 @@
 ---
 name: use-infrared
-description: Run Infrared urban microclimate simulations (wind, pedestrian wind comfort, solar radiation, sun hours, daylight, sky view factor, UTCI thermal comfort, comfort statistics, interior daylight factor and energy balance) from Python (`pip install infrared-sdk`) or TypeScript (`npm install @infrared-city/infrared-sdk`), in scripts, web apps, Grasshopper or Rhino, and read the results. Also covers files in and out of the Infrared platform. Use when the user mentions Infrared, infrared.city, infrared-sdk, urban microclimate, wind / Lawson / PWC, solar / daylight / sun hours / SVF, UTCI / thermal comfort, facade or roof analysis, a map or 3D app that shows results, Grasshopper or Rhino with Infrared, or uploads, imports or exports GeoJSON, OBJ, EPW, GeoTIFF or ZIP.
+description: Run Infrared urban microclimate simulations (wind, pedestrian wind comfort, solar radiation, sun hours, daylight, sky view factor, UTCI thermal comfort, comfort statistics, interior daylight factor and energy balance) from Python (`pip install infrared-sdk`) or TypeScript (`npm install @infrared-city/infrared-sdk`), in scripts, web apps, Grasshopper, Rhino or Revit (Dynamo), and read the results. Also covers files in and out of the Infrared platform. Use when the user mentions Infrared, infrared.city, infrared-sdk, urban microclimate, wind / Lawson / PWC, solar / daylight / sun hours / SVF, UTCI / thermal comfort, facade or roof analysis, a map or 3D app that shows results, Grasshopper, Rhino, Revit or Dynamo with Infrared, or uploads, imports or exports GeoJSON, OBJ, EPW, GeoTIFF or ZIP.
 allowed-tools: Bash(pip:*), Bash(uv:*), Bash(python:*), Bash(python3:*), Bash(npm:*), Bash(node:*), Bash(curl:*)
 license: Apache-2.0
 ---
@@ -27,6 +27,7 @@ Read [geospatial-crs](references/geospatial-crs.md) before a job, [grid-conventi
 | Goal | SDK | Go to |
 |---|---|---|
 | Grasshopper or Rhino component | Python in Rhino 8 | [grasshopper](references/recipes/grasshopper.md), [geometry and drawing](references/recipes/grasshopper-geometry-and-drawing.md), [pitfalls](references/recipes/grasshopper-pitfalls.md) |
+| Revit 2026 script (Dynamo, no plugin) | Python in Dynamo (CPython 3.9) | [revit-dynamo](references/recipes/revit-dynamo.md), [pitfalls](references/recipes/revit-dynamo-pitfalls.md), `cookbook/apps/revit-dynamo` |
 | Analysis, study or notebook for yourself | Python | [python/quickstart](references/python/quickstart.md), `cookbook/notebooks/00_quickstart.ipynb` |
 | Web app for yourself (browser, map, 3D facades) | TypeScript in the browser | [typescript/quickstart](references/typescript/quickstart.md), [map-grid](references/typescript/map-grid.md), [facades-3d](references/typescript/facades-3d.md), [facades-sampling](references/typescript/facades-sampling.md), `cookbook/apps/map-grid`, `cookbook/apps/facades-3d` |
 | Web app for many users (sign-in, secret key) | TypeScript front end + Cloudflare Worker proxy | [cloudflare-proxy](references/typescript/cloudflare-proxy.md), `cookbook/apps/cloudflare-proxy`, [persistence-and-users](references/recipes/persistence-and-users.md) |
@@ -112,7 +113,6 @@ const grid = areaGridValuesF32(result as AreaResult);      // Float32Array, NaN 
 Facades and roofs: `surfaceRenderBuffers(columns)`. TypeScript pages and apps: see the table above.
 
 ## Docs for agents
-
 - Guide: <https://infrared.city/docs/sdk/>. The whole guide as one file: <https://infrared.city/docs/sdk/sdk.md>
 - Page index: <https://infrared.city/docs/sdk/llms.txt>, <https://infrared.city/docs/sdk/1.0/llms.txt>. Each page is Markdown too: add `index.md` (for example <https://infrared.city/docs/sdk/1.0/python/sdk/index.md>)
 
