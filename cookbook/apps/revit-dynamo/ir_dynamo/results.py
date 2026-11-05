@@ -6,7 +6,8 @@ ground: ``{"kind": "points", "points": [[x, y, z], ...], "values": [...],
            "cell_m": float, "legend_min", "legend_max",
            "grid_shape": [rows, cols], "cells": [[row, col], ...] (the place of
            each value in the SDK matrix; row 0 is the south edge),
-           "corner_z": [[sw, se, ne, nw], ...] (only with terrain)}``
+           "corner_z": [[sw, se, ne, nw], ...] (only with terrain),
+           "labels": [class names in code order] (only for a class result, PWC)}``
 facades: ``{"kind": "triangles", "triangles": [x, y, z, ...] (9 per triangle),
             "values": [one per triangle], "legend_min", "legend_max"}``
 
@@ -76,6 +77,9 @@ def ground_points(
     }
     if corner_z is not None:
         out["corner_z"] = corner_z
+    labels = getattr(result, "legend", None)
+    if labels:  # PWC: the class of each code
+        out["labels"] = [str(x) for x in labels]
     return out
 
 

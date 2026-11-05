@@ -4,7 +4,8 @@
 text notes). Sizes are paper millimetres; the view is drawn at scale 1:1.
 
 Rows, top to bottom: the title, then one swatch + range per bin, the highest
-value at the top (as the platform legend), then the notes.
+value at the top (as the platform legend), then the notes. A class scale (PWC)
+shows the class name instead of the range, the first class at the top.
 """
 
 from __future__ import annotations
@@ -65,12 +66,16 @@ def legend_layout(
         Lines under the swatches (the range used, the platform range).
     """
     swatches: List[Swatch] = []
-    texts: List[Text] = [Text(0.0, 0.0, "%s (%s), %s" % (title, unit, target))]
+    classes = bool(legend.labels)
+    head = "%s, %s" % (title, target) if classes else "%s (%s), %s" % (title, unit, target)
+    texts: List[Text] = [Text(0.0, 0.0, head)]
     top = -TITLE_GAP_MM
-    for row, b in enumerate(reversed(legend.bins)):
+    rows = list(zip(legend.bins, legend.labels)) if classes else [(b, "") for b in reversed(legend.bins)]
+    for row, (b, label) in enumerate(rows):
         y = top - row * ROW_MM
         swatches.append(Swatch(0.0, y - SWATCH_H_MM, SWATCH_W_MM, SWATCH_H_MM, b.rgb))
-        texts.append(Text(TEXT_X_MM, y - 1.0, "%s - %s %s" % (_num(b.low), _num(b.high), unit)))
+        text = label or "%s - %s %s" % (_num(b.low), _num(b.high), unit)
+        texts.append(Text(TEXT_X_MM, y - 1.0, text))
     y = top - len(legend.bins) * ROW_MM - 2.0
     for k, note in enumerate(notes):
         texts.append(Text(0.0, y - k * NOTE_ROW_MM, note))

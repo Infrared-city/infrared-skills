@@ -26,7 +26,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
-from . import colors
+from . import colors, variants
 from .png import decode_png
 
 
@@ -108,14 +108,17 @@ def cell_colors(
     v = np.asarray(values, dtype=np.float64)
     mode = colors.parse_range_mode(range_mode)
     try:
-        configs = colors.load_configurations(visual_configurations)
-        lo, hi, configs, _ = colors.resolve_range(analysis_type, low, high, v, mode, configs)
-        if gradient:
-            configs = colors.without_steps(configs, analysis_type)
-        stepped = bool(configs[analysis_type].get("steps"))
-        pad = None if stepped else (lo, hi)  # pin the range of a gradient scale
-        drawn = v if mode == "platform" and stepped else np.clip(v, lo, hi)  # NaN stays NaN
-        rgb = render_values(drawn, analysis_type, configs, grid_shape, cells, pad)
+        configs = colors.load_configurations(visual_configurations, analysis_type)
+        if variants.is_class_scale(configs, analysis_type):  # class codes: no range
+            rgb = render_values(v, analysis_type, configs, grid_shape, cells)
+        else:
+            lo, hi, configs, _ = colors.resolve_range(analysis_type, low, high, v, mode, configs)
+            if gradient:
+                configs = colors.without_steps(configs, analysis_type)
+            stepped = bool(configs[analysis_type].get("steps"))
+            pad = None if stepped else (lo, hi)  # pin the range of a gradient scale
+            drawn = v if mode == "platform" and stepped else np.clip(v, lo, hi)  # NaN stays NaN
+            rgb = render_values(drawn, analysis_type, configs, grid_shape, cells, pad)
         note = []
     except Exception as error:  # never fail the drawing for the colours
         bins = np.maximum(legend.bin_of(v), 0)
@@ -125,9 +128,16 @@ def cell_colors(
         return [], np.zeros(0, dtype=int), note
     palette, index = np.unique(rgb, axis=0, return_inverse=True)
     index = np.asarray(index).reshape(-1)
-    # Order the palette from low to high value (the mean value of each colour).
-    mean = np.array([np.nanmean(v[index == k]) if np.any(index == k) else 0.0 for k in range(len(palette))])
-    order = np.argsort(np.nan_to_num(mean))
+    # Order the palette from low to high value (the mean value of each colour);
+    # the colour of the cells without a value (NaN) goes last.
+    finite = np.isfinite(v)
+    mean = np.array(
+        [
+            v[(index == k) & finite].mean() if np.any((index == k) & finite) else np.inf
+            for k in range(len(palette))
+        ]
+    )
+    order = np.argsort(mean, kind="stable")
     rank = np.empty_like(order)
     rank[order] = np.arange(len(order))
     return [tuple(int(c) for c in palette[k]) for k in order], rank[index], note

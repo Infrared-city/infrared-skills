@@ -58,6 +58,13 @@ def legend_count_lines(
     """
     v = np.asarray(values, dtype=np.float64)
     v = v[np.isfinite(v)]
+    if legend.labels:  # a class scale (PWC): the count of each class
+        counts = np.bincount(legend.bin_of(v), minlength=len(legend.bins)) if len(v) else []
+        total = max(len(v), 1)
+        return ["Classes:"] + [
+            "  %s  rgb%s: %d (%.1f %%)" % (label, b.rgb, count, 100.0 * count / total)
+            for label, b, count in zip(legend.labels, legend.bins, counts)
+        ]
     low, high = float(legend.ramp_values[0]), float(legend.ramp_values[-1])
     lines = [
         "Legend range used (%s): %s .. %s %s"

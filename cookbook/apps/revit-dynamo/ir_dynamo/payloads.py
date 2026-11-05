@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any, Dict, Literal, Optional
 
 from infrared_sdk import (
+    PwcModelRequest,
     SolarModelRequest,
     SolarRadiationModelRequest,
     SvfModelRequest,
@@ -15,9 +16,13 @@ from infrared_sdk.analyses.types import (
     AnalysesName,
     TerrainAlignment,
     BaseAnalysisPayload,
+    PwcCriteria,
+    TcsModelBaseRequest,
+    TcsModelRequest,
+    TcsSubtype,
     UtciModelBaseRequest,
 )
-from infrared_sdk.models import Location, TimePeriod
+from infrared_sdk.models import Location, TimePeriod, extract_weather_fields
 
 from .settings import Analysis, parse_period
 
@@ -86,9 +91,9 @@ def build_payload(
         from the west).
     ground_geometry : dict, optional
         The terrain, ``{id: {"coordinates": [...], "indices": [...]}}`` in the
-        SDK frame. Svf, sun hours, daylight, solar and utci take it. Wind does
-        not (the SDK refuses it): for wind it only switches the buildings to
-        ``terrain_alignment="to-ground"``.
+        SDK frame. Svf, sun hours, daylight, solar, utci and tcs take it. The
+        wind models (wind, pwc) do not (the SDK refuses it): for them it only
+        switches the buildings to ``terrain_alignment="to-ground"``.
     client : InfraredClient, optional
         Needed for the analyses that read weather.
     """
@@ -98,8 +103,8 @@ def build_payload(
     )  # fmt: skip
     if not ground_geometry:
         return request
-    if analysis.key == "wind":
-        # No terrain for wind. Its worker reads a building's height from the raw
+    if analysis.no_terrain:
+        # No terrain for the wind models. Its worker reads a building's height from the raw
         # z, so each building is lowered to its own lowest point (the grade).
         return request.model_copy(update={"terrain_alignment": "to-ground"})
     # "as-is" (the SDK default for a supplied scene, written here on purpose):
@@ -150,6 +155,22 @@ def _request(
         raise ValueError("%s reads weather; pass a client." % analysis.title)
     rows = _weather_rows(client, lat, lon, period)
     location = Location(latitude=lat, longitude=lon)
+    if analysis.key == "pwc":
+        # Hourly wind observations of the window, paired by position.
+        return PwcModelRequest(
+            analysis_type=kind,
+            criteria=PwcCriteria(analysis.variant),
+            latitude=lat,
+            longitude=lon,
+            **extract_weather_fields(rows, ["windSpeed", "windDirection"]),
+        )
+    if analysis.key == "tcs":
+        return TcsModelRequest.from_weatherfile_payload(
+            payload=TcsModelBaseRequest(analysis_type=kind, subtype=TcsSubtype(analysis.variant)),
+            location=location,
+            time_period=period,
+            weather_data=rows,
+        )
     if analysis.key == "solar":
         base = BaseAnalysisPayload[Literal[AnalysesName.solar_radiation]](
             analysis_type=kind

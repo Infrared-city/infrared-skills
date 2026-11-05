@@ -1360,7 +1360,7 @@
       {
         "Id": "6f9827a907bd4e8abcb7d298f40b26a6",
         "Name": "Note",
-        "Text": "IR_Analysis: one script for ground, facades or both.\ntarget: ground | facades | both (also all). \"both\" = two runs, two costs.\nanalysis labels, ground: svf, solar, sun-hours, wind, utci\nanalysis labels, facades: svf, solar, sun-hours, daylight\nboth: wind and utci run on ground only, daylight on facades only; the other target is skipped.\nshow-last: draw the saved results again, free (no run).\nKeep preview_only True first: it shows the cost for free.",
+        "Text": "IR_Analysis: one script for ground, facades or both.\ntarget: ground | facades | both (also all). \"both\" = two runs, two costs.\nanalysis labels, ground: svf, solar, sun-hours, wind, utci, pwc, tcs\npwc and tcs take a criterion or subtype as the last word: \"pwc lawson-2001\", \"tcs heat-stress\"\nanalysis labels, facades: svf, solar, sun-hours, daylight\nboth: wind, utci, pwc and tcs run on ground only, daylight on facades only; the other target is skipped.\nshow-last: draw the saved results again, free (no run).\nKeep preview_only True first: it shows the cost for free.",
         "IsSetAsInput": false,
         "IsSetAsOutput": false,
         "Excluded": false,

@@ -51,6 +51,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
+from . import variants
 from .png import decode_png  # noqa: F401  (part of this module's API)
 
 try:  # the SDK is there in a real run; the pure functions work without it
@@ -89,7 +90,8 @@ class Legend:
     """The bins of one analysis, low -> high, and the ramp they came from.
 
     ``ramp_values`` is ascending (``RAMP_SIZE`` values from the range low to high);
-    ``ramp_bin[i]`` is the bin of ``ramp_values[i]``.
+    ``ramp_bin[i]`` is the bin of ``ramp_values[i]``. A class scale (PWC) has one
+    bin per class code and a text in ``labels`` for each (``class_legend``).
     """
 
     analysis_type: str
@@ -97,6 +99,7 @@ class Legend:
     ramp_values: np.ndarray
     ramp_bin: np.ndarray
     source: str  # "registry" or "fallback"
+    labels: Tuple[str, ...] = ()
 
     def bin_of(self, values: Any) -> np.ndarray:
         """The bin of each value: the nearest ramp position; outside values go to the
@@ -120,6 +123,7 @@ class Legend:
             "bins": [{"rgb": list(b.rgb), "low": b.low, "high": b.high} for b in self.bins],
             "ramp_values": self.ramp_values.tolist(),
             "ramp_bin": self.ramp_bin.tolist(),
+            "labels": list(self.labels),
         }
 
     @classmethod
@@ -130,6 +134,7 @@ class Legend:
             ramp_values=np.asarray(data["ramp_values"], dtype=np.float64),
             ramp_bin=np.asarray(data["ramp_bin"], dtype=int),
             source=str(data.get("source", "registry")),
+            labels=tuple(str(x) for x in data.get("labels", ())),
         )
 
 
@@ -245,13 +250,27 @@ def _measured_range(
     return low, high
 
 
-def load_configurations(visual_configurations: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    """The registry ``visualConfigurations`` (fetched and cached by the SDK)."""
-    if visual_configurations is not None:
-        return visual_configurations
-    from infrared_sdk.layers._registry import fetch_visual_configurations
+def load_configurations(
+    visual_configurations: Optional[Dict[str, Any]] = None, analysis_type: str = ""
+) -> Dict[str, Any]:
+    """The registry ``visualConfigurations`` (fetched and cached by the SDK).
 
-    return fetch_visual_configurations()[0]
+    With a colour key of a PWC criterion or TCS subtype as ``analysis_type``, its
+    scale is also under that key (``variants.flatten``).
+    """
+    if visual_configurations is None:
+        from infrared_sdk.layers._registry import fetch_visual_configurations
+
+        visual_configurations = fetch_visual_configurations()[0]
+    return variants.flatten(visual_configurations, analysis_type)
+
+
+def class_legend(analysis_type: str, configs: Dict[str, Any]) -> Legend:
+    """The legend of a class scale (PWC): one bin per class code, low = high = the code."""
+    colours, labels = variants.class_colours(analysis_type, configs)
+    codes = np.arange(len(colours), dtype=np.float64)
+    bins = [Bin(rgb, float(k), float(k)) for k, rgb in enumerate(colours)]
+    return Legend(analysis_type, bins, codes, np.arange(len(colours)), "registry", tuple(labels))
 
 
 def resolve_range(
@@ -336,7 +355,9 @@ def make_legend(
     """
     mode = parse_range_mode(range_mode)
     try:
-        configs = load_configurations(visual_configurations)
+        configs = load_configurations(visual_configurations, analysis_type)
+        if variants.is_class_scale(configs, analysis_type):
+            return class_legend(analysis_type, configs), []
         low, high, configs, warnings = resolve_range(analysis_type, low, high, values, mode, configs)
         if gradient:
             configs = without_steps(configs, analysis_type)

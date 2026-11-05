@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import calendar
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Dict, List, Tuple
 
 MONTHS = [m.lower() for m in calendar.month_abbr[1:]]
@@ -37,6 +37,15 @@ class Analysis:
         Whether it reads a weather file (public station catalog).
     needs_wind : bool
         Whether it reads one wind speed and direction.
+    no_terrain : bool
+        A wind model: the SDK refuses terrain, each building is lowered to its base.
+    variants : tuple of str
+        The criteria (PWC) or subtypes (TCS) the user can add to the label,
+        the default first. Empty for the other analyses.
+    variant : str
+        The chosen one (``find_analysis`` fills it in).
+    whole_year : bool
+        The analysis is normally read over a whole year (PWC).
     """
 
     key: str
@@ -48,7 +57,37 @@ class Analysis:
     needs_period: bool = False
     needs_weather: bool = False
     needs_wind: bool = False
+    no_terrain: bool = False
+    variants: Tuple[str, ...] = ()
+    variant: str = ""
+    whole_year: bool = False
 
+    @property
+    def label(self) -> str:
+        """The key and the variant, for example ``"pwc lawson-lddc"``."""
+        return "%s %s" % (self.key, self.variant) if self.variant else self.key
+
+    @property
+    def full_title(self) -> str:
+        """The title with the variant, for example ``"Pedestrian wind comfort (lawson-lddc)"``."""
+        return "%s (%s)" % (self.title, self.variant) if self.variant else self.title
+
+
+# The SDK PwcCriteria and TcsSubtype values; the default first.
+PWC_CRITERIA = (
+    "lawson-lddc", "lawson-2001", "lawson-1970", "davenport",
+    "nen-8100-comfort", "nen-8100-safety", "vdi-3787",
+)  # fmt: skip
+TCS_SUBTYPES = ("thermal-comfort", "heat-stress", "cold-stress")
+VARIANT_ALIASES = {
+    "lddc": "lawson-lddc",
+    "lawson": "lawson-lddc",
+    "vdi": "vdi-3787",
+    "nen": "nen-8100-comfort",
+    "comfort": "thermal-comfort",
+    "heat": "heat-stress",
+    "cold": "cold-stress",
+}
 
 ANALYSES: Dict[str, Analysis] = {
     a.key: a
@@ -83,7 +122,38 @@ ANALYSES: Dict[str, Analysis] = {
             needs_period=True,
         ),
         Analysis(
-            "wind", "Wind speed", "wind-speed", "m/s", True, False, needs_wind=True
+            "wind",
+            "Wind speed",
+            "wind-speed",
+            "m/s",
+            True,
+            False,
+            needs_wind=True,
+            no_terrain=True,
+        ),
+        Analysis(
+            "pwc",
+            "Pedestrian wind comfort",
+            "pedestrian-wind-comfort",
+            "class",
+            True,
+            False,
+            needs_period=True,
+            needs_weather=True,
+            no_terrain=True,
+            variants=PWC_CRITERIA,
+            whole_year=True,
+        ),
+        Analysis(
+            "tcs",
+            "Thermal comfort statistics",
+            "thermal-comfort-statistics",
+            "% of time",
+            True,
+            False,
+            needs_period=True,
+            needs_weather=True,
+            variants=TCS_SUBTYPES,
         ),
         Analysis(
             "utci",
@@ -113,6 +183,11 @@ ALIASES = {
     "wind-speed": "wind",
     "thermal-comfort-index": "utci",
     "thermal-comfort": "utci",
+    "pedestrian-wind-comfort": "pwc",
+    "wind-comfort": "pwc",
+    "wind comfort": "pwc",
+    "thermal-comfort-statistics": "tcs",
+    "comfort-statistics": "tcs",
 }
 
 
@@ -129,6 +204,25 @@ def valid_labels(surface: str) -> List[str]:
     return [k for k, a in ANALYSES.items() if getattr(a, surface)]
 
 
+def _split_variant(text: str) -> Tuple[str, str]:
+    """``"pwc lawson-2001"`` -> ``("pwc", "lawson-2001")``; no known variant word -> ``(text, "")``."""
+    words = text.split(" ")
+    if len(words) < 2:
+        return text, ""
+    base = " ".join(words[:-1])
+    row = ANALYSES.get(ALIASES.get(base, base))
+    if row is None or not row.variants:
+        return text, ""
+    word = words[-1].replace("_", "-")
+    word = VARIANT_ALIASES.get(word, word)
+    if word not in row.variants:
+        raise ValueError(
+            "%s: %r is not known. Use one of: %s."
+            % (row.title, words[-1], ", ".join(row.variants))
+        )
+    return base, word
+
+
 def find_analysis(label: str, surface: str) -> Analysis:
     """Look up an analysis by label and check that it runs on ``surface``.
 
@@ -136,18 +230,28 @@ def find_analysis(label: str, surface: str) -> Analysis:
     ----------
     label : str
         The user's label, any case. Aliases are allowed (``"sun hours"``).
+        PWC and TCS take a criterion or subtype as the last word
+        (``"pwc lawson-2001"``, ``"tcs heat-stress"``); without it, the first
+        of ``Analysis.variants``.
     surface : str
         ``"ground"`` or ``"facades"``.
+
+    Returns
+    -------
+    Analysis
+        The row, with ``variant`` filled in for PWC and TCS.
 
     Raises
     ------
     ValueError
         With the list of valid labels, when the label is unknown or the
-        analysis does not run on that surface.
+        analysis does not run on that surface, or with the valid criteria
+        or subtypes, when the last word is not one of them.
     """
     if surface not in ("ground", "facades"):
         raise ValueError("surface must be 'ground' or 'facades', not %r" % (surface,))
     key = re.sub(r"\s+", " ", str(label).strip().lower())
+    key, variant = _split_variant(key)
     key = ALIASES.get(key, key)
     row = ANALYSES.get(key)
     if row is None or not getattr(row, surface):
@@ -155,7 +259,23 @@ def find_analysis(label: str, surface: str) -> Analysis:
             "Analysis %r does not run on %s. Use one of: %s."
             % (label, surface, ", ".join(valid_labels(surface)))
         )
+    if row.variants:
+        row = replace(row, variant=variant or row.variants[0])
     return row
+
+
+def window_note(row: Analysis, months: str, hours: str) -> List[str]:
+    """A line when an analysis that is read over a whole year (PWC) gets a shorter window."""
+    if not row.whole_year:
+        return []
+    period = parse_period(months, hours)
+    whole = (period["start_month"], period["end_month"], period["start_hour"], period["end_hour"])
+    if whole == (1, 12, 0, 23):
+        return []
+    return [
+        "%s is normally read over a whole year. This run uses months %s and hours %s; "
+        "set months to 1-12 and hours to 0-23 for the usual result." % (row.title, months, hours)
+    ]
 
 
 def _month(token: str) -> int:

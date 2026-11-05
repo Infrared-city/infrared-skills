@@ -14,7 +14,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
-from . import env, grid_check, meshes, payloads, results, settings
+from . import env, grid_check, meshes, payloads, results, settings, variants
 from . import terrain as terrain_mod
 from . import frame as frame_mod
 
@@ -64,7 +64,7 @@ def _scene(
     warnings += notes
     if ground and is_wind:
         warnings.append(
-            "Wind does not take terrain: it is not sent. Each building is lowered "
+            "The wind models do not take terrain: it is not sent. Each building is lowered "
             "to its own base; the result is drawn on the terrain."
         )
     lowest = min(float(terrain_mod.triangles(f)[:, :, 2].min()) for f in buildings_m.values())
@@ -104,8 +104,9 @@ def run_analysis(
         ``"ground"`` (grid around the buildings) or ``"facades"`` (walls and roofs).
     analysis : str
         A label from ``settings.ANALYSES`` for that surface: ``svf``, ``solar``,
-        ``sun-hours``, ``daylight`` (facades only), ``wind``, ``utci``
-        (ground only). Aliases like ``"sun hours"`` work.
+        ``sun-hours``, ``daylight`` (facades only), ``wind``, ``utci``, ``pwc``,
+        ``tcs`` (ground only). Aliases like ``"sun hours"`` work. PWC and TCS
+        take a criterion or subtype as the last word: ``"pwc lawson-2001"``.
     buildings_m : dict
         ``{building_id: flat [x, y, z, ...]}``. Every 9 numbers are one
         triangle, in metres, in the Revit frame (origin = site location, x
@@ -130,7 +131,7 @@ def run_analysis(
         ``{terrain_id: flat [x, y, z, ...]}``, same units and frame as
         ``buildings_m``. With terrain, z = 0 of the SDK is the lowest terrain
         point of the run area and the ground result follows the terrain. Without
-        it the ground is Revit z = 0. Wind does not take terrain (a warning says so).
+        it the ground is Revit z = 0. Wind and PWC do not take terrain (a warning says so).
     on_status : callable, optional
         Called with a short text at each stage. It is called on the calling thread.
     client : InfraredClient, optional
@@ -166,8 +167,10 @@ def run_analysis(
         bbox = meshes.soup_bbox(buildings_m)
         frame = frame_mod.make_frame(site_lon, site_lat, bbox, buffer)
         buildings, ground, sampler, z_offset, warnings = _scene(
-            frame, buildings_m, terrain_m, bbox, buffer, row.key == "wind"
+            frame, buildings_m, terrain_m, bbox, buffer, row.no_terrain
         )
+        if row.needs_period:
+            warnings += settings.window_note(row, months, hours)
         if fetch_context:
             say("reading public buildings")
             fetched = client.buildings.get_area(
@@ -203,9 +206,10 @@ def run_analysis(
         )
         cost = _cost_text(preview)
         out: Dict[str, Any] = {
-            "title": row.title,
+            "title": row.full_title,
             "unit": row.unit,
-            "analysis_type": row.sdk_type,
+            # The colour registry key: the SDK name, and the PWC criterion or TCS subtype.
+            "analysis_type": variants.colour_key(row.sdk_type, row.variant),
             "cost": cost,
             "tokens": int(preview.estimated_cost_tokens),
             "warnings": warnings,

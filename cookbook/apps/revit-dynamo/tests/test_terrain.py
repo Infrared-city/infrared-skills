@@ -151,7 +151,7 @@ def test_wind_does_not_send_terrain() -> None:
     )
     assert not hasattr(client.payload, "ground_geometry")
     assert client.payload.terrain_alignment == "to-ground"
-    assert any("Wind does not take terrain" in w for w in out["warnings"])
+    assert any("wind models do not take terrain" in w for w in out["warnings"])
 
 
 def test_every_terrain_analysis_accepts_ground_geometry() -> None:

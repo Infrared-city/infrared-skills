@@ -20,7 +20,7 @@ from typing import Any, Dict, List, Sequence, Tuple
 
 import numpy as np
 
-from ir_dynamo import cell_colors, colors, settings, summary
+from ir_dynamo import cell_colors, colors, settings, summary, variants
 
 from . import result_mesh, revit_legend, revit_location
 
@@ -30,11 +30,15 @@ MATERIAL_PREFIX = "Infrared "
 
 
 def material_name(analysis_type: str, rgb: Sequence[int]) -> str:
-    """The material of one colour, for example ``"Infrared svf 08AEC4"``."""
+    """The material of one colour, for example ``"Infrared svf 08AEC4"`` or
+    ``"Infrared pwc lawson-lddc 0000FF"``."""
+    base, variant = variants.split_key(analysis_type)
     short = next(
-        (a.key for a in settings.ANALYSES.values() if a.sdk_type == analysis_type),
-        analysis_type or "result",
+        (a.key for a in settings.ANALYSES.values() if a.sdk_type == base),
+        base or "result",
     )
+    if variant:
+        short = "%s %s" % (short, variant)
     return "%s%s %02X%02X%02X" % (MATERIAL_PREFIX, short, rgb[0], rgb[1], rgb[2])
 
 
@@ -211,10 +215,14 @@ def show(
         TransactionManager.Instance.ForceCloseTransaction()
         return "Display failed: %s (%d triangles)" % (error, len(feet))
     low, high = float(legend.ramp_values[0]), float(legend.ramp_values[-1])
-    legend_notes = [
-        "Colour range (%s): %.3g - %.3g %s; values outside take the end colours."
-        % (colors.parse_range_mode(range_mode), low, high, unit)
-    ] + warnings
+    if legend.labels:  # a class scale (PWC): no range
+        warnings += variants.label_check(result.get("labels", []), legend.labels)
+        legend_notes = list(warnings)
+    else:
+        legend_notes = [
+            "Colour range (%s): %.3g - %.3g %s; values outside take the end colours."
+            % (colors.parse_range_mode(range_mode), low, high, unit)
+        ] + warnings
     try:  # a legend that fails must not take the result with it
         legend_line = revit_legend.draw_legend(doc, legend, title, unit, target, legend_notes)
     except Exception as error:

@@ -6,14 +6,25 @@ what it analyses: `ground`, `facades` (walls and roofs) or `both`.
 
 | `target` | What it analyses | Analyses (`analysis` input) |
 |---|---|---|
-| `ground` | The ground around the buildings | `svf`, `solar`, `sun-hours`, `wind`, `utci` |
+| `ground` | The ground around the buildings | `svf`, `solar`, `sun-hours`, `wind`, `utci`, `pwc`, `tcs` |
 | `facades` | The walls and roofs of the buildings | `svf`, `solar`, `sun-hours`, `daylight` |
-| `both` (or `all`) | Both, one after the other | `svf`, `solar`, `sun-hours` on both; `wind`, `utci` on the ground only; `daylight` on the facades only |
+| `both` (or `all`) | Both, one after the other | `svf`, `solar`, `sun-hours` on both; `wind`, `utci`, `pwc`, `tcs` on the ground only; `daylight` on the facades only |
 
 One Infrared request computes the ground grid or the facades, not both. So `both`
 is **two runs and two costs**. The preview shows both costs and their sum. If the
 analysis exists on one target only (for example `wind`), `both` runs it there and
 the Watch text says that the other target was skipped.
+
+`pwc` (pedestrian wind comfort) and `tcs` (thermal comfort statistics) take a criterion or
+subtype as the last word of the label. Without it, the first one is used.
+
+- `pwc`: `lawson-lddc` (default), `lawson-2001`, `lawson-1970`, `davenport`,
+  `nen-8100-comfort`, `nen-8100-safety`, `vdi-3787`. Example: `pwc lawson-2001`.
+- `tcs`: `thermal-comfort` (default), `heat-stress`, `cold-stress`. Example: `tcs heat-stress`.
+
+Both read the weather of the `months` and `hours` window. PWC is normally read over a whole
+year (months 1-12, hours 0-23); with a shorter window the Watch text says so. Like `wind`,
+PWC does not take terrain.
 
 ## What it does
 
@@ -191,7 +202,7 @@ The result uses the colours of the Infrared platform. The SDK renderer (`render_
 - `exact`: the minimum and maximum of the result.
 - `platform`: the range that the platform uses. UTCI and wind speed have a fixed range there (wind speed: 0 to 20 m/s, so a 5 m/s wind shows in blue only); the other analyses use the 2nd to 98th percentile, as the platform renderer does.
 
-Each run also draws the legend in a drafting view: "Infrared legend - ground" and "Infrared legend - facades" (Project Browser > Drafting Views). It shows one colour swatch and value range per bin, the highest value on top, and the colour range in use. A new run of the same target redraws the same view, so you can put it on a sheet once. (The Revit API cannot create a Legend view; a drafting view can go on a sheet in the same way.)
+Each run also draws the legend in a drafting view: "Infrared legend - ground" and "Infrared legend - facades" (Project Browser > Views > Drafting Views). It shows one colour swatch and value range per bin, the highest value on top, and the colour range in use. For PWC it shows one swatch per comfort class (for example "A Frequent Sitting"), the first class on top, and no range. A new run of the same target redraws the same view, so you can put it on a sheet once. (The Revit API cannot create a Legend view; a drafting view can go on a sheet in the same way.)
 
 To see the same result with another range, set `legend`, set `analysis` to `show-last` and press Run. This is free.
 
