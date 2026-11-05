@@ -22,7 +22,7 @@ SketchUp (Ruby)                          Python service (FastAPI + SDK)       In
   draw a textured face       ◀─GET /runs/{id}/result.png, result.json
 ```
 
-The service is the cookbook app [`cookbook/apps/python-fastapi`](../../../../../../cookbook/apps/python-fastapi/)
+The service is the cookbook app [`cookbook/apps/python-fastapi`](https://github.com/Infrared-city/infrared-skills/tree/main/cookbook/apps/python-fastapi)
 with one small change (below). Read [python-fastapi-app.md](python-fastapi-app.md) for why it is fast.
 
 Where the service runs:

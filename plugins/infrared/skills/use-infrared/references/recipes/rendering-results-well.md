@@ -317,4 +317,4 @@ footprints (§2 covers masked cells).
 - [`../surface-results-integration.md`](../surface-results-integration.md) — the columns contract, render buffers, the masking shader
 - [`../interpretation/grid-conventions.md`](../interpretation/grid-conventions.md) — grid layout, scenario diffs, GeoTIFF export
 - [`../analyses/09-facade-terrain.md`](../analyses/09-facade-terrain.md) — facade/roof request fields and response shape
-- Cookbook notebooks: [../../../../../../cookbook/](../../../../../../cookbook/README.md)
+- Cookbook notebooks: [cookbook](https://github.com/Infrared-city/infrared-skills/tree/main/cookbook)

@@ -4,7 +4,7 @@ Build a small HTTP API that holds the API key, takes the user's site and
 buildings, prices a run, runs it in the background and serves the map.
 Any frontend can call it: a web map, a mobile app, a notebook or a CAD plugin.
 
-Runnable code: [`cookbook/apps/python-fastapi/`](../../../../../../cookbook/apps/python-fastapi/)
+Runnable code: [`cookbook/apps/python-fastapi/`](https://github.com/Infrared-city/infrared-skills/tree/main/cookbook/apps/python-fastapi)
 (`main.py` is about 200 lines). Copy it, then change it. This recipe tells you
 why the code has its shape, so that you keep it fast when you grow it.
 
