@@ -6,8 +6,15 @@ Input is plain data, like ``meshes``: ``{element_id: flat [x, y, z, ...]}``,
 The file follows the platform upload rules (skill page ``platform-byo-upload.md``):
 
 * metres, so the platform's unit guess finds "m";
-* one object per element, named ``building_<id>`` or ``ground_<id>``, so the
-  platform does not classify by shape;
+* all building elements in ONE object, ``building_model``, and one object per
+  terrain element, ``ground_<id>``: the names stop the platform from
+  classifying by shape. One object because the platform splits each object
+  into connected parts and gives a raised part with nothing under it a floor
+  at z = 0 (forge-kit ``base-caps.ts``, meant for buildings on a slope). With
+  one object per element, the walls of a bay window that starts on an upper
+  floor are such a part, and the platform draws their outline on the ground.
+  In one object they connect to the walls below them. A comment line
+  ``# element <id>: <category>`` stays above each element;
 * no ``usemtl`` lines: a Revit material name such as "Concrete" is a ground
   word for the platform classifier;
 * the parts below the ground (basements, foundations) are left out, because
@@ -56,6 +63,8 @@ MIN_ABOVE_GROUND_M = 0.5
 WELD_M = 1e-3
 # The platform refuses a larger OBJ file.
 PLATFORM_LIMIT_BYTES = 40 * 1024 * 1024
+# The one object that holds every building element (see the module text).
+BUILDING_OBJECT = "building_model"
 
 EXPORT_NAMES = ("export-obj", "export obj", "export", "obj")
 KEEP_ALL_WORDS = ("all", "full")
@@ -258,7 +267,8 @@ def obj_text(
     """The OBJ file text and counts (``objects``, ``vertices``, ``faces``).
 
     Axes in the file: x east, y true north, z up (Z up), metres, from
-    ``scene.origin``.
+    ``scene.origin``. Every building element goes into the one object
+    ``BUILDING_OBJECT``; each terrain element is its own ``ground_<id>``.
     """
     ox, oy, oz = scene.origin
     lines = ["# %s" % h for h in header]
@@ -266,20 +276,28 @@ def obj_text(
     base = 1  # OBJ indices start at 1 and count over the whole file
     groups = [("building", scene.buildings), ("ground", scene.terrain)]
     for prefix, items in groups:
+        opened = False
         for name, tri in items.items():
             points, faces = _weld(np.asarray(tri, dtype=np.float64))
             if len(faces) == 0:
                 continue
-            if labels and name in labels:
-                lines.append("# category: %s" % labels[name])  # ignored by the platform
-            lines.append("o %s_%s" % (prefix, _safe_name(name)))
+            if prefix == "ground":
+                lines.append("o ground_%s" % _safe_name(name))
+                counts["objects"] += 1
+            elif not opened:
+                lines.append("o %s" % BUILDING_OBJECT)
+                counts["objects"] += 1
+                opened = True
+            if prefix == "building":
+                label = (labels or {}).get(name)
+                # Comments: the platform ignores them.
+                lines.append("# element %s: %s" % (name, label) if label else "# element %s" % name)
             east = points[:, 0] - ox
             north = points[:, 1] - oy
             up = points[:, 2] - oz
             lines += ["v %.3f %.3f %.3f" % (e, n, u) for e, n, u in zip(east, north, up)]
             lines += ["f %d %d %d" % (a + base, b + base, c + base) for a, b, c in faces]
             base += len(points)
-            counts["objects"] += 1
             counts["vertices"] += len(points)
             counts["faces"] += len(faces)
     return "\n".join(lines) + "\n", counts

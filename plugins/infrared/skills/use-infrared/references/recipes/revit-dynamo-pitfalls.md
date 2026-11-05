@@ -54,6 +54,7 @@ Most expensive failures return a plausible result. Look at the picture and the v
 31. **A whole architectural model is above 40 MB.** The platform refuses the file ("file exceeds the Wavefront OBJ size limit"). The export keeps only the building categories; read the "Triangles by category" line and select the outer shell.
 32. **The model is upside down on the platform.** The platform takes the denser end of the model as the ground. A detailed roof over a base cut at the ground is denser at the top. Clear "Flip vertical" in Review model. Write Z up: a Y-up file of a tall building lies on its side.
 33. **The OBJ sits on the site centre.** It has no georeference. Give the user the longitude and latitude from the Watch text, and tell them to drag the model there before Save.
+34. **Outlines on the ground in front of the building, but nothing there in Revit.** The platform made them. It splits each OBJ object into connected parts and gives a raised building-like part with nothing under it a floor at z = 0 (for buildings on a slope). A bay window that starts on an upper floor, in its own object, is such a part. Write all building elements into one object: the bay then joins the walls below it. Removing low elements does not help.
 
 ## Habits that find bugs early
 

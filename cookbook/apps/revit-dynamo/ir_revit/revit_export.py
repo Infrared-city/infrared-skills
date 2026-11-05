@@ -71,7 +71,7 @@ def export_obj(
     size = os.path.getsize(path)
     return [
         "OBJ written: %s" % path,
-        "%d object(s): %d building(s), %d ground; %d vertices, %d triangles."
+        "%d object(s): %d building element(s) in one object, %d ground; %d vertices, %d triangles."
         % (
             counts["objects"],
             len(scene.buildings),

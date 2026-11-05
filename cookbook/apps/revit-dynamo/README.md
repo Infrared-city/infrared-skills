@@ -127,7 +127,7 @@ The script writes `Documents\Infrared\<model name>-<date>-<time>.obj`. The Watch
 The file:
 
 - is in metres, with Z up and +Y north (true north): the axes the platform expects;
-- has one object per element, named `building_<ElementId>`, and one per terrain element, named `ground_<ElementId>`;
+- has all building elements in one object, `building_model`, and one object per terrain element, `ground_<ElementId>`. A comment line `# element <ElementId>: <category>` is above each element. One object, because the platform gives a separate object that starts above the ground (for example the walls of a bay window on an upper floor) a floor on the ground: you see its outline on the ground in front of the building;
 - leaves out the parts below the ground (basements, foundations), because the platform puts the lowest point of the model on its ground. An element that is then less than 0.5 m above the ground (a ground-floor slab, a pad) is left out too: it is ground, not building;
 - holds the terrain near the buildings (50 m around them), from the `terrain` node;
 - holds only the building categories: walls, curtain panels and mullions, columns, structural columns and framing (beams), floors, slab edges, roofs, windows, masses and parts. Doors, stairs, railings, furniture, fixtures, equipment and generic models are left out. `export-obj all` keeps every category.

@@ -35,7 +35,7 @@ def test_box_is_welded_named_and_z_up() -> None:
     text, counts = ox.obj_text(scene, header=["unit: metres"])
     names, verts, faces = parse(text)
     assert text.startswith("# unit: metres\n")
-    assert names == ["building_12"]
+    assert names == ["building_model"]
     assert counts == {"objects": 1, "vertices": 8, "faces": 12}
     assert faces.min() == 1 and faces.max() == 8
     # z is up: 0..30 m. The origin is the middle of the box in x and north.
@@ -60,7 +60,7 @@ def test_basement_is_cut_and_terrain_sets_the_ground() -> None:
     assert any("below the ground" in w for w in scene.warnings)
     text, counts = ox.obj_text(scene)
     names, verts, _ = parse(text)
-    assert names == ["building_h", "ground_t"]
+    assert names == ["building_model", "ground_t"]
     assert verts[:8, 2].min() >= -1e-9  # nothing of the building below the ground
     assert counts["objects"] == 2
 
@@ -76,9 +76,9 @@ def test_all_buried_is_an_error() -> None:
         ox.prepare_scene({"b": box_soup(0, 0, -10, 5, 5, 3)})
 
 
-def test_names_and_path_are_file_safe() -> None:
-    scene = ox.prepare_scene({"Wall 1/2": box_soup(0, 0, 0, 1, 1, 3)})
-    assert parse(ox.obj_text(scene)[0])[0] == ["building_Wall_1_2"]
+def test_ground_names_and_path_are_file_safe() -> None:
+    scene = ox.prepare_scene({"a": box_soup(0, 0, 0, 1, 1, 3)}, {"Topo 1/2": flat_ground(0.0)})
+    assert parse(ox.obj_text(scene)[0])[0] == ["building_model", "ground_Topo_1_2"]
     when = datetime.datetime(2026, 11, 4, 9, 5)
     path = ox.export_path("out", r"C:\p\My Model (v2).rvt", when)
     assert path.replace("\\", "/") == "out/My_Model_v2-20261104-0905.obj"
@@ -155,7 +155,15 @@ def test_a_slab_on_the_ground_is_left_out() -> None:
     assert line and line[0].startswith("2 element(s)")
 
 
-def test_category_comment_before_each_object() -> None:
-    scene = ox.prepare_scene({"7": box_soup(0, 0, 0, 1, 1, 3)})
-    text = ox.obj_text(scene, labels={"7": "Curtain Panels"})[0]
-    assert "# category: Curtain Panels\no building_7\n" in text
+def test_all_building_elements_are_one_object_with_a_comment_each() -> None:
+    # A bay window that starts on an upper floor: in its own object the
+    # platform gives it a floor at z = 0. In one object it joins the wall.
+    wall = box_soup(0, 0, 0, 10, 0.3, 12)
+    bay = box_soup(2, -2, 4, 3, 2, 6)
+    scene = ox.prepare_scene({"7": wall, "8": bay})
+    text, counts = ox.obj_text(scene, labels={"7": "Walls"})
+    names, verts, faces = parse(text)
+    assert names == ["building_model"] and counts["objects"] == 1
+    assert "o building_model\n# element 7: Walls\nv " in text
+    assert "\n# element 8\nv " in text
+    assert counts["vertices"] == 16 and faces.max() == 16
