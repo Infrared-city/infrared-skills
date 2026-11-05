@@ -30,7 +30,7 @@ Most expensive failures return a plausible result. Look at the picture and the v
 16. **Revit internal units are feet.** Convert to metres and turn by the true north angle before you build the payload. Turn the result back the same way.
 17. **The project location is the internal origin.** Not the Project Base Point, not the Survey Point.
 18. **The ground is a flat plane at elevation 0.** The script found no terrain ("Terrain: 0 element(s)"). Architects often model the site as a floor, a mass, an import or a linked model. Ask the user to put it in the `terrain` selection; read the "Selection" line for the categories. A linked model is not read: the user opens or binds it.
-19. **Wind refuses terrain.** Lower the buildings to their base and draw the result on the terrain.
+19. **Wind and PWC refuse terrain.** Lower the buildings to their base and draw the result on the terrain.
 
 ## Results and colours
 

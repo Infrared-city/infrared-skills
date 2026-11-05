@@ -12,7 +12,11 @@ API detail: https://infrared.city/docs/sdk/ (agents: https://infrared.city/docs/
 
 - One graph, `IR_Analysis.dyn`. The user selects buildings in Revit, sets the inputs and presses Run.
 - Targets: `ground` (a grid around the buildings), `facades` (walls and roofs) or `both` (two runs, two costs).
-- Analyses: `svf`, `solar`, `sun-hours`, `wind`, `utci` on the ground; `svf`, `solar`, `sun-hours`, `daylight` on the facades.
+- Analyses: `svf`, `solar`, `sun-hours`, `wind`, `utci`, `pwc`, `tcs` on the ground; `svf`, `solar`, `sun-hours`, `daylight` on the facades.
+- `pwc` (pedestrian wind comfort) and `tcs` (thermal comfort statistics) take a criterion or subtype as the last word of the label. Without it, the first one is used:
+  - `pwc`: `lawson-lddc` (default), `lawson-2001`, `lawson-1970`, `davenport`, `nen-8100-comfort`, `nen-8100-safety`, `vdi-3787`. Example: `pwc lawson-2001`.
+  - `tcs`: `thermal-comfort` (default), `heat-stress`, `cold-stress`. Example: `tcs heat-stress`.
+- Not in the script: the interior analyses (daylight factor, energy balance) and own sensor points. Do not offer them in Revit.
 - The result is a coloured surface in the model, a legend in a drafting view, and a status text in a Watch node.
 
 ## 2. Install
@@ -37,7 +41,7 @@ The zip holds Windows x64 packages only. The script refuses an SDK other than 1.
 |---|---|---|
 | `target` | `ground`, `facades`, `both` | `both` is two runs and two costs |
 | `analysis` | a label from section 1, `show-last` or `export-obj` | `show-last` draws the saved results again, free. `export-obj` writes an OBJ file for the platform upload, free |
-| `months`, `hours` | `6-8`, `8-18`, `13` | For solar, sun hours and UTCI |
+| `months`, `hours` | `6-8`, `8-18`, `13` | For solar, sun hours, UTCI, PWC and TCS. PWC is read over a whole year: `1-12` and `0-23`; a shorter window gives a warning |
 | `preview_only` | `True` / `False` | `True` shows tiles, jobs and tokens, free. Always preview first |
 | `fetch_context` | `True` / `False` | Public buildings around the selection |
 | `lat`, `lon` | empty or degrees | Empty: the Revit project location |
@@ -48,7 +52,7 @@ The zip holds Windows x64 packages only. The script refuses an SDK other than 1.
 | `set_api_key` | `True` / `False` | Opens the key dialog and stops |
 | `terrain` | a second element selection | The ground, of any type (Toposolid, floor, mass, import). The ground result is drawn on it |
 
-Selection: walls, floors, roofs, masses, families, DirectShapes and imported meshes work. Put the ground in the `terrain` selection: any element type works there. With an empty `terrain` selection, the Toposolids and Topography surfaces of the main selection are the terrain, else every terrain of the document. Without terrain the ground is a flat plane at Revit elevation 0. A linked Revit model is not read. Wind does not accept terrain: the buildings are lowered to their base, and the result is drawn on the terrain.
+Selection: walls, floors, roofs, masses, families, DirectShapes and imported meshes work. Put the ground in the `terrain` selection: any element type works there. With an empty `terrain` selection, the Toposolids and Topography surfaces of the main selection are the terrain, else every terrain of the document. Without terrain the ground is a flat plane at Revit elevation 0. A linked Revit model is not read. Wind and PWC do not accept terrain: the buildings are lowered to their base, and the result is drawn on the terrain.
 
 ## 5. What a run does
 
@@ -62,8 +66,9 @@ Selection: walls, floors, roofs, masses, families, DirectShapes and imported mes
 ## 6. Results in Revit
 
 - **Shape.** One DirectShape per target (Generic Models, name "Infrared result (ground)" or "(facades)"). Look at it in a Shaded or Realistic 3D view. A new run of the same target replaces only that shape.
-- **Materials.** One material per colour, for example `Infrared svf 08AEC4`. A smooth scale has up to 256 colours, so up to 256 materials.
-- **Legend.** A drafting view per target: "Infrared legend - ground" or "Infrared legend - facades" (Project Browser > Drafting Views). A new run redraws the same view, so it can stay on a sheet. The Revit API cannot create a Legend view.
+- **Materials.** One material per colour, for example `Infrared svf 08AEC4` or `Infrared pwc lawson-lddc 0000FF`. A smooth scale has up to 256 colours, so up to 256 materials.
+- **Legend.** A drafting view per target: "Infrared legend - ground" or "Infrared legend - facades" (Project Browser > Views > Drafting Views). A new run redraws the same view, so it can stay on a sheet. The Revit API cannot create a Legend view.
+- **PWC classes.** The PWC result is a comfort class per cell (A, B, C, ... S). The legend shows one swatch per class with its name (for example "A Frequent Sitting"), the first class on top, and no range; `legend` and `gradient` do not apply. The Watch text gives the share of cells in each class. TCS is a percentage of time (0 to 100 %) on the colour scale of its subtype.
 - **Colour range** (`legend` input):
   - `trimmed`: the 2nd to 98th percentile of the values. Use it to see the variation (for example the wind wake behind a building).
   - `exact`: the minimum and maximum of the result.
@@ -83,6 +88,16 @@ The platform upload reads GeoJSON, OBJ and EPW, not RVT or IFC ([`platform-byo-u
 - The platform limit is 40 MB. The Watch text gives the size.
 - The platform guesses the vertical sign from point density (the denser end is the ground). A Revit building without terrain has a dense roof, so it can arrive upside down: tell the user to clear "Flip vertical" in Review model.
 - Not yet checked on the platform: that a sloped `ground_*` object keeps its heights.
+
+## 6b. Guide the user through a run
+
+Give the user these steps. The agent cannot press Run in Revit.
+
+1. Once: install the libs folder (section 2), open `IR_Analysis.dyn`, set the API key (section 3), and check Manage > Location.
+2. In Revit, select the buildings. Put the ground in the `terrain` selection.
+3. Set `target`, `analysis` (for example `pwc lawson-lddc`), `months` and `hours`, and `preview_only = True`. Press Run. The Watch text gives the cost, free.
+4. If the cost is correct, set `preview_only = False` and press Run. Revit does not respond for 30 seconds to 5 minutes.
+5. Look at the result in a Shaded 3D view and the legend in the drafting view. Then read the end of `~/.infrared/revit-dynamo-runs.log` and explain the result to the user.
 
 ## 7. Change the script for the user
 
