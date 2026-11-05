@@ -103,7 +103,7 @@ class ObjScene:
     Attributes
     ----------
     buildings, terrain : dict
-        ``{id: (n, 3, 3) triangles}``. Buried building triangles are removed;
+        ``{id: (n, 3, 3) triangles}``. Building parts below the ground are removed;
         terrain triangles face up and lie near the buildings.
     origin : tuple of float
         ``(x, y, z)``: the middle of the buildings box, at the ground level.
@@ -125,6 +125,36 @@ def _bbox(tris: Sequence[np.ndarray]) -> Tuple[float, float, float, float]:
         float(every[:, 0].max()),
         float(every[:, 1].max()),
     )
+
+
+def clip_to_ground(tri: np.ndarray, sampler: Optional[terrain_mod.Sampler], flat_z: float) -> Tuple[np.ndarray, int]:
+    """Cut the triangles that cross the ground; keep the part above it.
+
+    The platform puts the lowest point of the model on its ground, so a
+    basement wall that reaches above the ground must not keep its lower part.
+    The gap to the ground is linear along each edge (exact for a flat ground,
+    close for a terrain). Returns ``(triangles, number of cut triangles)``.
+    """
+    if len(tri) == 0:
+        return tri, 0
+    flat = tri.reshape(-1, 3)
+    gap = (flat[:, 2] - terrain_mod.ground_z(sampler, flat, flat_z)).reshape(-1, 3)
+    tol = terrain_mod.GROUND_TOL_M
+    cross = np.any(gap < -tol, axis=1) & np.any(gap > tol, axis=1)
+    if not cross.any():
+        return tri, 0
+    pieces: List[np.ndarray] = [tri[~cross]]
+    for t, g in zip(tri[cross], gap[cross]):
+        poly = []
+        for i in range(3):
+            j = (i + 1) % 3
+            if g[i] >= 0.0:
+                poly.append(t[i])
+            if (g[i] >= 0.0) != (g[j] >= 0.0):
+                poly.append(t[i] + (t[j] - t[i]) * (g[i] / (g[i] - g[j])))
+        for k in range(1, len(poly) - 1):
+            pieces.append(np.array([[poly[0], poly[k], poly[k + 1]]]))
+    return np.concatenate(pieces), int(cross.sum())
 
 
 def prepare_scene(buildings_m: Soup, terrain_m: Optional[Soup] = None) -> ObjScene:
@@ -151,6 +181,7 @@ def prepare_scene(buildings_m: Soup, terrain_m: Optional[Soup] = None) -> ObjSce
             ground = float(every[:, :, 2].min())
     buildings: Dict[str, np.ndarray] = {}
     below = 0
+    cut = 0
     buried_ids: List[str] = []
     for name, tri in tris.items():
         gone = terrain_mod.buried(tri, sampler, ground)
@@ -158,7 +189,9 @@ def prepare_scene(buildings_m: Soup, terrain_m: Optional[Soup] = None) -> ObjSce
         if gone.all():
             buried_ids.append(name)
             continue
-        buildings[name] = tri[~gone]
+        kept, n_cut = clip_to_ground(tri[~gone], sampler, ground)
+        cut += n_cut
+        buildings[name] = kept
     if buried_ids:
         warnings.append(
             summary.id_list_line("element(s) are entirely below the ground and are not exported", buried_ids)
@@ -170,6 +203,8 @@ def prepare_scene(buildings_m: Soup, terrain_m: Optional[Soup] = None) -> ObjSce
             "%d triangle(s) below the ground (basements, foundations) are not exported."
             % below
         )
+    if cut:
+        warnings.append("%d triangle(s) that cross the ground are cut at the ground." % cut)
     if sampler is None:
         warnings.append(
             "No terrain: the ground is Revit elevation 0. Put the ground in the terrain "

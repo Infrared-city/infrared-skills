@@ -121,3 +121,23 @@ def test_many_buried_elements_give_one_line() -> None:
 def test_vertices_are_written_in_millimetres() -> None:
     text = ox.obj_text(ox.prepare_scene({"a": box_soup(0, 0, 0, 1.23456, 1, 3)}))[0]
     assert "v -0.617 0.000 0.500" in text
+
+
+def test_a_wall_through_the_ground_is_cut_at_the_ground() -> None:
+    wall = box_soup(0, 0, -5, 10, 0.3, 15)  # a basement wall, -5 .. 10 m
+    scene = ox.prepare_scene({"w": wall})
+    _, verts, _ = parse(ox.obj_text(scene)[0])
+    assert verts[:, 1].min() == pytest.approx(0.0, abs=1e-3)
+    assert verts[:, 1].max() == pytest.approx(10.0)
+    assert any("cut at the ground" in w for w in scene.warnings)
+
+
+def test_cut_follows_a_sloped_terrain() -> None:
+    def ramp(h=50.0, slope=0.1):
+        v = [(-h, -h, slope * -h), (h, -h, slope * -h), (h, h, slope * h), (-h, h, slope * h)]
+        return [c for t in ((0, 1, 2), (0, 2, 3)) for i in t for c in v[i]]
+    scene = ox.prepare_scene({"b": box_soup(-5, -5, -10, 10, 10, 30)}, {"t": ramp()})
+    tri = scene.buildings["b"].reshape(-1, 3)
+    ground = 0.1 * tri[:, 1]  # the ramp rises to the north
+    assert np.all(tri[:, 2] >= ground - 0.011)  # GROUND_TOL_M
+    assert tri[:, 2].min() < 0.0  # the low (south) side goes below elevation 0
