@@ -91,3 +91,29 @@ def selection_line(label: str, descriptions: Sequence[str], top: int = 8) -> str
     if rest > 0:
         parts.append("%d more categor%s" % (rest, "y" if rest == 1 else "ies"))
     return "%s: %d element(s)%s" % (label, len(descriptions), (": " + ", ".join(parts)) if parts else "")
+
+
+def id_list_line(count_text: str, ids: Sequence[str], show: int = 5) -> str:
+    """One line for many elements: ``"<n> <count_text> (ids a, b, ... and 3 more)."``.
+
+    ``count_text`` follows the number, for example ``"element(s) are below the
+    ground and are skipped"``. Empty ``ids`` gives an empty string.
+    """
+    if not ids:
+        return ""
+    shown = ", ".join(str(i) for i in list(ids)[:show])
+    rest = len(ids) - min(len(ids), show)
+    more = " and %d more" % rest if rest > 0 else ""
+    return "%d %s (ids %s%s)." % (len(ids), count_text, shown, more)
+
+
+def share_line(label: str, counts: Dict[str, int], top: int = 8) -> str:
+    """``"<label>: Walls 600000 (30 %), ..."``, the largest first."""
+    total = sum(counts.values())
+    if total == 0:
+        return "%s: none." % label
+    ranked = sorted(counts.items(), key=lambda kv: -kv[1])
+    parts = ["%s %d (%.0f %%)" % (name, n, 100.0 * n / total) for name, n in ranked[:top]]
+    if len(ranked) > top:
+        parts.append("%d more" % (len(ranked) - top))
+    return "%s: %s." % (label, ", ".join(parts))

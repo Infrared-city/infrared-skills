@@ -14,6 +14,7 @@ import numpy as np
 from infrared_sdk.geometry import clean_mesh
 
 from . import frame as frame_mod
+from . import summary
 from . import terrain as terrain_mod
 
 Soup = Dict[str, Sequence[float]]
@@ -85,23 +86,31 @@ def build_buildings(
     buildings: Dict[str, dict] = {}
     warnings: List[str] = []
     below = 0
+    buried_ids: List[str] = []
+    unusable_ids: List[str] = []
     for name, flat in soups.items():
         tri = _array(flat, name).reshape(-1, 3, 3)
         gone = terrain_mod.buried(tri, sampler, z_offset)
         below += int(gone.sum())
         if gone.all():
-            warnings.append("Building %s is entirely below the ground and is skipped." % name)
+            buried_ids.append(str(name))
             continue
         moved = frame_mod.points_to_sdk(frame, tri[~gone].reshape(-1))
         moved[2::3] -= z_offset
         cleaned = clean_mesh(moved, np.arange(moved.size // 3, dtype=np.uint32))
         if cleaned.indices.size == 0:
-            warnings.append("Building %s has no usable triangle and is skipped." % name)
+            unusable_ids.append(str(name))
             continue
         buildings[str(name)] = {
             "coordinates": np.asarray(cleaned.coordinates, dtype=np.float64).tolist(),
             "indices": cleaned.indices.astype(np.int64).tolist(),
         }
+    for line in (
+        summary.id_list_line("building(s) are entirely below the ground and are skipped", buried_ids),
+        summary.id_list_line("building(s) have no usable triangle and are skipped", unusable_ids),
+    ):
+        if line:
+            warnings.append(line)
     if not buildings:
         raise ValueError("No building has a usable triangle above the ground.")
     if below:

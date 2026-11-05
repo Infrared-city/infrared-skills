@@ -23,7 +23,7 @@ Revit API calls used here (nothing else): ``Element.get_Geometry``, ``Options``,
 
 from __future__ import annotations
 
-from typing import Any, Dict, Iterator, List, Tuple
+from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
 
 from ir_dynamo import summary
 
@@ -172,6 +172,18 @@ def describe(element: Any) -> str:
     return "%s, %s" % (category, kind)
 
 
+def category_names(element: Any) -> Tuple[str, str]:
+    """``("OST_Walls", "Walls")``: the BuiltInCategory name and the display name."""
+    category = getattr(element, "Category", None)
+    if category is None:
+        return "", ""
+    try:
+        builtin = str(category.BuiltInCategory)
+    except Exception:
+        builtin = ""
+    return builtin, str(getattr(category, "Name", "") or "")
+
+
 def is_link(element: Any) -> bool:
     """True for a linked Revit model (``RevitLinkInstance``)."""
     try:
@@ -205,7 +217,12 @@ def _terrain_feet(element: Any, options: Any) -> List[float]:
 
 
 def collect_scene(
-    doc: Any, elements: Any, true_north_rad: float, terrain_selection: Any = None
+    doc: Any,
+    elements: Any,
+    true_north_rad: float,
+    terrain_selection: Any = None,
+    skip: Optional[Callable[[str, str], bool]] = None,
+    categories: Optional[Dict[str, str]] = None,
 ) -> Tuple[Dict[str, List[float]], Dict[str, List[float]], List[str]]:
     """Read the selected elements: buildings and terrain.
 
@@ -221,6 +238,11 @@ def collect_scene(
     terrain_selection : Any
         The ``terrain`` input (same shape as ``elements``). Each element in it
         is terrain, of any type, and is not a building.
+    skip : callable, optional
+        ``skip(builtin_name, display_name)``: True leaves the element out (for
+        example ``ir_dynamo.obj_export.is_detail``). One summary line counts them.
+    categories : dict, optional
+        Filled with ``{ElementId text: category display name}`` of each building.
 
     Returns
     -------
@@ -265,6 +287,8 @@ def collect_scene(
             continue
         terrain[key] = revit_location.internal_ft_to_site_m(feet, true_north_rad).tolist()
     own = 0
+    skipped: List[str] = []
+    empty: List[str] = []
     for element in picked:
         key = element_key(element)
         if key in terrain_keys or (not chosen and is_terrain(element)):
@@ -275,13 +299,21 @@ def collect_scene(
         if is_link(element):
             warnings.append(_link_warning(element))
             continue
+        builtin, name = category_names(element)
+        if skip is not None and skip(builtin, name):
+            skipped.append(describe(element))
+            continue
         feet = _element_feet(element, options)
         if not feet:
-            warnings.append(
-                "Element %s (%s) has no 3D geometry. It is skipped." % (key, describe(element))
-            )
+            empty.append(describe(element))
             continue
         buildings[key] = revit_location.internal_ft_to_site_m(feet, true_north_rad).tolist()
+        if categories is not None:
+            categories[key] = name or "no category"
+    if skipped:
+        warnings.append(summary.selection_line("Left out (detail categories)", skipped))
+    if empty:
+        warnings.append(summary.selection_line("Skipped, no 3D geometry", empty))
     if own:
         warnings.append("%d Infrared result shape(s) in the selection are not analysed." % own)
     return buildings, terrain, warnings

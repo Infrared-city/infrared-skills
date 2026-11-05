@@ -78,6 +78,7 @@ The platform upload reads GeoJSON, OBJ and EPW, not RVT or IFC ([`platform-byo-u
 - Metres, Y up, -Z north. One object per element: `building_<ElementId>`, `ground_<ElementId>`. No `usemtl` lines: a Revit material name like "Concrete" is a ground word for the platform classifier.
 - The parts below the ground are left out: the platform puts the lowest point on its ground, so a basement would lift the building.
 - The terrain within 50 m of the buildings is in the file.
+- The detail categories (`obj_export.is_detail`: furniture, fixtures, equipment, railings, mullions, wall sweeps, planting) are left out; `export-obj all` keeps them. A whole architectural model is still too large: a 7000-element model gave 2 million triangles and 71 MB. The Watch text gives the triangles of each category; ask the user to select the outer shell.
 - The OBJ has no georeference. The Watch text gives the longitude and latitude of the middle of the buildings; the user drags the model there before Save.
 - The platform limit is 40 MB. The Watch text gives the size.
 - Not yet checked on the platform: that it reads the axes as Y up, and that a sloped `ground_*` object keeps its heights.

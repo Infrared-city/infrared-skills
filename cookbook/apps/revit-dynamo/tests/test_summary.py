@@ -36,3 +36,11 @@ def test_selection_line_counts_categories_largest_first() -> None:
     )
     assert line == "Selection: 4 element(s): 2 Walls, 1 Floors, 1 more category"
     assert summary.selection_line("Terrain input", []) == "Terrain input: 0 element(s)"
+
+
+def test_id_list_line_and_share_line() -> None:
+    assert summary.id_list_line("x", []) == ""
+    assert summary.id_list_line("are gone", ["a", "b"]) == "2 are gone (ids a, b)."
+    line = summary.share_line("Triangles", {"Walls": 75, "Floors": 25, "Roofs": 0}, top=2)
+    assert line == "Triangles: Walls 75 (75 %), Floors 25 (25 %), 1 more."
+    assert summary.share_line("T", {}) == "T: none."

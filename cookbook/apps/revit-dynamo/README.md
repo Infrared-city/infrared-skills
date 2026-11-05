@@ -129,14 +129,17 @@ The file:
 - is in metres, with Y up and -Z north (true north), the usual OBJ axes;
 - has one object per element, named `building_<ElementId>`, and one per terrain element, named `ground_<ElementId>`;
 - leaves out the parts below the ground (basements, foundations), because the platform puts the lowest point of the model on its ground;
-- holds the terrain near the buildings (50 m around them), from the `terrain` node.
+- holds the terrain near the buildings (50 m around them), from the `terrain` node;
+- leaves out the detail categories: furniture, fixtures, equipment, railings, curtain wall mullions, wall sweeps, planting. They add many triangles and almost nothing to the outdoor climate. `export-obj all` keeps them.
 
 The OBJ has no georeference. The Watch text gives the longitude and latitude of the middle of the buildings.
 On the platform, upload the file, drag the model to that point on the map, and then select Save.
 In "Review model", check that the unit is metres and that the buildings are buildings.
 
-Keep the file below 40 MB, the platform limit. Select the outer shell only: no railings,
-furniture or curtain wall mullions. The Watch text gives the file size.
+Keep the file below 40 MB, the platform limit. The Watch text gives the file size and the
+triangles of each category. If the file is too large, select the outer shell only: exterior
+walls, roofs, floors at the edge, windows and curtain panels. Interior walls and floors do not
+change the outdoor result.
 
 ## What you see
 

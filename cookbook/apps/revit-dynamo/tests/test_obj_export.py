@@ -88,3 +88,36 @@ def test_names_and_path_are_file_safe() -> None:
 def test_size_line_warns_above_40_mb() -> None:
     assert "limit 40 MB" in ox.size_line(1024)
     assert "above the platform limit" in ox.size_line(41 * 1024 * 1024)
+
+
+def test_parse_export_labels() -> None:
+    assert ox.parse_export("export-obj") is False
+    assert ox.parse_export(" Export OBJ ") is False
+    assert ox.parse_export("export-obj all") is True
+    assert ox.parse_export("export_obj_all") is True
+    assert ox.parse_export("solar") is None
+    assert ox.parse_export("all") is None
+
+
+def test_detail_categories_by_builtin_or_english_name() -> None:
+    assert ox.is_detail("OST_LightingFixtures", "Leuchten")
+    assert ox.is_detail("", "Curtain Wall Mullions")
+    assert not ox.is_detail("OST_Walls", "Walls")
+    assert not ox.is_detail("OST_Windows", "Windows")
+    assert not ox.is_detail("", "Curtain Panels")
+
+
+def test_many_buried_elements_give_one_line() -> None:
+    soups = {str(i): box_soup(0, 0, -10, 1, 1, 3) for i in range(9)}
+    soups["up"] = box_soup(0, 0, 0, 1, 1, 3)
+    scene = ox.prepare_scene(soups)
+    lines = [w for w in scene.warnings if "entirely below" in w]
+    assert lines == [
+        "9 element(s) are entirely below the ground and are not exported "
+        "(ids 0, 1, 2, 3, 4 and 4 more)."
+    ]
+
+
+def test_vertices_are_written_in_millimetres() -> None:
+    text = ox.obj_text(ox.prepare_scene({"a": box_soup(0, 0, 0, 1.23456, 1, 3)}))[0]
+    assert "v -0.617 0.000 0.500" in text

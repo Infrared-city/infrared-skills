@@ -167,6 +167,7 @@ def _run(
                 _optional_float(lat, "lat"),
                 _optional_float(lon, "lon"),
                 _progress,
+                str(analysis),
             )
         except (ValueError, RuntimeError, OSError) as error:
             return ["Error: %s" % error]

@@ -8,18 +8,18 @@ from __future__ import annotations
 
 import math
 import os
-from typing import Any, List, Optional
+from collections import Counter
+from typing import Any, Dict, List, Optional
 
-from ir_dynamo import frame, obj_export
+from ir_dynamo import frame, obj_export, summary
 
 from . import revit_geometry, revit_location
 
-EXPORT_NAMES = ("export-obj", "export obj", "export", "obj")
 EXPORT_FOLDER = os.path.join(os.path.expanduser("~"), "Documents", "Infrared")
 
 
 def is_export(analysis: Any) -> bool:
-    return str(analysis).strip().lower() in EXPORT_NAMES
+    return obj_export.parse_export(analysis) is not None
 
 
 def export_obj(
@@ -29,13 +29,25 @@ def export_obj(
     lat: Optional[float],
     lon: Optional[float],
     progress: Any = None,
+    label: str = "export-obj",
 ) -> List[str]:
-    """Read the selection and the terrain, write the OBJ, return the Watch lines."""
+    """Read the selection and the terrain, write the OBJ, return the Watch lines.
+
+    ``label`` is the ``analysis`` text: ``"export-obj all"`` keeps the detail
+    categories (``obj_export.is_detail``).
+    """
+    keep_all = bool(obj_export.parse_export(label))
     site = revit_location.read_location(doc, lat, lon)
     if progress:
         progress("export: reading geometry from Revit")
+    categories: Dict[str, str] = {}
     buildings, terrain_m, notes = revit_geometry.collect_scene(
-        doc, elements, site.true_north_rad, terrain
+        doc,
+        elements,
+        site.true_north_rad,
+        terrain,
+        skip=None if keep_all else obj_export.is_detail,
+        categories=categories,
     )
     if not buildings:
         return [
@@ -68,8 +80,19 @@ def export_obj(
             counts["faces"],
         ),
         obj_export.size_line(size),
+        summary.share_line(
+            "Triangles by category",
+            _category_triangles(scene.buildings, categories),
+        ),
         "Place it on the platform map at lon %.6f, lat %.6f (the middle of the buildings). "
         "The file has no georeference: drag the model there before Save." % (o_lon, o_lat),
         "Location source: %s, true north %.1f deg. Units: metres, Y up."
         % (site.source, math.degrees(site.true_north_rad)),
     ] + scene.warnings + notes
+
+
+def _category_triangles(buildings: Dict[str, Any], categories: Dict[str, str]) -> Dict[str, int]:
+    counts: Counter = Counter()
+    for key, tri in buildings.items():
+        counts[categories.get(key, "no category")] += len(tri)
+    return dict(counts)

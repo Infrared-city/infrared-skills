@@ -13,7 +13,10 @@ The file follows the platform upload rules (skill page ``platform-byo-upload.md`
 * the parts below the ground (basements, foundations) are left out, because
   the platform puts the lowest point of the model on the ground;
 * Y up, -Z north (the usual OBJ axes, as Rhino and Blender write them). If the
-  platform shows the model on its side, set the up axis in "Review model".
+  platform shows the model on its side, set the up axis in "Review model";
+* by default without the detail categories (``is_detail``): furniture,
+  fixtures, equipment, railings, mullions. They add many triangles and almost
+  no effect on the outdoor climate. ``export-obj all`` keeps them.
 
 The origin of the file is the middle of the buildings, at the ground. The
 caller gives the longitude and latitude of that point to the user, who moves
@@ -30,6 +33,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
+from . import summary
 from . import terrain as terrain_mod
 
 Soup = Dict[str, Sequence[float]]
@@ -40,6 +44,56 @@ TERRAIN_MARGIN_M = 50.0
 WELD_M = 1e-3
 # The platform refuses a larger OBJ file.
 PLATFORM_LIMIT_BYTES = 40 * 1024 * 1024
+
+EXPORT_NAMES = ("export-obj", "export obj", "export", "obj")
+KEEP_ALL_WORDS = ("all", "full")
+
+# Categories left out of an export by default: Revit BuiltInCategory names
+# (language independent) and the English display names (a fallback).
+DETAIL_BUILTINS = frozenset(
+    "OST_" + n
+    for n in (
+        "LightingFixtures LightingDevices Furniture FurnitureSystems Casework "
+        "SpecialityEquipment PlumbingFixtures MechanicalEquipment ElectricalEquipment "
+        "ElectricalFixtures CommunicationDevices DataDevices FireAlarmDevices "
+        "SecurityDevices NurseCallDevices TelephoneDevices Sprinklers DuctTerminal "
+        "FoodServiceEquipment MedicalEquipment Signage AudioVisualDevices FireProtection "
+        "StairsRailing StairsRailingBaluster RailingTopRail RailingHandRail RailingSupport "
+        "RailingTermination CurtainWallMullions Cornices Entourage Planting Parking"
+    ).split()
+)
+DETAIL_NAMES = frozenset(
+    n.lower()
+    for n in (
+        "Lighting Fixtures", "Lighting Devices", "Furniture", "Furniture Systems",
+        "Casework", "Specialty Equipment", "Plumbing Fixtures", "Mechanical Equipment",
+        "Electrical Equipment", "Electrical Fixtures", "Communication Devices",
+        "Data Devices", "Fire Alarm Devices", "Security Devices", "Nurse Call Devices",
+        "Telephone Devices", "Sprinklers", "Air Terminals", "Food Service Equipment",
+        "Medical Equipment", "Signage", "Audio Visual Devices", "Fire Protection",
+        "Railings", "Top Rails", "Handrails", "Supports", "Terminations",
+        "Curtain Wall Mullions", "Wall Sweeps", "Entourage", "Planting", "Parking",
+    )
+)
+
+
+def parse_export(label: object) -> Optional[bool]:
+    """None: not an export label. Else True when every category is kept.
+
+    ``"export-obj"`` -> False (detail categories left out),
+    ``"export-obj all"`` -> True.
+    """
+    words = re.split(r"[\s_]+", str(label).strip().lower())
+    keep_all = bool(words) and words[-1] in KEEP_ALL_WORDS
+    base = " ".join(words[:-1] if keep_all else words)
+    if base in EXPORT_NAMES or base.replace(" ", "-") in EXPORT_NAMES:
+        return keep_all
+    return None
+
+
+def is_detail(builtin: str, name: str) -> bool:
+    """True for a category the export leaves out by default."""
+    return str(builtin) in DETAIL_BUILTINS or str(name).strip().lower() in DETAIL_NAMES
 
 
 @dataclass(frozen=True)
@@ -97,13 +151,18 @@ def prepare_scene(buildings_m: Soup, terrain_m: Optional[Soup] = None) -> ObjSce
             ground = float(every[:, :, 2].min())
     buildings: Dict[str, np.ndarray] = {}
     below = 0
+    buried_ids: List[str] = []
     for name, tri in tris.items():
         gone = terrain_mod.buried(tri, sampler, ground)
         below += int(gone.sum())
         if gone.all():
-            warnings.append("Building %s is entirely below the ground and is not exported." % name)
+            buried_ids.append(name)
             continue
         buildings[name] = tri[~gone]
+    if buried_ids:
+        warnings.append(
+            summary.id_list_line("element(s) are entirely below the ground and are not exported", buried_ids)
+        )
     if not buildings:
         raise ValueError("Every selected element is below the ground. Nothing to export.")
     if below:
@@ -156,7 +215,7 @@ def obj_text(scene: ObjScene, header: Sequence[str] = ()) -> Tuple[str, Dict[str
             east = points[:, 0] - ox
             north = points[:, 1] - oy
             up = points[:, 2] - oz
-            lines += ["v %.4f %.4f %.4f" % (e, u, -n) for e, n, u in zip(east, north, up)]
+            lines += ["v %.3f %.3f %.3f" % (e, u, -n) for e, n, u in zip(east, north, up)]
             lines += ["f %d %d %d" % (a + base, b + base, c + base) for a, b, c in faces]
             base += len(points)
             counts["objects"] += 1
