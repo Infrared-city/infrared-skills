@@ -75,13 +75,14 @@ Selection: walls, floors, roofs, masses, families, DirectShapes and imported mes
 
 The platform upload reads GeoJSON, OBJ and EPW, not RVT or IFC ([`platform-byo-upload.md`](../platform-byo-upload.md)). `analysis = export-obj` writes `Documents\Infrared\<model>-<date>-<time>.obj`. It makes no API call and needs no key.
 
-- Metres, Y up, -Z north. One object per element: `building_<ElementId>`, `ground_<ElementId>`. No `usemtl` lines: a Revit material name like "Concrete" is a ground word for the platform classifier.
+- Metres, Z up, +Y north (the platform takes Z as up). One object per element: `building_<ElementId>`, `ground_<ElementId>`. No `usemtl` lines: a Revit material name like "Concrete" is a ground word for the platform classifier.
 - The parts below the ground are left out: the platform puts the lowest point on its ground, so a basement would lift the building.
 - The terrain within 50 m of the buildings is in the file.
 - Only the building categories go in (`obj_export.is_building`: walls, curtain panels and mullions, columns, beams, floors, roofs, windows, masses); `export-obj all` keeps every category. The rule matches the BuiltInCategory name first, the English display name second. A whole architectural model with every category gave 2 million triangles and 71 MB; the Watch text gives the triangles of each category.
 - The OBJ has no georeference. The Watch text gives the longitude and latitude of the middle of the buildings; the user drags the model there before Save.
 - The platform limit is 40 MB. The Watch text gives the size.
-- Not yet checked on the platform: that it reads the axes as Y up, and that a sloped `ground_*` object keeps its heights.
+- The platform guesses the vertical sign from point density (the denser end is the ground). A Revit building without terrain has a dense roof, so it can arrive upside down: tell the user to clear "Flip vertical" in Review model.
+- Not yet checked on the platform: that a sloped `ground_*` object keeps its heights.
 
 ## 7. Change the script for the user
 

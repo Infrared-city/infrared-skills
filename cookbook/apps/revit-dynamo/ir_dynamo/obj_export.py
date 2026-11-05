@@ -12,8 +12,13 @@ The file follows the platform upload rules (skill page ``platform-byo-upload.md`
   word for the platform classifier;
 * the parts below the ground (basements, foundations) are left out, because
   the platform puts the lowest point of the model on the ground;
-* Y up, -Z north (the usual OBJ axes, as Rhino and Blender write them). If the
-  platform shows the model on its side, set the up axis in "Review model";
+* Z up, +Y true north: the platform takes Z as up unless another axis is
+  1.5 times shallower (forge-kit ``obj-orient.ts``). A Y-up file of a tall
+  building lies on its side there;
+* the platform guesses the vertical SIGN from point density: the denser end
+  is the ground. A Revit building cut at the ground has a dense roof and a
+  sparse base, so the platform can show it upside down. Without terrain, the
+  user clears "Flip vertical" in "Review model";
 * by default only the building categories (``is_building``): walls, curtain
   panels and mullions, columns, beams, floors, roofs, windows, masses. Doors,
   stairs, railings, furniture, fixtures, equipment and generic models are left
@@ -232,7 +237,7 @@ def _safe_name(text: str) -> str:
 def obj_text(scene: ObjScene, header: Sequence[str] = ()) -> Tuple[str, Dict[str, int]]:
     """The OBJ file text and counts (``objects``, ``vertices``, ``faces``).
 
-    Axes in the file: x east, y up, z south (Y up, -Z north), metres, from
+    Axes in the file: x east, y true north, z up (Z up), metres, from
     ``scene.origin``.
     """
     ox, oy, oz = scene.origin
@@ -249,7 +254,7 @@ def obj_text(scene: ObjScene, header: Sequence[str] = ()) -> Tuple[str, Dict[str
             east = points[:, 0] - ox
             north = points[:, 1] - oy
             up = points[:, 2] - oz
-            lines += ["v %.3f %.3f %.3f" % (e, u, -n) for e, n, u in zip(east, north, up)]
+            lines += ["v %.3f %.3f %.3f" % (e, n, u) for e, n, u in zip(east, north, up)]
             lines += ["f %d %d %d" % (a + base, b + base, c + base) for a, b, c in faces]
             base += len(points)
             counts["objects"] += 1

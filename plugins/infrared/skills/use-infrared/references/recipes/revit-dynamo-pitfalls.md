@@ -52,7 +52,8 @@ Most expensive failures return a plausible result. Look at the picture and the v
 29. **The platform does not read RVT or IFC.** Use `analysis = export-obj` (OBJ, metres, named objects). Do not export FBX or IFC and convert by hand: the unit and the names get lost.
 30. **A basement lifts the building on the platform.** The platform puts the lowest point on its ground. The export leaves out the parts below the terrain; without terrain, below Revit elevation 0.
 31. **A whole architectural model is above 40 MB.** The platform refuses the file ("file exceeds the Wavefront OBJ size limit"). The export keeps only the building categories; read the "Triangles by category" line and select the outer shell.
-32. **The OBJ sits on the site centre.** It has no georeference. Give the user the longitude and latitude from the Watch text, and tell them to drag the model there before Save.
+32. **The model is upside down on the platform.** The platform takes the denser end of the model as the ground. A detailed roof over a base cut at the ground is denser at the top. Clear "Flip vertical" in Review model. Write Z up: a Y-up file of a tall building lies on its side.
+33. **The OBJ sits on the site centre.** It has no georeference. Give the user the longitude and latitude from the Watch text, and tell them to drag the model there before Save.
 
 ## Habits that find bugs early
 

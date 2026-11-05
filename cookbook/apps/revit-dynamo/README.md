@@ -126,7 +126,7 @@ The script writes `Documents\Infrared\<model name>-<date>-<time>.obj`. The Watch
 
 The file:
 
-- is in metres, with Y up and -Z north (true north), the usual OBJ axes;
+- is in metres, with Z up and +Y north (true north): the axes the platform expects;
 - has one object per element, named `building_<ElementId>`, and one per terrain element, named `ground_<ElementId>`;
 - leaves out the parts below the ground (basements, foundations), because the platform puts the lowest point of the model on its ground;
 - holds the terrain near the buildings (50 m around them), from the `terrain` node;
@@ -134,7 +134,9 @@ The file:
 
 The OBJ has no georeference. The Watch text gives the longitude and latitude of the middle of the buildings.
 On the platform, upload the file, drag the model to that point on the map, and then select Save.
-In "Review model", check that the unit is metres and that the buildings are buildings.
+In "Review model", check that the unit is metres, the up axis is z, and that the buildings are buildings.
+If the model is upside down, clear "Flip vertical". The platform takes the denser end of the model as
+the ground; a building with a detailed roof and no terrain can look denser at the top.
 
 Keep the file below 40 MB, the platform limit. The Watch text gives the file size and the
 triangles of each category, and the categories that were left out. If the file is too large,

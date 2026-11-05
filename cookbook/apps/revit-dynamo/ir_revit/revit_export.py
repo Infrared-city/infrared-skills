@@ -60,7 +60,7 @@ def export_obj(
     document = doc.PathName or doc.Title
     header = [
         "Infrared OBJ export from Revit: %s" % os.path.basename(str(document)),
-        "Unit: metres. Axes: x east, y up, -z north (true north).",
+        "Unit: metres. Axes: x east, y north (true north), z up.",
         "Origin: lon %.6f, lat %.6f, Revit elevation %.2f m (ground)." % (o_lon, o_lat, oz),
     ]
     text, counts = obj_export.obj_text(scene, header)
@@ -86,8 +86,10 @@ def export_obj(
         ),
         "Place it on the platform map at lon %.6f, lat %.6f (the middle of the buildings). "
         "The file has no georeference: drag the model there before Save." % (o_lon, o_lat),
-        "Location source: %s, true north %.1f deg. Units: metres, Y up."
+        "Location source: %s, true north %.1f deg. Units: metres, Z up."
         % (site.source, math.degrees(site.true_north_rad)),
+        "On the platform, in Review model: if the model is upside down, clear "
+        "'Flip vertical'. Up axis must be z.",
     ] + scene.warnings + notes
 
 

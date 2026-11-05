@@ -30,7 +30,7 @@ def parse(text: str):
     return names, np.array(verts), np.array(faces)
 
 
-def test_box_is_welded_named_and_y_up() -> None:
+def test_box_is_welded_named_and_z_up() -> None:
     scene = ox.prepare_scene({"12": box_soup(0, 0, 0, 10, 20, 30)})
     text, counts = ox.obj_text(scene, header=["unit: metres"])
     names, verts, faces = parse(text)
@@ -38,19 +38,19 @@ def test_box_is_welded_named_and_y_up() -> None:
     assert names == ["building_12"]
     assert counts == {"objects": 1, "vertices": 8, "faces": 12}
     assert faces.min() == 1 and faces.max() == 8
-    # y is up: 0..30 m. The origin is the middle of the box in x and north.
-    assert verts[:, 1].min() == pytest.approx(0.0) and verts[:, 1].max() == pytest.approx(30.0)
+    # z is up: 0..30 m. The origin is the middle of the box in x and north.
+    assert verts[:, 2].min() == pytest.approx(0.0) and verts[:, 2].max() == pytest.approx(30.0)
     assert verts[:, 0].min() == pytest.approx(-5.0) and verts[:, 0].max() == pytest.approx(5.0)
-    # z is south: north 0..20 around the middle 10 gives z -10..10.
-    assert verts[:, 2].min() == pytest.approx(-10.0) and verts[:, 2].max() == pytest.approx(10.0)
+    # y is north: 0..20 around the middle 10 gives -10..10.
+    assert verts[:, 1].min() == pytest.approx(-10.0) and verts[:, 1].max() == pytest.approx(10.0)
     assert "usemtl" not in text
 
 
-def test_north_is_minus_z() -> None:
+def test_north_is_plus_y() -> None:
     scene = ox.prepare_scene({"a": box_soup(0, 0, 0, 1, 1, 3), "b": box_soup(0, 50, 0, 1, 1, 3)})
     _, verts, _ = parse(ox.obj_text(scene)[0])
     north_box = verts[8:]  # the second object
-    assert north_box[:, 2].max() < verts[:8, 2].min()
+    assert north_box[:, 1].min() > verts[:8, 1].max()
 
 
 def test_basement_is_cut_and_terrain_sets_the_ground() -> None:
@@ -61,7 +61,7 @@ def test_basement_is_cut_and_terrain_sets_the_ground() -> None:
     text, counts = ox.obj_text(scene)
     names, verts, _ = parse(text)
     assert names == ["building_h", "ground_t"]
-    assert verts[:8, 1].min() >= -1e-9  # nothing of the building below the ground
+    assert verts[:8, 2].min() >= -1e-9  # nothing of the building below the ground
     assert counts["objects"] == 2
 
 
@@ -123,15 +123,15 @@ def test_many_buried_elements_give_one_line() -> None:
 
 def test_vertices_are_written_in_millimetres() -> None:
     text = ox.obj_text(ox.prepare_scene({"a": box_soup(0, 0, 0, 1.23456, 1, 3)}))[0]
-    assert "v -0.617 0.000 0.500" in text
+    assert "v -0.617 -0.500 0.000" in text
 
 
 def test_a_wall_through_the_ground_is_cut_at_the_ground() -> None:
     wall = box_soup(0, 0, -5, 10, 0.3, 15)  # a basement wall, -5 .. 10 m
     scene = ox.prepare_scene({"w": wall})
     _, verts, _ = parse(ox.obj_text(scene)[0])
-    assert verts[:, 1].min() == pytest.approx(0.0, abs=1e-3)
-    assert verts[:, 1].max() == pytest.approx(10.0)
+    assert verts[:, 2].min() == pytest.approx(0.0, abs=1e-3)
+    assert verts[:, 2].max() == pytest.approx(10.0)
     assert any("cut at the ground" in w for w in scene.warnings)
 
 
