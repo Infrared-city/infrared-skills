@@ -85,13 +85,21 @@ def _delete_old_shapes(doc: Any, target: str) -> int:
 
 
 def _build_shape(
-    doc: Any, feet: np.ndarray, bins: np.ndarray, material_ids: List[Any], target: str
+    doc: Any,
+    faces: List[Tuple[int, List[np.ndarray]]],
+    material_ids: List[Any],
+    target: str,
+    regions: bool,
 ) -> Any:
-    """One DirectShape with all triangles; each face takes the material of its bin.
+    """One DirectShape with all faces; each face takes the material of its colour.
 
-    A Revit ``Mesh`` has ONE material, and a ``TessellatedShapeBuilder`` with
-    the Mesh target gives one mesh, also from several face sets. So each colour
-    has its own builder, and the meshes of all colours form one DirectShape.
+    ``faces``: ``(colour, [ring])`` in internal feet, one ring per face (no holes);
+    a triangle is a ring of 3 corners. A Revit ``Mesh`` has ONE material, and a
+    ``TessellatedShapeBuilder`` with the Mesh target gives one mesh, also from
+    several face sets. So each colour has its own builder, and the geometry of all
+    colours forms one DirectShape. ``regions``: the faces are joined colour regions
+    (``result_mesh.coloured_regions``); they are built as faces of an open shell, so
+    Revit draws edges only around each region, and as a mesh if that fails.
     """
     from Autodesk.Revit.DB import (  # type: ignore
         BuiltInCategory,
@@ -107,20 +115,30 @@ def _build_shape(
     from System.Collections.Generic import List as NetList  # type: ignore
 
     objects = NetList[GeometryObject]()
-    for k in np.unique(bins):
+    for k in sorted({colour for colour, _ in faces}):
         # One builder per colour: one builder gives ONE mesh (one material) even
         # with several face sets (a live run: 62 colours, 1 mesh, 1 material).
         builder = TessellatedShapeBuilder()
         builder.OpenConnectedFaceSet(False)
         material = material_ids[int(k)]
-        for tri in feet[bins == k]:
+        for colour, rings in faces:
+            if colour != k:
+                continue
+            # One ring per face (regions come without holes). Pass the List[XYZ]
+            # itself: an item read back from a list of IList[XYZ] made pythonnet
+            # fail with "TessellatedFace returned NULL" (live run 2026-11-05).
+            (ring,) = rings
             corners = NetList[XYZ]()
-            for p in tri:
+            for p in ring:
                 corners.Add(XYZ(float(p[0]), float(p[1]), float(p[2])))
             builder.AddFace(TessellatedFace(corners, material))
         builder.CloseConnectedFaceSet()
-        builder.Target = TessellatedShapeBuilderTarget.Mesh
-        builder.Fallback = TessellatedShapeBuilderFallback.Salvage
+        if regions:
+            builder.Target = TessellatedShapeBuilderTarget.AnyGeometry
+            builder.Fallback = TessellatedShapeBuilderFallback.Mesh
+        else:
+            builder.Target = TessellatedShapeBuilderTarget.Mesh
+            builder.Fallback = TessellatedShapeBuilderFallback.Salvage
         builder.Build()
         for item in builder.GetBuildResult().GetGeometricalObjects():
             objects.Add(item)
@@ -133,13 +151,19 @@ def _build_shape(
         shape.Name = "%s (%s)" % (SHAPE_NAME, target)  # shown in Properties; not every Revit allows it
     except Exception:
         pass
-    materials = {
-        str(o.MaterialElementId) for o in objects if hasattr(o, "MaterialElementId")
-    }
-    check = "Revit built %d mesh(es) with %d material(s) for %d colour(s)." % (
-        len(objects),
+    materials = set()
+    kinds: Dict[str, int] = {}
+    for o in objects:
+        name = type(o).__name__
+        kinds[name] = kinds.get(name, 0) + 1
+        if hasattr(o, "MaterialElementId"):  # a Mesh
+            materials.add(str(o.MaterialElementId))
+        elif hasattr(o, "Faces"):  # a Solid (open shell): a material per face
+            materials.update(str(f.MaterialElementId) for f in o.Faces)
+    check = "Revit built %s with %d material(s) for %d colour(s)." % (
+        ", ".join("%d %s" % (n, name) for name, n in sorted(kinds.items())) or "nothing",
         len(materials),
-        len(np.unique(bins)),
+        len({colour for colour, _ in faces}),
     )
     return shape, check
 
@@ -201,19 +225,39 @@ def show(
         result.get("cells"),
         gradient=gradient,
     )
+    region_note = []
+    try:
+        regions_m = result_mesh.coloured_regions(result, index)
+    except Exception as error:
+        regions_m, region_note = None, ["Colour regions not joined (%s): one face per cell." % error]
     tri_m, bins = result_mesh.coloured_triangles(result, index)
     feet = revit_location.site_m_to_internal_ft(tri_m.reshape(-1), true_north_rad)
-    feet = feet.reshape(-1, 3, 3)
+    cell_faces = [(int(k), [t]) for k, t in zip(bins, feet.reshape(-1, 3, 3))]
     doc = DocumentManager.Instance.CurrentDBDocument
     TransactionManager.Instance.EnsureInTransaction(doc)
     try:
         removed = _delete_old_shapes(doc, target)
-        shape, check = _build_shape(
-            doc, feet, bins, _materials(doc, analysis_type, palette), target
-        )
+        materials = _materials(doc, analysis_type, palette)
+        # No per-colour subcategories for the edges: with 263 of them (live run
+        # 2026-11-05) Dynamo did not start another run; Revit itself still responded.
+        shape = None
+        if regions_m is not None:
+            faces = [
+                (k, [revit_location.site_m_to_internal_ft(r.reshape(-1), true_north_rad).reshape(-1, 3) for r in rings])
+                for k, rings in regions_m
+            ]
+            drawn = "%d region(s) of one colour" % len(faces)
+            try:
+                shape, check = _build_shape(doc, faces, materials, target, True)
+            except Exception as error:  # draw the cells, as before
+                region_note.append("Colour regions failed in Revit (%s): one face per cell." % error)
+        if shape is None:
+            drawn = "%d triangles" % len(cell_faces)
+            shape, check = _build_shape(doc, cell_faces, materials, target, False)
     except Exception as error:
         TransactionManager.Instance.ForceCloseTransaction()
-        return "Display failed: %s (%d triangles)" % (error, len(feet))
+        return "Display failed: %s (%d triangles)" % (error, len(cell_faces))
+    warnings = warnings + region_note
     low, high = float(legend.ramp_values[0]), float(legend.ramp_values[-1])
     if legend.labels:  # a class scale (PWC): no range
         warnings += variants.label_check(result.get("labels", []), legend.labels)
@@ -229,13 +273,13 @@ def show(
         legend_line = "Legend view not drawn: %s" % error
     TransactionManager.Instance.TransactionTaskDone()
     lines = [
-        "Showed %s on %s (%s) as %d triangles, element %s (replaced %d old %s shape(s)). "
+        "Showed %s on %s (%s) as %s, element %s (replaced %d old %s shape(s)). "
         "Use a Shaded or Realistic 3D view."
-        % (title, target, unit, len(feet), shape.Id, removed, target),
+        % (title, target, unit, drawn, shape.Id, removed, target),
         check,
         legend_line,
         "Cell colours: drawn by the SDK renderer, %d distinct colour(s)%s."
-        % (len(palette), ", smooth gradient" if gradient else ""),
+        % (len(palette), ", smooth gradient" if gradient and not legend.labels else ""),
     ]
     lines += summary.value_lines(result, target, unit)
     lines += ["Legend for %s (bin: colour, value range: count):" % target]
