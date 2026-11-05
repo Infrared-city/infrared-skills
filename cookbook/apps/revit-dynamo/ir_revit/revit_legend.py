@@ -32,12 +32,16 @@ def element_name(element: Any) -> str:
 
     Dynamo's CPython3 cannot read ``ElementType.Name`` ("property cannot be
     read": the type declares only a setter), and the getter of ``Element.Name``
-    can give None there. So try, in order: the property, the base getter, and
-    the type-name parameters. A None or empty answer counts as a failure.
+    can give a None, which printed as "None" and hid every legend view. So try,
+    in order: .NET reflection on ``Element.Name``, the property, the base
+    getter, and the name parameters. A None, empty or "None" answer counts as
+    a failure.
     """
+    import clr  # type: ignore
     from Autodesk.Revit.DB import BuiltInParameter, Element  # type: ignore
 
     ways = (
+        lambda: clr.GetClrType(Element).GetProperty("Name").GetValue(element, None),
         lambda: element.Name,
         lambda: Element.Name.__get__(element, Element),
         lambda: element.get_Parameter(BuiltInParameter.ALL_MODEL_TYPE_NAME).AsString(),
@@ -49,7 +53,7 @@ def element_name(element: Any) -> str:
             name = way()
         except Exception:
             continue
-        if name:
+        if name is not None and str(name) not in ("", "None"):
             return str(name)
     return ""
 
@@ -81,12 +85,44 @@ def _view(doc: Any, target: str) -> Any:
             return view
     family = next(t for t in _by_class(doc, ViewFamilyType) if t.ViewFamily == ViewFamily.Drafting)
     view = ViewDrafting.Create(doc, family.Id)
-    view.Name = name
+    _set_name(view, name)
     try:
         view.Scale = 1  # sizes are paper millimetres
     except Exception:
         pass
     return view
+
+
+def _set_name(view: Any, name: str) -> None:
+    """Name the view. Through its name parameter first: in CPython3 the property
+    setter alone left new views with the default name ("Drafting 1")."""
+    from Autodesk.Revit.DB import BuiltInParameter  # type: ignore
+
+    try:
+        view.get_Parameter(BuiltInParameter.VIEW_NAME).Set(name)
+    except Exception:
+        pass
+    if element_name(view) != name:
+        view.Name = name
+    if element_name(view) != name:
+        raise RuntimeError("the new legend view could not be named %r" % name)
+
+
+def old_legend_views(doc: Any) -> List[str]:
+    """Drafting views with legend swatches but another name: legends that older
+    versions of this script could not name. The user can delete them."""
+    from Autodesk.Revit.DB import FilledRegion, ViewDrafting  # type: ignore
+
+    found = []
+    for view in _by_class(doc, ViewDrafting):
+        name = element_name(view)
+        if name.startswith(VIEW_PREFIX):
+            continue
+        for region in _by_class(doc, FilledRegion, view.Id):
+            if element_name(doc.GetElement(region.GetTypeId())).startswith(REGION_PREFIX):
+                found.append(name or str(view.Id))
+                break
+    return found
 
 
 def _solid_fill(doc: Any) -> Any:
@@ -154,4 +190,8 @@ def draw_legend(
     text_type = doc.GetDefaultElementTypeId(ElementTypeGroup.TextNoteType)
     for t in texts:
         TextNote.Create(doc, view.Id, XYZ(t.x * MM_TO_FT, t.y * MM_TO_FT, 0), t.text, text_type)
-    return "Legend view: \"%s\" (Project Browser > Drafting Views)." % (element_name(view) or VIEW_PREFIX + target)
+    line = "Legend view: \"%s\" (Project Browser > Views > Drafting Views)." % element_name(view)
+    old = old_legend_views(doc)
+    if old:
+        line += " Older legend views without a name: %s. Delete them." % ", ".join(old)
+    return line
