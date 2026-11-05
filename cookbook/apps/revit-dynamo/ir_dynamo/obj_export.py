@@ -14,9 +14,11 @@ The file follows the platform upload rules (skill page ``platform-byo-upload.md`
   the platform puts the lowest point of the model on the ground;
 * Y up, -Z north (the usual OBJ axes, as Rhino and Blender write them). If the
   platform shows the model on its side, set the up axis in "Review model";
-* by default without the detail categories (``is_detail``): furniture,
-  fixtures, equipment, railings, mullions. They add many triangles and almost
-  no effect on the outdoor climate. ``export-obj all`` keeps them.
+* by default only the building categories (``is_building``): walls, curtain
+  panels and mullions, columns, beams, floors, roofs, windows, masses. Doors,
+  stairs, railings, furniture, fixtures, equipment and generic models are left
+  out: they add many triangles and almost nothing to the outdoor climate.
+  ``export-obj all`` keeps every category.
 
 The origin of the file is the middle of the buildings, at the ground. The
 caller gives the longitude and latitude of that point to the user, who moves
@@ -48,31 +50,23 @@ PLATFORM_LIMIT_BYTES = 40 * 1024 * 1024
 EXPORT_NAMES = ("export-obj", "export obj", "export", "obj")
 KEEP_ALL_WORDS = ("all", "full")
 
-# Categories left out of an export by default: Revit BuiltInCategory names
-# (language independent) and the English display names (a fallback).
-DETAIL_BUILTINS = frozenset(
+# The building categories: an export keeps only these by default (the shell
+# and the structure). Revit BuiltInCategory names (language independent) and
+# the English display names (a fallback).
+BUILDING_BUILTINS = frozenset(
     "OST_" + n
     for n in (
-        "LightingFixtures LightingDevices Furniture FurnitureSystems Casework "
-        "SpecialityEquipment PlumbingFixtures MechanicalEquipment ElectricalEquipment "
-        "ElectricalFixtures CommunicationDevices DataDevices FireAlarmDevices "
-        "SecurityDevices NurseCallDevices TelephoneDevices Sprinklers DuctTerminal "
-        "FoodServiceEquipment MedicalEquipment Signage AudioVisualDevices FireProtection "
-        "StairsRailing StairsRailingBaluster RailingTopRail RailingHandRail RailingSupport "
-        "RailingTermination CurtainWallMullions Cornices Entourage Planting Parking"
+        "Walls CurtainWallPanels CurtainWallMullions CurtaSystem Columns "
+        "StructuralColumns StructuralFraming StructuralTruss Floors EdgeSlab Roofs "
+        "RoofSoffit Fascia Windows Mass Parts"
     ).split()
 )
-DETAIL_NAMES = frozenset(
+BUILDING_NAMES = frozenset(
     n.lower()
     for n in (
-        "Lighting Fixtures", "Lighting Devices", "Furniture", "Furniture Systems",
-        "Casework", "Specialty Equipment", "Plumbing Fixtures", "Mechanical Equipment",
-        "Electrical Equipment", "Electrical Fixtures", "Communication Devices",
-        "Data Devices", "Fire Alarm Devices", "Security Devices", "Nurse Call Devices",
-        "Telephone Devices", "Sprinklers", "Air Terminals", "Food Service Equipment",
-        "Medical Equipment", "Signage", "Audio Visual Devices", "Fire Protection",
-        "Railings", "Top Rails", "Handrails", "Supports", "Terminations",
-        "Curtain Wall Mullions", "Wall Sweeps", "Entourage", "Planting", "Parking",
+        "Walls", "Curtain Panels", "Curtain Wall Mullions", "Curtain Systems", "Columns",
+        "Structural Columns", "Structural Framing", "Structural Trusses", "Floors",
+        "Slab Edges", "Roofs", "Roof Soffits", "Fascias", "Windows", "Mass", "Parts",
     )
 )
 
@@ -80,7 +74,7 @@ DETAIL_NAMES = frozenset(
 def parse_export(label: object) -> Optional[bool]:
     """None: not an export label. Else True when every category is kept.
 
-    ``"export-obj"`` -> False (detail categories left out),
+    ``"export-obj"`` -> False (building categories only),
     ``"export-obj all"`` -> True.
     """
     words = re.split(r"[\s_]+", str(label).strip().lower())
@@ -91,9 +85,14 @@ def parse_export(label: object) -> Optional[bool]:
     return None
 
 
-def is_detail(builtin: str, name: str) -> bool:
-    """True for a category the export leaves out by default."""
-    return str(builtin) in DETAIL_BUILTINS or str(name).strip().lower() in DETAIL_NAMES
+def is_building(builtin: str, name: str) -> bool:
+    """True for a category that an export keeps by default (``BUILDING_BUILTINS``)."""
+    return str(builtin) in BUILDING_BUILTINS or str(name).strip().lower() in BUILDING_NAMES
+
+
+def not_building(builtin: str, name: str) -> bool:
+    """The ``skip`` rule of ``revit_geometry.collect_scene`` for an export."""
+    return not is_building(builtin, name)
 
 
 @dataclass(frozen=True)

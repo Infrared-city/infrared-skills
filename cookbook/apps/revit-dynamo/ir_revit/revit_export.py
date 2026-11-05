@@ -33,8 +33,8 @@ def export_obj(
 ) -> List[str]:
     """Read the selection and the terrain, write the OBJ, return the Watch lines.
 
-    ``label`` is the ``analysis`` text: ``"export-obj all"`` keeps the detail
-    categories (``obj_export.is_detail``).
+    ``label`` is the ``analysis`` text. ``"export-obj"`` keeps the building
+    categories only (``obj_export.is_building``), ``"export-obj all"`` keeps all.
     """
     keep_all = bool(obj_export.parse_export(label))
     site = revit_location.read_location(doc, lat, lon)
@@ -46,7 +46,7 @@ def export_obj(
         elements,
         site.true_north_rad,
         terrain,
-        skip=None if keep_all else obj_export.is_detail,
+        skip=None if keep_all else obj_export.not_building,
         categories=categories,
     )
     if not buildings:

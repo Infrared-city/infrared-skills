@@ -177,10 +177,18 @@ def category_names(element: Any) -> Tuple[str, str]:
     category = getattr(element, "Category", None)
     if category is None:
         return "", ""
-    try:
-        builtin = str(category.BuiltInCategory)
+    builtin = ""
+    try:  # the enum name, e.g. "OST_Walls"; str() of a .NET enum can be a number
+        import clr  # type: ignore
+        from System import Enum  # type: ignore
+        from Autodesk.Revit.DB import BuiltInCategory  # type: ignore
+
+        builtin = str(Enum.GetName(clr.GetClrType(BuiltInCategory), category.BuiltInCategory) or "")
     except Exception:
-        builtin = ""
+        try:
+            builtin = str(category.BuiltInCategory)
+        except Exception:
+            builtin = ""
     return builtin, str(getattr(category, "Name", "") or "")
 
 
@@ -240,7 +248,7 @@ def collect_scene(
         is terrain, of any type, and is not a building.
     skip : callable, optional
         ``skip(builtin_name, display_name)``: True leaves the element out (for
-        example ``ir_dynamo.obj_export.is_detail``). One summary line counts them.
+        example ``ir_dynamo.obj_export.not_building``). One summary line counts them.
     categories : dict, optional
         Filled with ``{ElementId text: category display name}`` of each building.
 
@@ -311,7 +319,7 @@ def collect_scene(
         if categories is not None:
             categories[key] = name or "no category"
     if skipped:
-        warnings.append(summary.selection_line("Left out (detail categories)", skipped))
+        warnings.append(summary.selection_line("Left out (not a building category)", skipped))
     if empty:
         warnings.append(summary.selection_line("Skipped, no 3D geometry", empty))
     if own:

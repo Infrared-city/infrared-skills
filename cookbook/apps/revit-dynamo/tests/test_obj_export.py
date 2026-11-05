@@ -99,12 +99,15 @@ def test_parse_export_labels() -> None:
     assert ox.parse_export("all") is None
 
 
-def test_detail_categories_by_builtin_or_english_name() -> None:
-    assert ox.is_detail("OST_LightingFixtures", "Leuchten")
-    assert ox.is_detail("", "Curtain Wall Mullions")
-    assert not ox.is_detail("OST_Walls", "Walls")
-    assert not ox.is_detail("OST_Windows", "Windows")
-    assert not ox.is_detail("", "Curtain Panels")
+def test_building_categories_by_builtin_or_english_name() -> None:
+    for builtin in ("OST_Walls", "OST_StructuralColumns", "OST_StructuralFraming",
+                    "OST_CurtainWallPanels", "OST_CurtainWallMullions", "OST_Roofs"):
+        assert ox.is_building(builtin, "Wände")
+    assert ox.is_building("", "Curtain Panels") and ox.is_building("", "windows")
+    for builtin, name in (("OST_Doors", "Doors"), ("OST_Stairs", "Stairs"),
+                          ("OST_LightingFixtures", "Lighting Fixtures"),
+                          ("OST_GenericModel", "Generic Models"), ("", "")):
+        assert not ox.is_building(builtin, name) and ox.not_building(builtin, name)
 
 
 def test_many_buried_elements_give_one_line() -> None:
