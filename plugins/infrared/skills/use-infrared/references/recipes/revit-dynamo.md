@@ -47,12 +47,11 @@ The zip holds Windows x64 packages only. The script refuses an SDK other than 1.
 | `lat`, `lon` | empty or degrees | Empty: the Revit project location |
 | `wind_speed`, `wind_direction` | m/s, degrees (270 = from the west) | Ground wind only |
 | `surfaces` | `facades`, `roofs`, `all` | Facade target only |
-| `legend` | `trimmed` (default), `exact`, `platform` | The colour range, see section 6 |
-| `gradient` | `True` / `False` | Wind speed and UTCI as a smooth gradient |
+| `legend` | `platform` (default), `trimmed`, `exact` | The colour range, see section 6 |
+| `gradient` | `False` (default) / `True` | Wind speed and UTCI as a smooth gradient. The platform shows flat bins |
 | `set_api_key` | `True` / `False` | Opens the key dialog and stops |
-| `terrain` | a second element selection | The ground, of any type (Toposolid, floor, mass, import). The ground result is drawn on it |
 
-Selection: walls, floors, roofs, masses, families, DirectShapes and imported meshes work. Put the ground in the `terrain` selection: any element type works there. With an empty `terrain` selection, the Toposolids and Topography surfaces of the main selection are the terrain, else every terrain of the document. Without terrain the ground is a flat plane at Revit elevation 0. A linked Revit model is not read. Wind and PWC do not accept terrain: the buildings are lowered to their base, and the result is drawn on the terrain.
+Selection: walls, floors, roofs, masses, families, DirectShapes and imported meshes work. The terrain is the Toposolids and Topography surfaces of the selection, else every one of the document; the ground result is drawn on it. There is no separate terrain input (removed: it misled users). A ground modelled as a floor, a mass or an import is analysed as a building if it is selected: the site must be a Toposolid. Without terrain the ground is a flat plane at Revit elevation 0. A linked Revit model is not read. Wind and PWC do not accept terrain: the buildings are lowered to their base, and the result is drawn on the terrain.
 
 ## 5. What a run does
 
@@ -66,13 +65,14 @@ Selection: walls, floors, roofs, masses, families, DirectShapes and imported mes
 ## 6. Results in Revit
 
 - **Shape.** One DirectShape per target (Generic Models, name "Infrared result (ground)" or "(facades)"). Look at it in a Shaded or Realistic 3D view. A new run of the same target replaces only that shape.
+- **Edges.** On a flat ground the cells of one colour are joined into one face, so only the borders between colours show as lines. To hide those too, clear Show Edges in the view's Graphic Display Options. Do not give each colour a subcategory with its line colour: with 263 of them, Dynamo did not start another run (Revit itself still responded).
 - **Materials.** One material per colour, for example `Infrared svf 08AEC4` or `Infrared pwc lawson-lddc 0000FF`. A smooth scale has up to 256 colours, so up to 256 materials.
 - **Legend.** A drafting view per target: "Infrared legend - ground" or "Infrared legend - facades" (Project Browser > Views > Drafting Views). A new run redraws the same view, so it can stay on a sheet. The Revit API cannot create a Legend view.
 - **PWC classes.** The PWC result is a comfort class per cell (A, B, C, ... S). The legend shows one swatch per class with its name (for example "A Frequent Sitting"), the first class on top, and no range; `legend` and `gradient` do not apply. The Watch text gives the share of cells in each class. TCS is a percentage of time (0 to 100 %) on the colour scale of its subtype.
 - **Colour range** (`legend` input):
+  - `platform` (default): the fixed range of the platform where it has one (wind speed 0 to 20 m/s, UTCI -40 to 46 °C), else the 2nd to 98th percentile. Revit then shows the colours of the platform. A 5 m/s wind shows in blue only.
   - `trimmed`: the 2nd to 98th percentile of the values. Use it to see the variation (for example the wind wake behind a building).
   - `exact`: the minimum and maximum of the result.
-  - `platform`: the fixed range of the platform where it has one (wind speed 0 to 20 m/s, UTCI -40 to 46 °C), else the 2nd to 98th percentile. A 5 m/s wind shows in blue only.
 - **Another range, free.** Change `legend` or `gradient`, set `analysis` to `show-last` and press Run. The saved results are in `~/.infrared/revit-dynamo-last-result.json`, one entry per target and per Revit document.
 - **Delete a result.** Select the shape in a 3D view and delete it. Delete the legend drafting view in the Project Browser. Manage > Purge Unused removes the `Infrared ...` materials.
 
@@ -94,7 +94,7 @@ The platform upload reads GeoJSON, OBJ and EPW, not RVT or IFC ([`platform-byo-u
 Give the user these steps. The agent cannot press Run in Revit.
 
 1. Once: install the libs folder (section 2), open `IR_Analysis.dyn`, set the API key (section 3), and check Manage > Location.
-2. In Revit, select the buildings. Put the ground in the `terrain` selection.
+2. In Revit, select the buildings. The Toposolids are the ground.
 3. Set `target`, `analysis` (for example `pwc lawson-lddc`), `months` and `hours`, and `preview_only = True`. Press Run. The Watch text gives the cost, free.
 4. If the cost is correct, set `preview_only = False` and press Run. Revit does not respond for 30 seconds to 5 minutes.
 5. Look at the result in a Shaded 3D view and the legend in the drafting view. Then read the end of `~/.infrared/revit-dynamo-runs.log` and explain the result to the user.

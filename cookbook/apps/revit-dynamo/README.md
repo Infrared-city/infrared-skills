@@ -94,8 +94,8 @@ Leave `lat` and `lon` empty to use the project location.
 1. Open the script. Check that `libs_folder` is the folder you unzipped to.
 2. Open a 3D view (Shaded or Realistic). The result is a shape in the model, so every view shows it.
 3. Select your buildings in Revit. In Dynamo, click "Select Model Elements" and
-   press Select. Walls, floors, roofs, masses and families all work. Select the
-   ground in the `terrain` node (see "Terrain and the ground level").
+   press Select. Walls, floors, roofs, masses and families all work. The
+   Toposolids are the ground (see "Terrain and the ground level").
 4. Set `target` (`ground`, `facades` or `both`) and `analysis` (a label from the table above, `show-last` or `export-obj`).
 5. Set `months` (for example `6-8`) and `hours` (for example `8-18`, or one hour like `13`).
 6. Keep `preview_only` at `True`. Press Run. The Watch node shows the number
@@ -119,9 +119,9 @@ reloads the files. You do not need to restart Revit.
 
 ## Terrain and the ground level
 
-Select the ground in the `terrain` node (a second "Select Model Elements" node). Any element works there: a Toposolid, a Topography surface, a floor, a mass or an imported mesh. The script uses its upward faces only, and does not analyse it as a building.
+The terrain is the Toposolids and Topography surfaces of your selection. If you selected none, the script uses every Toposolid and Topography surface of the document. The script uses their upward faces only, and does not analyse them as buildings. Without any, the ground is a flat plane at Revit elevation 0.
 
-If the `terrain` node is empty, the Toposolids and Topography surfaces of the main selection are the terrain. If there are none, the script uses every terrain element of the document. The Watch text says which, and lists the categories of the selection, so you can see what the script found.
+A ground modelled as a floor, a mass or an import is not terrain: if you select it, it is analysed as a building. Model the site as a Toposolid. The Watch text says which, and lists the categories of the selection, so you can see what the script found.
 
 A linked Revit model (RVT link) is not read, also not its terrain. Open the linked file, or bind the link, and select the elements there.
 
@@ -140,7 +140,7 @@ The file:
 - is in metres, with Z up and +Y north (true north): the axes the platform expects;
 - has all building elements in one object, `building_model`, and one object per terrain element, `ground_<ElementId>`. A comment line `# element <ElementId>: <category>` is above each element. One object, because the platform gives a separate object that starts above the ground (for example the walls of a bay window on an upper floor) a floor on the ground: you see its outline on the ground in front of the building;
 - leaves out the parts below the ground (basements, foundations), because the platform puts the lowest point of the model on its ground. An element that is then less than 0.5 m above the ground (a ground-floor slab, a pad) is left out too: it is ground, not building;
-- holds the terrain near the buildings (50 m around them), from the `terrain` node;
+- holds the terrain near the buildings (50 m around them), from the Toposolids;
 - holds only the building categories: walls, curtain panels and mullions, columns, structural columns and framing (beams), floors, slab edges, roofs, windows, masses and parts. Doors, stairs, railings, furniture, fixtures, equipment and generic models are left out. `export-obj all` keeps every category.
 
 The OBJ has no georeference. The Watch text gives the longitude and latitude of the middle of the buildings.
@@ -198,12 +198,12 @@ drafting view in the Project Browser. Manage > Purge Unused removes the
 
 The result uses the colours of the Infrared platform. The SDK renderer (`render_grid_image_local`, with the colour registry) draws the result; each cell takes the colour of its own pixel. The ground matrix is rendered as it came from the SDK (row 0 is the south edge). Each distinct colour is one Revit material, for example `Infrared svf 08AEC4`. The Watch text gives the values (count, min, max, percentiles), the legend in bins with the count of each bin, and the number of meshes and colours that Revit built. The `legend` input sets the colour range:
 
-- `trimmed` (default): the 2nd to 98th percentile of the values. A few extreme cells do not wash out the colours, so the variation is visible (for example the wind wake behind a building).
+- `platform` (default): the range that the platform uses, so Revit and the platform show the same colours. UTCI and wind speed have a fixed range there (wind speed: 0 to 20 m/s, so a 5 m/s wind shows in blue only); the other analyses use the 2nd to 98th percentile, as the platform renderer does.
+- `trimmed`: the 2nd to 98th percentile of the values. A few extreme cells do not wash out the colours, so the variation is visible (for example the wind wake behind a building).
 - `exact`: the minimum and maximum of the result.
-- `platform`: the range that the platform uses. UTCI and wind speed have a fixed range there (wind speed: 0 to 20 m/s, so a 5 m/s wind shows in blue only); the other analyses use the 2nd to 98th percentile, as the platform renderer does.
 
 Each run also draws the legend in a drafting view: "Infrared legend - ground" and "Infrared legend - facades" (Project Browser > Views > Drafting Views). It shows one colour swatch and value range per bin, the highest value on top, and the colour range in use. For PWC it shows one swatch per comfort class (for example "A Frequent Sitting"), the first class on top, and no range. A new run of the same target redraws the same view, so you can put it on a sheet once. (The Revit API cannot create a Legend view; a drafting view can go on a sheet in the same way.)
 
 To see the same result with another range, set `legend`, set `analysis` to `show-last` and press Run. This is free.
 
-UTCI and wind speed use a few flat platform colours. Set `gradient` to `True` to draw them as a smooth gradient through the same colours (the platform itself shows the flat bins). Sky view factor, solar radiation, sun hours and daylight are smooth gradients: up to 256 colours, so up to 256 materials; the legend text shows them in 10 bins. If the registry cannot be reached, built-in colours are used and the Watch text says so.
+UTCI and wind speed use a few flat platform colours. `gradient` is `False` by default, as on the platform. Set it to `True` to draw them as a smooth gradient through the same colours (the platform itself shows the flat bins). Sky view factor, solar radiation, sun hours and daylight are smooth gradients: up to 256 colours, so up to 256 materials; the legend text shows them in 10 bins. If the registry cannot be reached, built-in colours are used and the Watch text says so.

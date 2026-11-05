@@ -301,7 +301,7 @@ def test_trimmed_range_spreads_the_platform_colours_over_the_data(monkeypatch) -
 
 
 def test_range_mode_text() -> None:
-    assert colors.parse_range_mode("") == colors.DEFAULT_RANGE_MODE == "trimmed"
+    assert colors.parse_range_mode("") == colors.DEFAULT_RANGE_MODE == "platform"
     assert colors.parse_range_mode(" Platform ") == "platform"
     with pytest.raises(ValueError, match="legend must be one of"):
         colors.parse_range_mode("auto")

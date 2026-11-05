@@ -29,12 +29,12 @@ Most expensive failures return a plausible result. Look at the picture and the v
 15. **Skip your own result shapes.** A selection that holds an old result would send it as a building. The script skips DirectShapes with its `ApplicationId`.
 16. **Revit internal units are feet.** Convert to metres and turn by the true north angle before you build the payload. Turn the result back the same way.
 17. **The project location is the internal origin.** Not the Project Base Point, not the Survey Point.
-18. **The ground is a flat plane at elevation 0.** The script found no terrain ("Terrain: 0 element(s)"). Architects often model the site as a floor, a mass, an import or a linked model. Ask the user to put it in the `terrain` selection; read the "Selection" line for the categories. A linked model is not read: the user opens or binds it.
+18. **The ground is a flat plane at elevation 0.** The script found no terrain ("Terrain: 0 element(s)"). Architects often model the site as a floor, a mass, an import or a linked model. Only Toposolids and Topography surfaces are terrain: ask the user to model the site as a Toposolid, and not to select a floor used as ground (it is analysed as a building). Read the "Selection" line for the categories. A linked model is not read: the user opens or binds it.
 19. **Wind and PWC refuse terrain.** Lower the buildings to their base and draw the result on the terrain.
 
 ## Results and colours
 
-20. **Everything is one colour.** The colour range is much wider than the values. Wind speed and UTCI have a fixed platform range (0 to 20 m/s, -40 to 46 °C). Use `legend = trimmed`. Compare the value lines (min, max, percentiles) with the "Legend range used" line.
+20. **Everything is one colour.** The colour range is much wider than the values. Wind speed and UTCI have a fixed platform range (0 to 20 m/s, -40 to 46 °C), and `platform` is the default. Use `legend = trimmed`. Compare the value lines (min, max, percentiles) with the "Legend range used" line.
 21. **The SDK renderer chooses its own range.** A colour scale without `steps` is drawn over the 2nd to 98th percentile of the cells, and SDK 1.0.0 ignores `infraredRange`. To pin a range, the script adds pad cells with the low and high value to the rendered grid and does not read them back.
 22. **Do not shift the ground grid.** Row 0 is the south edge, `bounds` gives the place, the cell centre is at `(col + 0.5, row + 0.5)` cells. The "Grid alignment check" line shows the share of cells under buildings with no value. Change the placement only if a shift wins clearly, and report it to Infrared.
 23. **UTCI shows one colour on the platform scale.** This is correct: a summer afternoon fits in one or two platform bins. Use `trimmed` and `gradient = True` to see the variation.

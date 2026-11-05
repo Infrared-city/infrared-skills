@@ -51,8 +51,7 @@ def export_obj(
     )
     if not buildings:
         return [
-            "No building geometry found. Select walls, floors, roofs or masses "
-            "(and the ground in the terrain input)."
+            "No building geometry found. Select walls, floors, roofs or masses."
         ] + notes
     scene = obj_export.prepare_scene(buildings, terrain_m)
     ox, oy, oz = scene.origin

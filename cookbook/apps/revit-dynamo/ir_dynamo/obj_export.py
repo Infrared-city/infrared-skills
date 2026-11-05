@@ -238,8 +238,8 @@ def prepare_scene(buildings_m: Soup, terrain_m: Optional[Soup] = None) -> ObjSce
         warnings.append("%d triangle(s) that cross the ground are cut at the ground." % cut)
     if sampler is None:
         warnings.append(
-            "No terrain: the ground is Revit elevation 0. Put the ground in the terrain "
-            "input, or the platform puts the lowest exported point on its ground."
+            "No terrain: the ground is Revit elevation 0. Model the site as a Toposolid, "
+            "or the platform puts the lowest exported point on its ground."
         )
     x0, y0, x1, y1 = _bbox(list(buildings.values()))
     origin = (0.5 * (x0 + x1), 0.5 * (y0 + y1), ground)

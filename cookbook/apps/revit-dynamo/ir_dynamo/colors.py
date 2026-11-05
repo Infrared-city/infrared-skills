@@ -19,11 +19,11 @@ line says so.
 
 Range (``RANGE_MODES``, the modes of ``infrared_sdk.legend``):
 
-* ``"trimmed"`` (default in Revit): the 2nd to 98th percentile of the values
+* ``"trimmed"``: the 2nd to 98th percentile of the values
   (``legend_range(..., "trimmed")``), so a few extreme cells do not wash out the
   colours and the variation is visible;
 * ``"exact"``: the result's own min and max;
-* ``"platform"``: what the platform draws. The registry's fixed range
+* ``"platform"`` (default in Revit): what the platform draws. The registry's fixed range
   (``registry_fixed_range``: UTCI, wind speed) when there is one, else the
   trimmed range. Example: wind speed is always 0..20 m/s there, so a 5 m/s
   inflow shows in the three lowest (blue) colours only.
@@ -69,7 +69,7 @@ RAMP_SIZE = 512  # under the 960 px cap of the renderer: one pixel per value
 MAX_BINS = 32  # a registry scale with more colours is treated as a gradient
 FALLBACK_BINS = 10
 RANGE_MODES = ("trimmed", "exact", "platform")
-DEFAULT_RANGE_MODE = "trimmed"
+DEFAULT_RANGE_MODE = "platform"
 # Offline fallback, low -> high (viridis stops).
 GRADIENT = [(68, 1, 84), (59, 82, 139), (33, 145, 140), (94, 201, 98), (253, 231, 37)]
 
@@ -368,9 +368,12 @@ def make_legend(
             for k in range(len(bins)):  # keep the registry colour at each bin's middle
                 mid = np.nonzero(ramp_bin == k)[0]
                 bins[k] = Bin(tuple(int(c) for c in rgb[mid[len(mid) // 2]]), bins[k].low, bins[k].high)
+            if gradient:  # the user asked for it; the platform shows flat bins
+                note = "Drawn as a smooth gradient (gradient = True); the platform shows %s in flat bins."
+            else:
+                note = "The platform draws %s as a smooth gradient."
             warnings.append(
-                "The platform draws %s as a smooth gradient; the legend shows it in %d bins."
-                % (analysis_type, FALLBACK_BINS)
+                (note + " The legend shows it in %d bins.") % (analysis_type, FALLBACK_BINS)
             )
         return Legend(analysis_type, bins, ramp, ramp_bin, "registry"), warnings
     except Exception as error:  # offline, a registry change: never fail the run

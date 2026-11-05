@@ -131,7 +131,7 @@
       "Name": "legend",
       "Type": "string",
       "Type2": "string",
-      "Value": "trimmed",
+      "Value": "platform",
       "Description": "Creates a string",
       "SelectedIndex": 0
     },
@@ -140,7 +140,7 @@
       "Name": "gradient",
       "Type": "boolean",
       "Type2": "boolean",
-      "Value": "true",
+      "Value": "false",
       "Description": "Enables selection between True and False",
       "SelectedIndex": 0
     }
@@ -392,7 +392,7 @@
     {
       "ConcreteType": "CoreNodeModels.Input.StringInput, CoreNodeModels",
       "NodeType": "StringInputNode",
-      "InputValue": "trimmed",
+      "InputValue": "platform",
       "Id": "4b670cd3f7c84e58b823048f2e847d36",
       "Inputs": [],
       "Outputs": [
@@ -427,31 +427,11 @@
       ],
       "Replication": "Disabled",
       "Description": "Enables selection between True and False",
-      "InputValue": true
-    },
-    {
-      "ConcreteType": "Dynamo.Nodes.DSModelElementsSelection, DSRevitNodesUI",
-      "NodeType": "ExtensionNode",
-      "InstanceId": [],
-      "Id": "f27d4c75445a4b14af2f714cd2d929f6",
-      "Inputs": [],
-      "Outputs": [
-        {
-          "Id": "8a652814ae8b415bbbf450c9dac4bc3f",
-          "Name": "Elements",
-          "Description": "The selected elements.",
-          "UsingDefaultValue": false,
-          "Level": 2,
-          "UseLevels": false,
-          "KeepListStructure": false
-        }
-      ],
-      "Replication": "Disabled",
-      "Description": "Select multiple elements from the Revit document."
+      "InputValue": false
     },
     {
       "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
-      "Code": "# Infrared analysis (ground, facades or both). No logic here: all of it is in the libs folder.\nimport os, sys, traceback\ntry:\n    libs = os.path.expandvars(IN[0])\n    if libs not in sys.path:\n        sys.path.insert(0, libs)\n    # Forget the loaded ir_* modules: the next import reads every edited file again.\n    # (importlib.reload one by one can leave an old module in place.)\n    for name in [m for m in sys.modules if m.split('.')[0] in ('ir_dynamo', 'ir_revit')]:\n        del sys.modules[name]\n    from ir_revit.entry import run\n    OUT = run(target=IN[2], elements=IN[1], analysis=IN[3], months=IN[4], hours=IN[5], preview_only=IN[6], fetch_context=IN[7], lat=IN[8], lon=IN[9], wind_speed=IN[10], wind_direction=IN[11], surfaces=IN[12], set_api_key=IN[13], legend=IN[14], gradient=IN[15], terrain=IN[16])\nexcept Exception:\n    OUT = ['Script error (also in ~/.infrared/revit-dynamo-runs.log):'] + traceback.format_exc().splitlines()\n    try:\n        with open(os.path.join(os.path.expanduser('~'), '.infrared', 'revit-dynamo-runs.log'), 'a') as log:\n            log.write('=== script error\\n' + traceback.format_exc() + '\\n')\n    except Exception:\n        pass\n",
+      "Code": "# Infrared analysis (ground, facades or both). No logic here: all of it is in the libs folder.\nimport os, sys, traceback\ntry:\n    libs = os.path.expandvars(IN[0])\n    if libs not in sys.path:\n        sys.path.insert(0, libs)\n    # Forget the loaded ir_* modules: the next import reads every edited file again.\n    # (importlib.reload one by one can leave an old module in place.)\n    for name in [m for m in sys.modules if m.split('.')[0] in ('ir_dynamo', 'ir_revit')]:\n        del sys.modules[name]\n    from ir_revit.entry import run\n    OUT = run(target=IN[2], elements=IN[1], analysis=IN[3], months=IN[4], hours=IN[5], preview_only=IN[6], fetch_context=IN[7], lat=IN[8], lon=IN[9], wind_speed=IN[10], wind_direction=IN[11], surfaces=IN[12], set_api_key=IN[13], legend=IN[14], gradient=IN[15])\nexcept Exception:\n    OUT = ['Script error (also in ~/.infrared/revit-dynamo-runs.log):'] + traceback.format_exc().splitlines()\n    try:\n        with open(os.path.join(os.path.expanduser('~'), '.infrared', 'revit-dynamo-runs.log'), 'a') as log:\n            log.write('=== script error\\n' + traceback.format_exc() + '\\n')\n    except Exception:\n        pass\n",
       "Engine": "CPython3",
       "EngineName": "CPython3",
       "VariableInputPorts": true,
@@ -597,15 +577,6 @@
           "Id": "2f5788b28dc446468364cadf7f6751bd",
           "Name": "IN[15]",
           "Description": "Input #15",
-          "UsingDefaultValue": false,
-          "Level": 2,
-          "UseLevels": false,
-          "KeepListStructure": false
-        },
-        {
-          "Id": "6374af777fb047e48a3d9dac7721762e",
-          "Name": "IN[16]",
-          "Description": "Input #16",
           "UsingDefaultValue": false,
           "Level": 2,
           "UseLevels": false,
@@ -799,12 +770,6 @@
       "Start": "8e3d0c2b43fc46f9bdd514e5d7f28cb9",
       "End": "2f5788b28dc446468364cadf7f6751bd",
       "Id": "26d383e544514ccfbf3c5d880d129ecb",
-      "IsHidden": "False"
-    },
-    {
-      "Start": "8a652814ae8b415bbbf450c9dac4bc3f",
-      "End": "6374af777fb047e48a3d9dac7721762e",
-      "Id": "7671e668c990458bbd8d54f6b303ed97",
       "IsHidden": "False"
     }
   ],
@@ -1031,16 +996,6 @@
         "ShowGeometry": true,
         "X": 0.0,
         "Y": 2400.0
-      },
-      {
-        "Id": "f27d4c75445a4b14af2f714cd2d929f6",
-        "Name": "terrain",
-        "IsSetAsInput": false,
-        "IsSetAsOutput": false,
-        "Excluded": false,
-        "ShowGeometry": true,
-        "X": 0.0,
-        "Y": 2560.0
       }
     ],
     "Annotations": [

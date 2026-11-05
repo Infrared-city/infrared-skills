@@ -224,6 +224,12 @@ def _terrain_feet(element: Any, options: Any) -> List[float]:
     return feet
 
 
+TERRAIN_HINT = (
+    "A ground modelled as a floor, a mass or an import is not terrain: it is analysed "
+    "as a building. Model the site as a Toposolid."
+)
+
+
 def collect_scene(
     doc: Any,
     elements: Any,
@@ -278,9 +284,8 @@ def collect_scene(
         else:
             terrain_elements = _document_terrain(doc)
             warnings.append(
-                "No terrain selected: using the %d terrain element(s) of the document. "
-                "Select the ground in the terrain input if it is a floor, a mass or an import."
-                % len(terrain_elements)
+                "Terrain: no Toposolid in the selection; using the %d Toposolid and "
+                "Topography element(s) of the document. %s" % (len(terrain_elements), TERRAIN_HINT)
             )
     terrain_keys = set()
     for element in terrain_elements:

@@ -127,14 +127,17 @@ def _run(
     surfaces : str
         Facade part only: ``"facades"``, ``"roofs"`` or ``"all"``.
     legend : str
-        Colour range: ``"trimmed"`` (default: 2-98 % of the values),
-        ``"exact"`` (min..max) or ``"platform"`` (the fixed platform range).
+        Colour range: ``"platform"`` (default: as the platform draws it, with
+        its fixed range where it has one), ``"trimmed"`` (2-98 % of the values)
+        or ``"exact"`` (min..max).
         Change it and use "show-last" to see the same result again, free.
     gradient : bool
         True: wind speed and UTCI are drawn as a smooth gradient through the
         platform colours instead of the platform's flat bins.
     terrain : Any
-        The output of a second "Select Model Elements" node: the ground, of
+        Not in the graph (removed 2026-11-05: the second selection node misled
+        users); the Toposolids are the terrain. Kept for a script that passes
+        the output of a second "Select Model Elements" node: the ground, of
         any type (a Toposolid, a floor, a mass, an import). The ground result
         is drawn on it. Empty: the Toposolids of the selection, else of the
         document.
@@ -156,6 +159,12 @@ def _run(
         range_mode = colors.parse_range_mode(legend)
     except ValueError as error:
         return ["Error: %s" % error]
+    _progress(
+        "inputs: target %s, analysis %s, months %s, hours %s, preview_only %s, legend %s, "
+        "gradient %s, wind %s m/s from %s deg, surfaces %s, fetch_context %s"
+        % (target, analysis, months, hours, bool(preview_only), range_mode, bool(gradient),
+           wind_speed, wind_direction, surfaces, bool(fetch_context))
+    )
     if str(analysis).strip().lower() in SHOW_LAST_NAMES:
         return _show_last(range_mode, bool(gradient))
     if revit_export.is_export(analysis):
@@ -188,8 +197,7 @@ def _run(
         )
         if not buildings:
             return [
-                "No building geometry found. Select walls, floors, roofs or masses "
-                "(and the ground in the terrain input)."
+                "No building geometry found. Select walls, floors, roofs or masses."
             ] + notes
         lines = [
             "Terrain: %d element(s) with geometry." % len(terrain_m),

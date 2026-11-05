@@ -71,7 +71,7 @@ def _scene(
     if sampler is None and lowest > 5.0:
         warnings.append(
             "No terrain: the ground is Revit elevation 0 and the buildings start %.0f m "
-            "above it. Select the terrain to place them on it." % lowest
+            "above it. Model the site as a Toposolid to place them on it." % lowest
         )
     return buildings, ground, sampler, z_offset, warnings
 
