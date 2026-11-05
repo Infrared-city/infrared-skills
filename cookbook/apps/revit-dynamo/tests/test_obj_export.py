@@ -153,3 +153,9 @@ def test_a_slab_on_the_ground_is_left_out() -> None:
     assert list(scene.buildings) == ["house"]
     line = [w for w in scene.warnings if "lie on the ground" in w]
     assert line and line[0].startswith("2 element(s)")
+
+
+def test_category_comment_before_each_object() -> None:
+    scene = ox.prepare_scene({"7": box_soup(0, 0, 0, 1, 1, 3)})
+    text = ox.obj_text(scene, labels={"7": "Curtain Panels"})[0]
+    assert "# category: Curtain Panels\no building_7\n" in text

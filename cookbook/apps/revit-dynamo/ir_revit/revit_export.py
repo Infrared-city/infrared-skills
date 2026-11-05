@@ -63,7 +63,7 @@ def export_obj(
         "Unit: metres. Axes: x east, y north (true north), z up.",
         "Origin: lon %.6f, lat %.6f, Revit elevation %.2f m (ground)." % (o_lon, o_lat, oz),
     ]
-    text, counts = obj_export.obj_text(scene, header)
+    text, counts = obj_export.obj_text(scene, header, categories)
     os.makedirs(EXPORT_FOLDER, exist_ok=True)
     path = obj_export.export_path(EXPORT_FOLDER, document)
     with open(path, "w", encoding="utf-8", newline="\n") as handle:

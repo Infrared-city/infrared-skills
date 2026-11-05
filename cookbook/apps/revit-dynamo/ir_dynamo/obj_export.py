@@ -252,7 +252,9 @@ def _safe_name(text: str) -> str:
     return re.sub(r"[^A-Za-z0-9_-]+", "_", str(text)).strip("_") or "x"
 
 
-def obj_text(scene: ObjScene, header: Sequence[str] = ()) -> Tuple[str, Dict[str, int]]:
+def obj_text(
+    scene: ObjScene, header: Sequence[str] = (), labels: Optional[Dict[str, str]] = None
+) -> Tuple[str, Dict[str, int]]:
     """The OBJ file text and counts (``objects``, ``vertices``, ``faces``).
 
     Axes in the file: x east, y true north, z up (Z up), metres, from
@@ -268,6 +270,8 @@ def obj_text(scene: ObjScene, header: Sequence[str] = ()) -> Tuple[str, Dict[str
             points, faces = _weld(np.asarray(tri, dtype=np.float64))
             if len(faces) == 0:
                 continue
+            if labels and name in labels:
+                lines.append("# category: %s" % labels[name])  # ignored by the platform
             lines.append("o %s_%s" % (prefix, _safe_name(name)))
             east = points[:, 0] - ox
             north = points[:, 1] - oy
