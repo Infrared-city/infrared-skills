@@ -72,7 +72,7 @@ def test_no_terrain_ground_is_elevation_0_with_a_warning() -> None:
 
 
 def test_all_buried_is_an_error() -> None:
-    with pytest.raises(ValueError, match="below the ground"):
+    with pytest.raises(ValueError, match="below or on the ground"):
         ox.prepare_scene({"b": box_soup(0, 0, -10, 5, 5, 3)})
 
 
@@ -144,3 +144,12 @@ def test_cut_follows_a_sloped_terrain() -> None:
     ground = 0.1 * tri[:, 1]  # the ramp rises to the north
     assert np.all(tri[:, 2] >= ground - 0.011)  # GROUND_TOL_M
     assert tri[:, 2].min() < 0.0  # the low (south) side goes below elevation 0
+
+
+def test_a_slab_on_the_ground_is_left_out() -> None:
+    slab = box_soup(0, 0, -0.4, 10, 10, 0.4)  # top at the ground
+    pad = box_soup(20, 0, 0, 3, 3, 0.2)  # 20 cm on the ground
+    scene = ox.prepare_scene({"slab": slab, "pad": pad, "house": box_soup(0, 20, 0, 5, 5, 6)})
+    assert list(scene.buildings) == ["house"]
+    line = [w for w in scene.warnings if "lie on the ground" in w]
+    assert line and line[0].startswith("2 element(s)")

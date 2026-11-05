@@ -11,7 +11,9 @@ The file follows the platform upload rules (skill page ``platform-byo-upload.md`
 * no ``usemtl`` lines: a Revit material name such as "Concrete" is a ground
   word for the platform classifier;
 * the parts below the ground (basements, foundations) are left out, because
-  the platform puts the lowest point of the model on the ground;
+  the platform puts the lowest point of the model on the ground; an element
+  that is less than ``MIN_ABOVE_GROUND_M`` above the ground after that (a
+  ground-floor slab, a pad) is left out too;
 * Z up, +Y true north: the platform takes Z as up unless another axis is
   1.5 times shallower (forge-kit ``obj-orient.ts``). A Y-up file of a tall
   building lies on its side there;
@@ -47,6 +49,9 @@ Soup = Dict[str, Sequence[float]]
 
 # Terrain triangles this far around the buildings go into the file.
 TERRAIN_MARGIN_M = 50.0
+# An element that nowhere rises this high above the ground lies on it (a
+# ground-floor slab cut at the ground, a pad): it is ground, not building.
+MIN_ABOVE_GROUND_M = 0.5
 # Vertices nearer than this are one vertex (1 mm).
 WELD_M = 1e-3
 # The platform refuses a larger OBJ file.
@@ -187,6 +192,7 @@ def prepare_scene(buildings_m: Soup, terrain_m: Optional[Soup] = None) -> ObjSce
     below = 0
     cut = 0
     buried_ids: List[str] = []
+    flat_ids: List[str] = []
     for name, tri in tris.items():
         gone = terrain_mod.buried(tri, sampler, ground)
         below += int(gone.sum())
@@ -195,13 +201,25 @@ def prepare_scene(buildings_m: Soup, terrain_m: Optional[Soup] = None) -> ObjSce
             continue
         kept, n_cut = clip_to_ground(tri[~gone], sampler, ground)
         cut += n_cut
+        flat = kept.reshape(-1, 3)
+        if np.max(flat[:, 2] - terrain_mod.ground_z(sampler, flat, ground)) < MIN_ABOVE_GROUND_M:
+            flat_ids.append(name)
+            continue
         buildings[name] = kept
     if buried_ids:
         warnings.append(
             summary.id_list_line("element(s) are entirely below the ground and are not exported", buried_ids)
         )
+    if flat_ids:
+        warnings.append(
+            summary.id_list_line(
+                "element(s) lie on the ground (less than %.1f m above it) and are not exported"
+                % MIN_ABOVE_GROUND_M,
+                flat_ids,
+            )
+        )
     if not buildings:
-        raise ValueError("Every selected element is below the ground. Nothing to export.")
+        raise ValueError("Every selected element is below or on the ground. Nothing to export.")
     if below:
         warnings.append(
             "%d triangle(s) below the ground (basements, foundations) are not exported."
