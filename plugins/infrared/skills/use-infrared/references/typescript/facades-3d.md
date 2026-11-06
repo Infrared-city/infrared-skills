@@ -36,6 +36,7 @@ const range = legendRange(values, "trimmed") ?? [buffers.valueMin, buffers.value
 - Merge in the client that submitted the run: the outline lives in that client.
   `runAreaAndWait` does this. To draw later or elsewhere, save a `FacadeLayout`
   (see the guide, "Save, reload and free").
+- To keep the layout of a run you merge, ask the merge: `mergeSurfaceAreaJobs(schedule, { facadeLayout: true })` gives `facadeLayoutParts` (Python `merge_area_jobs(schedule, facade_layout=True)` gives `facade_layout_parts`; .NET `MergeSurfaceAreaJobs(schedule, facadeLayout: true)`). Open a part with `FacadeLayout.fromBytes`. A merge without every capture gives no parts. Then call `synthesizeFacadeLayout`.
 
 ## Render buffers → BufferGeometry
 
