@@ -66,6 +66,15 @@ def _by_class(doc: Any, cls: Any, view_id: Any = None) -> List[Any]:
     return list(collector.OfClass(clr.GetClrType(cls)))
 
 
+def _drafting_views(doc: Any) -> List[Any]:
+    """The drafting views, without view templates: a collector on a template's id
+    fails ("viewId is not valid for element iteration"; live run 2026-11-06 on the
+    Snowdon Towers sample, which has drafting view templates)."""
+    from Autodesk.Revit.DB import ViewDrafting  # type: ignore
+
+    return [v for v in _by_class(doc, ViewDrafting) if not getattr(v, "IsTemplate", False)]
+
+
 def _view(doc: Any, target: str) -> Any:
     """The legend view of ``target``: found by name and cleared, or created."""
     from Autodesk.Revit.DB import (  # type: ignore
@@ -77,7 +86,7 @@ def _view(doc: Any, target: str) -> Any:
     )
 
     name = VIEW_PREFIX + target
-    for view in _by_class(doc, ViewDrafting):
+    for view in _drafting_views(doc):
         if element_name(view) == name:
             for cls in (FilledRegion, TextNote):
                 for element in _by_class(doc, cls, view.Id):
@@ -111,14 +120,18 @@ def _set_name(view: Any, name: str) -> None:
 def old_legend_views(doc: Any) -> List[str]:
     """Drafting views with legend swatches but another name: legends that older
     versions of this script could not name. The user can delete them."""
-    from Autodesk.Revit.DB import FilledRegion, ViewDrafting  # type: ignore
+    from Autodesk.Revit.DB import FilledRegion  # type: ignore
 
     found = []
-    for view in _by_class(doc, ViewDrafting):
+    for view in _drafting_views(doc):
         name = element_name(view)
         if name.startswith(VIEW_PREFIX):
             continue
-        for region in _by_class(doc, FilledRegion, view.Id):
+        try:  # only a hint: a view that cannot be read is skipped, not an error
+            regions = _by_class(doc, FilledRegion, view.Id)
+        except Exception:
+            continue
+        for region in regions:
             if element_name(doc.GetElement(region.GetTypeId())).startswith(REGION_PREFIX):
                 found.append(name or str(view.Id))
                 break
@@ -191,7 +204,10 @@ def draw_legend(
     for t in texts:
         TextNote.Create(doc, view.Id, XYZ(t.x * MM_TO_FT, t.y * MM_TO_FT, 0), t.text, text_type)
     line = "Legend view: \"%s\" (Project Browser > Views > Drafting Views)." % element_name(view)
-    old = old_legend_views(doc)
+    try:  # the legend is drawn by now: a failing hint must not report it as not drawn
+        old = old_legend_views(doc)
+    except Exception:
+        old = []
     if old:
         line += " Older legend views without a name: %s. Delete them." % ", ".join(old)
     return line

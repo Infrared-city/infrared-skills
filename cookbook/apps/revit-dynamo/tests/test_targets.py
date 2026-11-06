@@ -32,8 +32,7 @@ def test_both_skips_the_target_without_the_analysis() -> None:
     run, skipped = t.plan_runs("both", "wind")
     assert run == ["ground"]
     assert len(skipped) == 1 and "Skipped facades" in skipped[0]
-    run, skipped = t.plan_runs("all", "daylight")
-    assert run == ["facades"] and "Skipped ground" in skipped[0]
+    assert t.plan_runs("all", "daylight") == (["ground", "facades"], [])
 
 
 def test_one_target_still_refuses_a_wrong_analysis() -> None:

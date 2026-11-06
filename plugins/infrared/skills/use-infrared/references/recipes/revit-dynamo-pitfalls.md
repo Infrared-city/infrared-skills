@@ -58,7 +58,7 @@ Most expensive failures return a plausible result. Look at the picture and the v
 
 ## Habits that find bugs early
 
-- **Preview first.** `preview_only = True` shows tiles, jobs and tokens, free.
+- **Preview first.** A command without the word `run` (or `preview_only = True`) shows tiles, jobs and tokens, free.
 - **Read the log after every Run:** `~/.infrared/revit-dynamo-runs.log`. The stub writes each traceback there too.
 - **Log the numbers that hid the last bug:** element count and categories, triangle count, value min, max and percentiles, legend range, distinct colours, meshes and materials built.
 - **Test `ir_dynamo` offline** with pytest. Check the exit code: a pipe to `tail` hides a failure.

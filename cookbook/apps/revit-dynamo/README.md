@@ -6,9 +6,9 @@ what it analyses: `ground`, `facades` (walls and roofs) or `both`.
 
 | `target` | What it analyses | Analyses (`analysis` input) |
 |---|---|---|
-| `ground` | The ground around the buildings | `svf`, `solar`, `sun-hours`, `wind`, `utci`, `pwc`, `tcs` |
+| `ground` | The ground around the buildings | `svf`, `solar`, `sun-hours`, `daylight`, `wind`, `utci`, `pwc`, `tcs` |
 | `facades` | The walls and roofs of the buildings | `svf`, `solar`, `sun-hours`, `daylight` |
-| `both` (or `all`) | Both, one after the other | `svf`, `solar`, `sun-hours` on both; `wind`, `utci`, `pwc`, `tcs` on the ground only; `daylight` on the facades only |
+| `both` (or `all`) | Both, one after the other | `svf`, `solar`, `sun-hours`, `daylight` on both; `wind`, `utci`, `pwc`, `tcs` on the ground only |
 
 One Infrared request computes the ground grid or the facades, not both. So `both`
 is **two runs and two costs**. The preview shows both costs and their sum. If the
@@ -96,12 +96,25 @@ Leave `lat` and `lon` empty to use the project location.
 3. Select your buildings in Revit. In Dynamo, click "Select Model Elements" and
    press Select. Walls, floors, roofs, masses and families all work. The
    Toposolids are the ground (see "Terrain and the ground level").
-4. Set `target` (`ground`, `facades` or `both`) and `analysis` (a label from the table above, `show-last` or `export-obj`).
-5. Set `months` (for example `6-8`) and `hours` (for example `8-18`, or one hour like `13`).
-6. Keep `preview_only` at `True`. Press Run. The Watch node shows the number
-   of tiles, jobs and tokens.
-7. Set `preview_only` to `False`. Press Run again. This spends tokens.
-8. Wait. Revit does not respond while the run is going.
+4. Type a command in the `command` node, for example `pwc`, `wind 5 270` or
+   `utci facades months jun-aug hours 12-15`. Press Run. Without the word `run`
+   it is a free preview: the Watch node shows the number of tiles, jobs and tokens.
+5. To run it, add the word `run` (the Watch text gives the whole line:
+   `To run it (paid): ...`). Press Run again. This spends tokens.
+6. Wait. Revit does not respond while the run is going.
+
+Type `help` in the `command` node to see every word. The Watch text starts with
+`Command:` and the line with every value filled in (the defaults: `ground` where
+the analysis runs, months `6-8`, hours `8-18`, PWC the whole year, wind 5 m/s
+from 270°). Other words: `ground`/`facades`/`both`, `surfaces roofs`, `legend exact`,
+`gradient`, `context`, `lat 48.2085 lon 16.3721`, `show-last`, `export-obj`, `set-key`.
+
+**Or use the input nodes.** Leave `command` empty. Set `target` (`ground`,
+`facades` or `both`), `analysis` (a label from the table above, `show-last` or
+`export-obj`), `months` (for example `6-8`) and `hours` (for example `8-18`, or
+one hour like `13`). Keep `preview_only` at `True` and press Run; then set it to
+`False` and press Run again to pay. The Watch text ends with
+`Same as the command: ...`, the command that does the same.
 
 Other inputs: `fetch_context` adds public buildings around your selection.
 `wind_speed` (m/s) and `wind_direction` (degrees, 270 = from the west) are for the
@@ -180,7 +193,7 @@ drafting view in the Project Browser. Manage > Purge Unused removes the
   This is the reason it does not follow the 3.11+ rule of the rest of this repository.
 - The SDK is pinned to `infrared-sdk` 1.0.0. The script refuses any other version.
 - The area must stay below 100 000 m in each direction.
-- The weather comes from the public station catalog, for the project location.
+- The weather comes from the public station catalog: the station nearest to the project location, within 50 km. The Watch text names it, for example `Weather: station Wien-Innere.Stadt, AUT (110340, TMYx), 1.2 km from the site.`, and asks you to check the location when it is more than 20 km away. Solar, UTCI, PWC and TCS read weather; SVF, sun hours, daylight and wind do not.
 - The Revit code (`ir_revit/`) is not covered by the automated tests. They cover
   `ir_dynamo` and the rotation maths only.
 
@@ -188,7 +201,7 @@ drafting view in the Project Browser. Manage > Purge Unused removes the
 
 | Path | What it holds |
 |---|---|
-| `ir_dynamo/` | SDK calls and the target rules (`targets.py`). No Revit code. Tested with pytest. |
+| `ir_dynamo/` | SDK calls, the target rules (`targets.py`) and the `command` line (`command.py`, `command_help.py`). No Revit code. Tested with pytest. |
 | `ir_revit/` | Revit API code: location, geometry, display, key dialog, `entry.py`. |
 | `dynamo/` | `IR_Analysis.dyn`. Its Python node has a few lines and calls `ir_revit.entry.run`. |
 | `build_libs.py` | Builds the libs zip for Python 3.9 on Windows x64. |

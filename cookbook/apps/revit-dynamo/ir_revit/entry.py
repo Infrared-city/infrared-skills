@@ -82,7 +82,57 @@ def _optional_float(value: Any, name: str) -> Optional[float]:
         raise ValueError("%s must be a number, for example 48.208." % name)
 
 
-def _run(
+PREVIEW_HINT_NODES = "Set preview_only to False to run."
+PREVIEW_HINT_COMMAND = "Add the word run to the command to run it."
+
+
+def _run(*args: Any, command: Any = "", **kwargs: Any) -> List[str]:
+    """``_run_inputs`` with the input nodes, or with the ``command`` node when it has text.
+
+    A command sets every input except ``elements`` (and ``terrain``); a word it
+    does not have takes the default of ``ir_dynamo.command``, not the node value.
+    """
+    from ir_dynamo import command as command_line
+    from ir_dynamo import command_help
+
+    text = str(command or "").strip()
+    if not text:
+        lines = _run_inputs(*args, **kwargs)
+        inputs = dict(zip(_INPUT_NAMES, args), **kwargs)
+        inputs = {k: v for k, v in inputs.items() if k not in ("elements", "terrain")}
+        same = command_help.from_inputs(**inputs)
+        return lines + (["Same as the command: %s" % same] if same else [])
+    try:
+        cmd = command_line.parse(text)
+    except ValueError as error:
+        return ["Command error: %s" % error, "Command: %s" % text]
+    if cmd.action == "help":
+        return command_help.help_lines()
+    _progress("command: %s" % cmd.text)
+    kept = {k: kwargs[k] for k in ("elements", "terrain") if k in kwargs}
+    kept.update((k, v) for k, v in zip(_INPUT_NAMES, args) if k in ("elements", "terrain"))
+    lines = _run_inputs(**dict(cmd.inputs(), **kept))
+    lines = [line.replace(PREVIEW_HINT_NODES, PREVIEW_HINT_COMMAND) for line in lines]
+    head = [
+        "Command: %s" % cmd.text,
+        "The command node is set: the other input nodes (except the selection) are not used.",
+    ]
+    paid = (
+        ["To run it (paid): %s" % cmd.paid_text()]
+        if any("Preview only:" in line for line in lines)
+        else []
+    )
+    return head + lines + paid
+
+
+_INPUT_NAMES = (
+    "target", "elements", "analysis", "months", "hours", "preview_only", "fetch_context",
+    "lat", "lon", "set_api_key", "wind_speed", "wind_direction", "surfaces", "legend",
+    "gradient", "terrain",
+)  # fmt: skip  (the order of the arguments of _run_inputs)
+
+
+def _run_inputs(
     target: str,
     elements: Any,
     analysis: str,

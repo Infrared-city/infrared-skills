@@ -14,8 +14,7 @@ def test_find_analysis_aliases_and_case() -> None:
 def test_surface_rules() -> None:
     with pytest.raises(ValueError, match="does not run on facades"):
         s.find_analysis("wind", "facades")
-    with pytest.raises(ValueError, match="does not run on ground"):
-        s.find_analysis("daylight", "ground")
+    assert s.find_analysis("daylight", "ground").key == "daylight"
     with pytest.raises(ValueError, match="Use one of"):
         s.find_analysis("nope", "ground")
     with pytest.raises(ValueError, match="surface must be"):

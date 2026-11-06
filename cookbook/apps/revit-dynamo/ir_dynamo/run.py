@@ -104,7 +104,7 @@ def run_analysis(
         ``"ground"`` (grid around the buildings) or ``"facades"`` (walls and roofs).
     analysis : str
         A label from ``settings.ANALYSES`` for that surface: ``svf``, ``solar``,
-        ``sun-hours``, ``daylight`` (facades only), ``wind``, ``utci``, ``pwc``,
+        ``sun-hours``, ``daylight``, ``wind``, ``utci``, ``pwc``,
         ``tcs`` (ground only). Aliases like ``"sun hours"`` work. PWC and TCS
         take a criterion or subtype as the last word: ``"pwc lawson-2001"``.
     buildings_m : dict
@@ -197,6 +197,7 @@ def run_analysis(
             wind_direction=wind_direction,
             ground_geometry=ground or None,
             client=client,
+            notes=warnings,
         )
         preview = client.preview_area(
             frame.polygon,

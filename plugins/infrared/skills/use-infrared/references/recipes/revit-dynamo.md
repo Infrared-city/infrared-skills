@@ -12,7 +12,7 @@ API detail: https://infrared.city/docs/sdk/ (agents: https://infrared.city/docs/
 
 - One graph, `IR_Analysis.dyn`. The user selects buildings in Revit, sets the inputs and presses Run.
 - Targets: `ground` (a grid around the buildings), `facades` (walls and roofs) or `both` (two runs, two costs).
-- Analyses: `svf`, `solar`, `sun-hours`, `wind`, `utci`, `pwc`, `tcs` on the ground; `svf`, `solar`, `sun-hours`, `daylight` on the facades.
+- Analyses: `svf`, `solar`, `sun-hours`, `daylight`, `wind`, `utci`, `pwc`, `tcs` on the ground; `svf`, `solar`, `sun-hours`, `daylight` on the facades.
 - `pwc` (pedestrian wind comfort) and `tcs` (thermal comfort statistics) take a criterion or subtype as the last word of the label. Without it, the first one is used:
   - `pwc`: `lawson-lddc` (default), `lawson-2001`, `lawson-1970`, `davenport`, `nen-8100-comfort`, `nen-8100-safety`, `vdi-3787`. Example: `pwc lawson-2001`.
   - `tcs`: `thermal-comfort` (default), `heat-stress`, `cold-stress`. Example: `tcs heat-stress`.
@@ -37,6 +37,24 @@ The zip holds Windows x64 packages only. The script refuses an SDK other than 1.
 
 ## 4. Inputs
 
+**The `command` node** (top of the graph) runs everything from one line. When it has text, the other input nodes are not used, except "Select Model Elements" and `libs_folder`; a word that is not in the line takes the default below, not the node value. Leave it empty to use the nodes. Words, any order, any case:
+
+| Words | Default when left out |
+|---|---|
+| `svf`, `solar`, `sun-hours`, `daylight`, `wind`, `pwc`, `tcs`, `utci`; `pwc lawson-2001`, `tcs heat-stress` (also `lddc`, `vdi`, `nen`, `heat`, `cold`) | (one is needed); PWC `lawson-lddc`, TCS `thermal-comfort` |
+| `show-last` (takes `legend`, `gradient`), `export-obj [all]`, `set-key`, `help` | |
+| `ground`, `facades`, `both` | `ground` where the analysis runs, else `facades` |
+| `months 6-8` or `months jun-aug`, `hours 9-17` | `6-8`, `8-18`; PWC `1-12`, `0-23` |
+| `wind 5 270`, `wind 5 W` (or `speed 5 direction 270`) | 5 m/s from 270° (west). Wind analysis only: an error with any other |
+| `surfaces facades\|roofs\|all` | `all`; facades only |
+| `legend platform\|trimmed\|exact` (or the bare word), `gradient` | `platform`, off |
+| `context`, `lat 48.2085 lon 16.3721` | off, the Revit project location |
+| `run` | **no `run` = free preview**. Only `run` spends tokens |
+
+Examples: `pwc` · `wind 5 270 run` · `utci facades months jun-aug hours 12-15` · `solar both context run` · `show-last legend exact`. Each run writes `Command: <the line with every value filled in>` at the top of the Watch text; a preview ends with `To run it (paid): <line> run`. A run with the nodes ends with `Same as the command: <line>`. A wrong word gives `Command error: Unknown word 'facdes'. Did you mean 'facades'?` and runs nothing. Dynamo does not run the same line twice in a row (manual mode): change it, or add `run`.
+
+The input nodes (used when `command` is empty):
+
 | Input | Values | Notes |
 |---|---|---|
 | `target` | `ground`, `facades`, `both` | `both` is two runs and two costs |
@@ -55,7 +73,7 @@ Selection: walls, floors, roofs, masses, families, DirectShapes and imported mes
 
 ## 5. What a run does
 
-1. Reads the location, the selected elements (Solid and Mesh geometry, in feet) and the terrain.
+1. Reads the location, the selected elements (Solid and Mesh geometry, in feet) and the terrain. Solar, UTCI, PWC and TCS take the weather of the nearest public station within 50 km; the Watch text names it with its distance (`Weather: station ..., 1.2 km from the site.`) and asks to check Manage > Location above 20 km. Read this line before you explain a result.
 2. Converts to the SDK frame: metres, x east, y north, origin at the south-west corner of the polygon bounding box, turned by true north.
 3. `preview_area` (free) or `run_area_and_wait` (paid). Revit does not respond during the run: 30 seconds to 5 minutes.
 4. Places the ground grid by the SDK rule (row 0 is the south edge, `bounds` gives the place, the cell centre is at `(col + 0.5, row + 0.5)` cells from the south-west corner). A "Grid alignment check" line in the Watch text compares this rule with a one-cell shift.
@@ -95,8 +113,8 @@ Give the user these steps. The agent cannot press Run in Revit.
 
 1. Once: install the libs folder (section 2), open `IR_Analysis.dyn`, set the API key (section 3), and check Manage > Location.
 2. In Revit, select the buildings. The Toposolids are the ground.
-3. Set `target`, `analysis` (for example `pwc lawson-lddc`), `months` and `hours`, and `preview_only = True`. Press Run. The Watch text gives the cost, free.
-4. If the cost is correct, set `preview_only = False` and press Run. Revit does not respond for 30 seconds to 5 minutes.
+3. Write the command line for the user's request (section 4), without `run`: "PWC on the ground, west wind comfort" -> `pwc`; "summer afternoon heat on the facades" -> `utci facades months jun-aug hours 12-15`. The user pastes it into the `command` node and presses Run. The Watch text gives the cost, free.
+4. If the cost is correct, the user pastes the `To run it (paid): ...` line from the Watch text (the same line with `run`) and presses Run. Revit does not respond for 30 seconds to 5 minutes.
 5. Look at the result in a Shaded 3D view and the legend in the drafting view. Then read the end of `~/.infrared/revit-dynamo-runs.log` and explain the result to the user.
 
 ## 7. Change the script for the user
@@ -113,7 +131,7 @@ Rules:
 
 - Write Python 3.9 syntax in all three layers (no `match`, no `X | Y` types at run time).
 - Put new logic in `ir_dynamo/` with a test. Keep `ir_revit/` to Revit API calls.
-- A new analysis is a row in `ir_dynamo/settings.py` (`ANALYSES`: label, SDK type, unit, targets, period, weather, wind) and, if it needs a new request type, a branch in `ir_dynamo/payloads.py`.
+- A new analysis is a row in `ir_dynamo/settings.py` (`ANALYSES`: label, SDK type, unit, targets, period, weather, wind) and, if it needs a new request type, a branch in `ir_dynamo/payloads.py`. The `command` words come from that table (`ir_dynamo/command.py`); a new input is a word there too.
 - A new input is a new Dynamo input node, a new `IN[n]` in the stub, and a new parameter of `entry.run`. Change the `.dyn` in Dynamo, not by hand-editing its JSON. Give the user the exact stub text to paste when the stub changes.
 - Do not copy colour, legend or grid rules from other hosts. Use the SDK renderer and the SDK result fields.
 
@@ -127,4 +145,4 @@ The agent cannot press Run in Revit. The loop is:
 4. Read the end of `~/.infrared/revit-dynamo-runs.log`. Each run appends its status lines, or the traceback. Live progress lines show the seconds since the run started.
 5. If the log has no new lines, the run did not reach the script: see the pitfalls page.
 
-Ask the user for a paid run before you set `preview_only` to `False`. Keep paid test runs small: one building, one target.
+Ask the user for a paid run before you give a command with `run` (or set `preview_only` to `False`). Keep paid test runs small: one building, one target.

@@ -117,7 +117,7 @@ ANALYSES: Dict[str, Analysis] = {
             "Daylight availability",
             "daylight-availability",
             "%",
-            False,
+            True,
             True,
             needs_period=True,
         ),

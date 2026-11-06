@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Literal, Optional
+import math
+from typing import Any, Dict, List, Literal, Optional
 
 from infrared_sdk import (
     PwcModelRequest,
@@ -41,7 +42,44 @@ def _surface_fields(surfaces: str, grid_m: float) -> Dict[str, Any]:
     }
 
 
-def _weather_rows(client: Any, lat: float, lon: float, period: TimePeriod) -> Any:
+FAR_STATION_KM = 20.0  # farther than this: the line asks to check the location
+
+
+def station_line(station: Dict[str, Any], lat: float, lon: float) -> str:
+    """The Watch line of the weather station a run uses.
+
+    ``station``: a row of ``client.weather.get_weather_file_from_location``
+    (``fileName``, ``location_data`` with ``city``, ``country``, ``station_id``,
+    ``source``, ``latitude``, ``longitude``). A row without ``location_data``
+    gives its file name only.
+    """
+    where = station.get("location_data") or {}
+    name = ", ".join(str(where[k]) for k in ("city", "country") if where.get(k))
+    name = name or str(station.get("fileName") or station.get("uuid") or "unknown")
+    about = [str(where["station_id"])] if where.get("station_id") else []
+    about += [str(where["source"]).replace("SRC-", "")] if where.get("source") else []
+    text = "Weather: station %s%s" % (name, " (%s)" % ", ".join(about) if about else "")
+    try:
+        km = _distance_km(lat, lon, float(where["latitude"]), float(where["longitude"]))
+    except (KeyError, TypeError, ValueError):
+        return text + "."
+    text += ", %.1f km from the site." % km
+    if km > FAR_STATION_KM:
+        text += " That is far: check the project location (Manage > Location)."
+    return text
+
+
+def _distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Great-circle distance in km (haversine, Earth radius 6371 km)."""
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dp, dl = p2 - p1, math.radians(lon2 - lon1)
+    a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return 2.0 * 6371.0 * math.asin(math.sqrt(min(1.0, a)))
+
+
+def _weather_rows(
+    client: Any, lat: float, lon: float, period: TimePeriod, notes: Optional[List[str]] = None
+) -> Any:
     stations = client.weather.get_weather_file_from_location(
         lat=lat, lon=lon, radius=WEATHER_RADIUS_KM
     )
@@ -50,6 +88,8 @@ def _weather_rows(client: Any, lat: float, lon: float, period: TimePeriod) -> An
             "No weather station within %d km of %.4f, %.4f."
             % (WEATHER_RADIUS_KM, lon, lat)
         )
+    if notes is not None:  # the SDK gives the nearest station first
+        notes.append(station_line(stations[0], lat, lon))
     return client.weather.filter_weather_data(
         identifier=stations[0]["uuid"], time_period=period
     )
@@ -69,6 +109,7 @@ def build_payload(
     wind_direction: int = 270,
     ground_geometry: Optional[Dict[str, dict]] = None,
     client: Optional[Any] = None,
+    notes: Optional[List[str]] = None,
 ) -> Any:
     """Build the SDK request for one analysis.
 
@@ -96,10 +137,13 @@ def build_payload(
         switches the buildings to ``terrain_alignment="to-ground"``.
     client : InfraredClient, optional
         Needed for the analyses that read weather.
+    notes : list of str, optional
+        Gets the ``station_line`` of the weather station, for the analyses
+        that read weather.
     """
     request = _request(
         analysis, surface, lat, lon, months, hours, surfaces, grid_m,
-        wind_speed, wind_direction, client,
+        wind_speed, wind_direction, client, notes,
     )  # fmt: skip
     if not ground_geometry:
         return request
@@ -131,6 +175,7 @@ def _request(
     wind_speed: float,
     wind_direction: int,
     client: Optional[Any],
+    notes: Optional[List[str]] = None,
 ) -> Any:
     extra = _surface_fields(surfaces, grid_m) if surface == "facades" else {}
     period = (
@@ -153,7 +198,7 @@ def _request(
         )
     if client is None:
         raise ValueError("%s reads weather; pass a client." % analysis.title)
-    rows = _weather_rows(client, lat, lon, period)
+    rows = _weather_rows(client, lat, lon, period, notes)
     location = Location(latitude=lat, longitude=lon)
     if analysis.key == "pwc":
         # Hourly wind observations of the window, paired by position.

@@ -51,6 +51,7 @@ def test_payloads_for_every_analysis_that_needs_no_weather() -> None:
     cases = [
         ("ground", "sun-hours"),
         ("ground", "wind"),
+        ("ground", "daylight"),
         ("facades", "svf"),
         ("facades", "sun-hours"),
         ("facades", "daylight"),
