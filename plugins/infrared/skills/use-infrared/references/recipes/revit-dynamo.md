@@ -44,7 +44,7 @@ The graph has one input, the `command` node. One line runs everything. A word th
 |---|---|
 | `svf`, `solar`, `sun-hours`, `daylight`, `wind`, `pwc`, `tcs`, `utci`; `pwc lawson-2001`, `tcs heat-stress` (also `lddc`, `vdi`, `nen`, `heat`, `cold`) | (one is needed); PWC `lawson-lddc`, TCS `thermal-comfort` |
 | `show-last` (takes `legend`, `gradient`, `keep`), `export-obj [all] [model]`, `set-key`, `help` | |
-| `select`, `select link` | Revit asks the user to click the buildings (or elements inside linked models) and to press Finish. The next commands use them |
+| `select`, `select link` | Revit asks the user to click the buildings (or elements inside linked models) and to press Finish. The next commands use them. During the pick the result shapes are hidden in the active view and the Mass category is shown |
 | `ground`, `facades`, `both` | `ground` where the analysis runs, else `facades` |
 | `months 6-8` or `months jun-aug`, `hours 9-17` | `6-8`, `8-18`; PWC `1-12`, `0-23` |
 | `wind 5 270`, `wind 5 W` (or `speed 5 direction 270`) | 5 m/s from 270° (west). Wind analysis only: an error with any other |

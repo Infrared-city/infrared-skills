@@ -79,7 +79,8 @@ Choose one way.
 
 **Download.** Get `infrared-dynamo-libs.zip`. Unzip it into this folder:
 `%APPDATA%\Infrared\revit-dynamo`. The folder must now hold `ir_dynamo`, `ir_revit`,
-`dynamo` and the SDK packages.
+`dynamo` and the SDK packages. If the folder holds an earlier version, close Dynamo
+and delete the folder first: old `.dyn` files and modules stay there if you do not.
 
 **Build it.** Run this on any machine that has Python 3.9 or later and pip:
 
@@ -137,7 +138,9 @@ that keeps the default gives wrong results. The Watch text starts with a warning
    type `select` and press Run: go to the Revit window, click the buildings, and
    press Finish in the Options Bar (top left, under the ribbon; Esc cancels). The
    next commands use these elements. `select link` does the same for
-   elements inside linked models.
+   elements inside linked models. During the pick the script hides the Infrared
+   result shapes in the active view and shows the Mass category, so you can click
+   the buildings under a result. It puts both back when the pick ends.
 4. Type a command in the `command` node, for example `pwc`, `wind 5 270` or
    `utci months jun-aug hours 12-15`. Press Run. Without the word `run`
    it is a free preview: the Watch node shows the number of tiles, jobs and tokens.
@@ -286,6 +289,11 @@ The full text of each run is also in `.infrared\revit-dynamo-runs.log` in your u
   without `context` has its buildings in that corner, so elements more than about
   150 m south or west of the area do not shade it. With `context` the area fills the tile.
 - Reading the elements that only shade takes time on a large model. `alone` skips it.
+  A model of 4765 elements with 6 links took about 65 seconds to read and 30 seconds
+  to prepare, before the server call.
+- A facade result with `context` covers the public buildings in the area. On a dense
+  site this is a large shape: 890 000 cells took 3 minutes 20 seconds to draw. Run
+  `context` on the ground, or without `context` on the facades, when that is too slow.
 - The run blocks Revit. Expect between 30 seconds and 5 minutes. Do not
   close Revit while it runs.
 - The ground grid is placed by the SDK rule (row 0 is the south edge, `bounds`
