@@ -102,6 +102,34 @@ def _view(doc: Any, target: str) -> Any:
     return view
 
 
+BAD_NAME_CHARS = "\\:{}[]|;<>?`~"  # Revit refuses these in a view name
+
+
+def kept_name(target: str, label: str, taken: Sequence[str]) -> str:
+    """The name of a kept legend view: the target and the run label, and unique."""
+    clean = "".join("-" if c in BAD_NAME_CHARS else c for c in label).strip() or "kept"
+    base = "%s%s - %s" % (VIEW_PREFIX, target, clean)
+    name, n = base, 2
+    while name in taken:
+        name, n = "%s (%d)" % (base, n), n + 1
+    return name
+
+
+def keep_view(doc: Any, target: str, label: str) -> str:
+    """Rename the legend view of ``target`` so the next run draws a new one.
+
+    Returns the new name; empty when the target has no legend view.
+    """
+    views = _drafting_views(doc)
+    names = [element_name(v) for v in views]
+    for view, name in zip(views, names):
+        if name == VIEW_PREFIX + target:
+            new = kept_name(target, label, names)
+            _set_name(view, new)
+            return new
+    return ""
+
+
 def _set_name(view: Any, name: str) -> None:
     """Name the view. Through its name parameter first: in CPython3 the property
     setter alone left new views with the default name ("Drafting 1")."""

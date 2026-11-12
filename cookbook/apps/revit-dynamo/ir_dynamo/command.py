@@ -1,20 +1,21 @@
 """One text line that sets every input of a run: the ``command`` node.
 
-``parse("pwc ground months 6-8 run")`` gives a ``Command``. A word that is not in
-the line takes its default (``Command`` fields), not the value of an input node:
-the line alone says what runs. Without the word ``run`` it is a free preview.
-``Command.text`` writes the line back with every value that matters filled in;
-``command_help.from_inputs`` writes the line of the input nodes. No Revit code here.
+``parse("pwc ground months 6-8 run")`` gives a ``Command``. The line alone says
+what runs: a word that is not in it takes its default (``Command`` fields).
+Without the word ``run`` it is a free preview. ``Command.text`` writes the line
+back with every value that matters filled in. No Revit code here.
 
 Words (any order, any case; see ``help_lines``)::
 
     svf | solar | sun-hours | daylight | wind | pwc | tcs | utci   the analysis
     pwc lawson-2001, tcs heat-stress                            PWC criterion, TCS subtype
     show-last | export-obj [all] | set-key | help               the other actions
+    select | select link                                        pick the elements in Revit
     ground | facades | both                                     the target
     months 6-8   hours 9-17   surfaces roofs   legend exact     values
     wind 5 270 (or wind 5 W, speed 5, direction 270)            wind analysis only
     gradient   context   lat 48.2 lon 16.37   run               the rest
+    model | alone   margin 100   keep                           what gets a result, the area
 """
 
 from __future__ import annotations
@@ -22,14 +23,19 @@ from __future__ import annotations
 import difflib
 import re
 from dataclasses import dataclass, replace
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from . import colors, settings, targets
+from . import command_values as cv
+from .command_values import DEFAULT_WIND_DIRECTION, DEFAULT_WIND_SPEED
+from .command_values import num as _num
 
 HELP_WORDS = ("help", "?")
 SET_KEY_WORDS = ("set-key", "set-api-key", "api-key", "key")
 SHOW_LAST_WORDS = ("show-last", "show-latest", "last")
 EXPORT_WORDS = ("export-obj", "export", "obj")
+SELECT_WORDS = ("select", "pick")
+LINK_WORDS = ("link", "linked", "links")
 TARGET_WORDS = {"ground": "ground", "facades": "facades", "facade": "facades", "both": "both"}
 SURFACE_VALUES = ("facades", "roofs", "all")
 VALUE_WORDS = {  # the word -> the field its next word sets
@@ -43,20 +49,20 @@ VALUE_WORDS = {  # the word -> the field its next word sets
     "lon": "lon",
     "speed": "wind_speed",
     "direction": "wind_direction",
+    "margin": "margin",
     "dir": "wind_direction",
 }
-COMPASS = {"n": 0, "ne": 45, "e": 90, "se": 135, "s": 180, "sw": 225, "w": 270, "nw": 315}
 DEFAULT_MONTHS, DEFAULT_HOURS = "6-8", "8-18"
 WHOLE_YEAR_MONTHS, WHOLE_YEAR_HOURS = "1-12", "0-23"
-DEFAULT_WIND_SPEED, DEFAULT_WIND_DIRECTION = 5.0, 270.0
 ANALYSIS_WORDS = dict(
     {k: k for k in settings.ANALYSES},
     **{a: k for a, k in settings.ALIASES.items() if " " not in a},
 )
 # The fields each action other than an analysis takes; any other word is an error.
 ACTION_FIELDS = {
-    "show-last": ("legend", "gradient"),
-    "export-obj": ("all", "lat", "lon"),
+    "show-last": ("legend", "gradient", "keep"),
+    "export-obj": ("all", "lat", "lon", "scope"),
+    "select": ("scope",),
     "set-key": (),
     "help": (),
 }
@@ -64,9 +70,9 @@ ACTION_FIELDS = {
 
 @dataclass(frozen=True)
 class Command:
-    """What one command line runs. The fields are the inputs of ``entry._run``."""
+    """What one command line runs. ``ir_revit.entry`` reads the fields."""
 
-    action: str  # "analysis", "show-last", "export-obj", "set-key" or "help"
+    action: str  # "analysis", "show-last", "export-obj", "select", "set-key" or "help"
     analysis: str = ""  # the label with its variant, for example "pwc lawson-lddc"
     target: str = ""  # "ground", "facades" or "both"
     months: str = DEFAULT_MONTHS
@@ -81,16 +87,22 @@ class Command:
     lon: str = ""
     export_all: bool = False
     paid: bool = False
+    scope: str = ""  # "": the selection, the rest of the model shades; "model"; "alone"; select: "link"
+    margin: str = ""  # metres around the selection; "": the default of the run
+    keep: bool = False  # the earlier result shapes stay in the model
 
     @property
     def text(self) -> str:
         """The command line with every value that matters; ``parse(text)`` gives it back."""
         if self.action in ("help", "set-key"):
             return self.action
+        if self.action == "select":
+            return " ".join(["select"] + [self.scope] * bool(self.scope))
         if self.action == "show-last":
             return " ".join(["show-last"] + self._look())
         if self.action == "export-obj":
-            return " ".join(["export-obj"] + (["all"] if self.export_all else []) + self._place())
+            scope = ["all"] * self.export_all + [self.scope] * bool(self.scope)
+            return " ".join(["export-obj"] + scope + self._place())
         row = _row(self.analysis)
         words = [self.analysis]
         if row.needs_wind:  # "wind 5 270": the analysis word with its speed and direction
@@ -100,72 +112,24 @@ class Command:
             words += ["months", self.months, "hours", self.hours]
         if self.surfaces != "all":
             words += ["surfaces", self.surfaces]
+        words += [self.scope] * bool(self.scope) + (["margin", self.margin] if self.margin else [])
         words += self._look() + (["context"] if self.fetch_context else []) + self._place()
         return " ".join(words + ["run" if self.paid else "preview"])
 
     def _look(self) -> List[str]:
         out = [] if self.legend == colors.DEFAULT_RANGE_MODE else ["legend", self.legend]
-        return out + (["gradient"] if self.gradient else [])
+        return out + ["gradient"] * self.gradient + ["keep"] * self.keep
 
     def _place(self) -> List[str]:
         return ["lat", self.lat, "lon", self.lon] if self.lat else []
-
-    def inputs(self) -> Dict[str, Any]:
-        """The keyword arguments of ``entry._run`` (all but ``elements`` and ``terrain``)."""
-        analysis = {
-            "analysis": self.analysis,
-            "show-last": "show-last",
-            "export-obj": "export-obj all" if self.export_all else "export-obj",
-        }.get(self.action, "")
-        return {
-            "target": self.target or "ground",
-            "analysis": analysis,
-            "months": self.months,
-            "hours": self.hours,
-            "preview_only": not self.paid,
-            "fetch_context": self.fetch_context,
-            "lat": self.lat,
-            "lon": self.lon,
-            "set_api_key": self.action == "set-key",
-            "wind_speed": self.wind_speed,
-            "wind_direction": self.wind_direction,
-            "surfaces": self.surfaces,
-            "legend": self.legend,
-            "gradient": self.gradient,
-        }
 
     def paid_text(self) -> str:
         """The same line with ``run``: what to type to run it for tokens."""
         return replace(self, paid=True).text
 
 
-def _num(x: float) -> str:
-    return "%g" % x
-
-
 def _row(label: str) -> settings.Analysis:
     return settings.ANALYSES[label.split(" ")[0]]
-
-
-def _speed(word: str) -> Optional[float]:
-    """``"5"``, ``"5.5"``, ``"5m/s"`` -> the number; anything else -> None."""
-    word = word[:-3] if word.endswith("m/s") else word
-    try:
-        return float(word.replace(",", "."))
-    except ValueError:
-        return None
-
-
-def _direction(word: str) -> Optional[float]:
-    """``"270"``, ``"270deg"``, ``"w"``, ``"nw"`` -> degrees (the wind comes from there)."""
-    if word in COMPASS:
-        return float(COMPASS[word])
-    for tail in ("deg", "°"):
-        word = word[: -len(tail)] if word.endswith(tail) else word
-    try:
-        return float(word)
-    except ValueError:
-        return None
 
 
 def vocabulary() -> List[str]:
@@ -175,11 +139,11 @@ def vocabulary() -> List[str]:
         set(ANALYSIS_WORDS)
         | variants
         | set(settings.VARIANT_ALIASES)
-        | set(HELP_WORDS + SET_KEY_WORDS + SHOW_LAST_WORDS + EXPORT_WORDS)
+        | set(HELP_WORDS + SET_KEY_WORDS + SHOW_LAST_WORDS + EXPORT_WORDS + SELECT_WORDS + LINK_WORDS)
         | set(TARGET_WORDS)
         | set(VALUE_WORDS)
         | set(colors.RANGE_MODES)
-        | {"wind", "gradient", "context", "run", "preview", "all"}
+        | {"wind", "gradient", "context", "run", "preview", "all", "model", "alone", "keep"}
     )
 
 
@@ -217,7 +181,7 @@ def parse(line: Any) -> Command:
         i += 1
         if word in VALUE_WORDS:
             if i >= len(words):
-                raise ValueError("%r needs a value after it, for example %s." % (word, _EXAMPLES[VALUE_WORDS[word]]))
+                raise ValueError("%r needs a value after it, for example %s." % (word, cv.EXAMPLES[VALUE_WORDS[word]]))
             put(VALUE_WORDS[word], words[i], word)
             i += 1
         elif word in SET_KEY_WORDS:
@@ -226,20 +190,26 @@ def parse(line: Any) -> Command:
             put("action", "show-last", word)
         elif word in EXPORT_WORDS:
             put("action", "export-obj", word)
+        elif word in SELECT_WORDS:
+            put("action", "select", word)
+        elif word in LINK_WORDS:
+            put("scope", "link", word)
         elif word in TARGET_WORDS:
             put("target", TARGET_WORDS[word], word)
         elif word in colors.RANGE_MODES:
             put("legend", word, word)
-        elif word in ("gradient", "context", "all"):
+        elif word in ("gradient", "context", "all", "keep"):
             put(word, True, word)
+        elif word in ("model", "alone"):
+            put("scope", word, word)
         elif word in ("run", "preview"):
             put("cost", word, word)
-        elif word in ("wind", "wind-speed") and i < len(words) and _speed(words[i]) is not None:
+        elif word in ("wind", "wind-speed") and i < len(words) and cv.speed(words[i]) is not None:
             # "wind 5 270": the wind analysis, unless another analysis is named
             # ("pwc wind 5 270": then it is an error in _resolve, not a second analysis).
             put("wind_speed", words[i], word)
             i += 1
-            if i < len(words) and _direction(words[i]) is not None:
+            if i < len(words) and cv.direction(words[i]) is not None:
                 put("wind_direction", words[i], word)
                 i += 1
         elif word in ANALYSIS_WORDS:
@@ -251,18 +221,6 @@ def parse(line: Any) -> Command:
     return _resolve(found)
 
 
-_EXAMPLES = {
-    "months": "months 6-8 or months jun-aug",
-    "hours": "hours 9-17",
-    "legend": "legend exact (platform, trimmed or exact)",
-    "surfaces": "surfaces roofs (facades, roofs or all)",
-    "lat": "lat 48.2085",
-    "lon": "lon 16.3721",
-    "wind_speed": "speed 5",
-    "wind_direction": "direction 270 or direction W",
-}
-
-
 def _resolve(found: Dict[str, Any]) -> Command:
     """The words found -> a checked ``Command`` with the defaults filled in."""
     action = found.pop("action", None)
@@ -272,13 +230,15 @@ def _resolve(found: Dict[str, Any]) -> Command:
         raise ValueError("%s and %s cannot run together. Keep one." % (action, found["analysis"]))
     if action is None and "analysis" not in found:
         raise ValueError(
-            "Say what to run: one of %s, or show-last, export-obj, set-key. Type help to see every word."
+            "Say what to run: one of %s, or select, show-last, export-obj, set-key. Type help to see every word."
             % ", ".join(settings.ANALYSES)
         )
     if action:
         return _other_action(action, found)
     if found.pop("all", False):
         raise ValueError("'all' alone is not clear: write both (ground and facades) or surfaces all.")
+    if found.get("scope") == "link":
+        raise ValueError("link goes with select: select link picks elements inside a linked model.")
     row = settings.ANALYSES[found.pop("analysis")]
     label = row.key
     variant = found.pop("variant", "")
@@ -312,11 +272,13 @@ def _resolve(found: Dict[str, Any]) -> Command:
         target=target,
         months=months,
         hours=hours,
-        wind_speed=_checked_speed(speed),
-        wind_direction=_checked_direction(direction),
+        wind_speed=cv.checked_speed(speed),
+        wind_direction=cv.checked_direction(direction),
         surfaces=surfaces,
         fetch_context=bool(found.pop("context", False)),
         paid=found.pop("cost", "preview") == "run",
+        scope=found.pop("scope", ""),
+        margin=cv.checked_margin(found.pop("margin", None)),
         **_look_and_place(found),
     )
     return command
@@ -326,45 +288,15 @@ def _look_and_place(found: Dict[str, Any]) -> Dict[str, Any]:
     out: Dict[str, Any] = {}
     if "legend" in found:
         out["legend"] = colors.parse_range_mode(found.pop("legend"))
-    if found.pop("gradient", False):
-        out["gradient"] = True
+    for flag in ("gradient", "keep"):
+        if found.pop(flag, False):
+            out[flag] = True
     lat, lon = found.pop("lat", None), found.pop("lon", None)
     if (lat is None) != (lon is None):
         raise ValueError("Give both lat and lon, or neither (then the Revit project location is used).")
     if lat is not None:
-        out["lat"], out["lon"] = _coordinate(lat, "lat", 90.0), _coordinate(lon, "lon", 180.0)
+        out["lat"], out["lon"] = cv.coordinate(lat, "lat", 90.0), cv.coordinate(lon, "lon", 180.0)
     return out
-
-
-def _coordinate(text: str, name: str, limit: float) -> str:
-    try:
-        value = float(text.replace(",", "."))
-    except ValueError:
-        raise ValueError("%s %r is not a number. Write it like %s." % (name, text, _EXAMPLES[name]))
-    if not -limit <= value <= limit:
-        raise ValueError("%s %s is out of range (-%g to %g)." % (name, text, limit, limit))
-    return _num(value)
-
-
-def _checked_speed(text: Optional[str]) -> float:
-    if text is None:
-        return DEFAULT_WIND_SPEED
-    value = _speed(text)
-    if value is None or not 0.0 < value <= 60.0:
-        raise ValueError("Wind speed %r: write metres per second, more than 0, for example wind 5 270." % text)
-    return value
-
-
-def _checked_direction(text: Optional[str]) -> float:
-    if text is None:
-        return DEFAULT_WIND_DIRECTION
-    value = _direction(text)
-    if value is None or not 0.0 <= value <= 360.0:
-        raise ValueError(
-            "Wind direction %r: write degrees 0-360 the wind comes from (270 = from the west), "
-            "or N, NE, E, SE, S, SW, W, NW." % text
-        )
-    return value % 360.0
 
 
 def _other_action(action: str, found: Dict[str, Any]) -> Command:
@@ -376,4 +308,8 @@ def _other_action(action: str, found: Dict[str, Any]) -> Command:
             "%s takes %s; remove: %s." % (action, takes, ", ".join(k.replace("_", " ") for k in extra))
         )
     export_all = bool(found.pop("all", False))
-    return Command(action, export_all=export_all, **_look_and_place(found))
+    scope = found.pop("scope", "")
+    takes = {"export-obj": "model", "select": "link"}.get(action, "")
+    if scope and scope != takes:
+        raise ValueError("%s takes %s, not %s." % (action, takes, scope))
+    return Command(action, export_all=export_all, scope=scope, **_look_and_place(found))

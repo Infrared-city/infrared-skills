@@ -33,7 +33,7 @@ minimal) and `cookbook/sample-data/vienna-demo/` (real Vienna open data).
 | ArcGIS | Shapefile truncates field names to 10 characters, hence `buildingto` / `buildingbo`. Write GeoJSON — there is no shapefile adapter. |
 | Blender | Scene unit metres, scale 1.0. Name every object. |
 | SketchUp | Write OBJ in metres. Name each group. |
-| Revit | Revit has no OBJ export. Use the Dynamo script: `analysis = export-obj` ([recipes/revit-dynamo.md](recipes/revit-dynamo.md)). |
+| Revit | Revit has no OBJ export. Use the Dynamo script: the command `export-obj` ([recipes/revit-dynamo.md](recipes/revit-dynamo.md)). |
 | OSM data | `building:levels` and `diameter_crown` work as-is. Convert `circumference` to a height first. |
 
 ## Accepted formats

@@ -9,7 +9,7 @@ from ir_dynamo import command_help as h
 def test_one_word_is_a_free_preview_with_the_defaults() -> None:
     cmd = c.parse("svf")
     assert cmd.action == "analysis" and cmd.analysis == "svf" and cmd.target == "ground"
-    assert not cmd.paid and cmd.inputs()["preview_only"] is True
+    assert not cmd.paid
     assert cmd.text == "svf ground preview"
 
 
@@ -61,11 +61,11 @@ def test_text_reads_back_to_the_same_command(line: str) -> None:
 
 
 def test_other_actions() -> None:
-    assert c.parse("show-last").inputs()["analysis"] == "show-last"
+    assert c.parse("show-last").action == "show-last"
     assert c.parse("last exact").legend == "exact"
-    assert c.parse("export").inputs()["analysis"] == "export-obj"
-    assert c.parse("export-obj all").inputs()["analysis"] == "export-obj all"
-    assert c.parse("set-key").inputs()["set_api_key"] is True
+    assert c.parse("export").action == "export-obj" and not c.parse("export").export_all
+    assert c.parse("export-obj all").export_all
+    assert c.parse("set-key").action == "set-key"
     assert c.parse("pwc help").action == "help"
 
 
@@ -98,41 +98,43 @@ def test_errors_say_what_to_write(line: str, message: str) -> None:
         c.parse(line)
 
 
-def _nodes(**over: object) -> dict:
-    base = dict(
-        target="both", analysis="svf", months="6-8", hours="8-18", preview_only=True,
-        fetch_context=False, lat="", lon="", set_api_key=False, wind_speed=5.0,
-        wind_direction=270.0, surfaces="all", legend="platform", gradient=False,
-    )  # fmt: skip
-    base.update(over)
-    return base
+def test_scope_margin_and_keep() -> None:
+    cmd = c.parse("daylight facades model margin 100m keep run")
+    assert (cmd.scope, cmd.margin, cmd.keep, cmd.paid) == ("model", "100", True, True)
+    assert cmd.text == "daylight facades months 6-8 hours 8-18 model margin 100 keep run"
+    assert c.parse(cmd.text) == cmd
+    assert c.parse("svf alone").scope == "alone" and c.parse("svf").scope == ""
+    assert c.parse("show-last keep").keep and c.parse("show-last keep").text == "show-last keep"
+    assert c.parse("export-obj model").scope == "model"
 
 
-def test_the_input_nodes_give_their_command() -> None:
-    assert h.from_inputs(**_nodes()) == "svf both preview"
-    assert h.from_inputs(**_nodes(analysis="Sun Hours", target="all", preview_only=False)) == (
-        "sun-hours both months 6-8 hours 8-18 run"
-    )
-    assert h.from_inputs(**_nodes(analysis="wind", target="ground", wind_speed=20.0)) == (
-        "wind 20 270 ground preview"
-    )
-    assert h.from_inputs(**_nodes(analysis="show-last", legend="exact")) == "show-last legend exact"
-    assert h.from_inputs(**_nodes(analysis="export-obj all")) == "export-obj all"
-    assert h.from_inputs(**_nodes(set_api_key=True)) == "set-key"
-
-
-def test_the_command_of_the_nodes_does_what_the_nodes_do() -> None:
-    nodes = _nodes(analysis="pwc", target="ground", months="1-12", hours="0-23", legend="trimmed")
-    inputs = c.parse(h.from_inputs(**nodes)).inputs()
-    assert inputs["analysis"] == "pwc lawson-lddc" and inputs["legend"] == "trimmed"
-    assert (inputs["months"], inputs["hours"], inputs["preview_only"]) == ("1-12", "0-23", True)
-
-
-def test_bad_input_nodes_give_no_command() -> None:
-    assert h.from_inputs(**_nodes(analysis="nope")) is None
+@pytest.mark.parametrize(
+    "line, message",
+    [
+        ("svf model alone", "given twice"),
+        ("svf margin", "needs a value"),
+        ("svf margin 5000", "0 to 2000"),
+        ("export-obj alone", "takes model, not alone"),
+        ("show-last model", "show-last takes legend, gradient, keep"),
+    ],
+)
+def test_scope_and_margin_errors(line: str, message: str) -> None:
+    with pytest.raises(ValueError, match=message):
+        c.parse(line)
 
 
 def test_help_names_every_analysis() -> None:
     text = "\n".join(h.help_lines())
     for key in ("svf", "solar", "sun-hours", "daylight", "wind", "pwc", "tcs", "utci", "lawson-lddc"):
         assert key in text
+
+
+def test_select_picks_in_revit() -> None:
+    assert c.parse("select").action == "select" and c.parse("select").scope == ""
+    assert c.parse("select link").scope == "link" and c.parse("pick linked").text == "select link"
+    with pytest.raises(ValueError, match="select takes link, not model"):
+        c.parse("select model")
+    with pytest.raises(ValueError, match="link goes with select"):
+        c.parse("svf link")
+    with pytest.raises(ValueError, match="cannot run together"):
+        c.parse("select svf")

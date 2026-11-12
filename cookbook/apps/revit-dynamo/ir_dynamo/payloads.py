@@ -65,8 +65,28 @@ def station_line(station: Dict[str, Any], lat: float, lon: float) -> str:
         return text + "."
     text += ", %.1f km from the site." % km
     if km > FAR_STATION_KM:
-        text += " That is far: check the project location (Manage > Location)."
+        text += " Warning: that is far. Check the project location (Manage > Location)."
     return text
+
+
+REVIT_DEFAULT_PLACE = (42.3584, -71.0597)  # Boston: where a new Revit project is
+REVIT_DEFAULT_REACH_KM = 40.0  # other Revit versions and templates use places near it
+
+
+def default_location_note(lat: float, lon: float, source: str) -> List[str]:
+    """A warning when the location read from Revit is the default of a new project.
+
+    A model of London that keeps the default is analysed with the sun and the
+    weather of Boston (live runs 2026-11-09). ``source``: ``"revit"`` or ``"override"``.
+    """
+    if source != "revit" or _distance_km(lat, lon, *REVIT_DEFAULT_PLACE) > REVIT_DEFAULT_REACH_KM:
+        return []
+    return [
+        "Warning: the project location is lat %.4f, lon %.4f, in the Boston area: the "
+        "default of a new Revit project. If the project is not there, set Manage > "
+        "Location, or add lat and lon to the command. The sun, the weather and the "
+        "public buildings come from this place." % (lat, lon)
+    ]
 
 
 def _distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:

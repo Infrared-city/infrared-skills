@@ -124,3 +124,30 @@ def share_line(label: str, counts: Dict[str, int], top: int = 8) -> str:
     if len(ranked) > top:
         parts.append("%d more" % (len(ranked) - top))
     return "%s: %s." % (label, ", ".join(parts))
+
+
+WARNING_STARTS = ("Warning:", "Error", "Display failed", "Legend view not drawn", "Command error")
+
+
+def is_warning(line: str) -> bool:
+    """True for a line the user must read: a warning or an error.
+
+    A line of one target starts with ``"[ground] "``; a warning can also follow
+    other text in its line (``"Weather: ... Warning: that is far."``).
+    """
+    text = line.strip()
+    if text.startswith("[") and "] " in text:
+        text = text.split("] ", 1)[1]
+    return text.startswith(WARNING_STARTS) or " Warning: " in text
+
+
+def warnings_first(lines: Sequence[str]) -> List[str]:
+    """The Watch text with its warnings and errors in a block at the top.
+
+    The other lines keep their order. Without a warning the lines come back as they are.
+    """
+    marked = [line for line in lines if is_warning(line)]
+    if not marked:
+        return list(lines)
+    rest = [line for line in lines if not is_warning(line)]
+    return ["Warnings (%d):" % len(marked)] + ["  " + line.strip() for line in marked] + ["---"] + rest

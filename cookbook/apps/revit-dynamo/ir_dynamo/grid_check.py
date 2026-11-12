@@ -107,6 +107,12 @@ def alignment_lines(
     """The text lines of the check for one ground result (empty if it cannot run)."""
     grid = np.asarray(result.physical_grid(), dtype=np.float64)
     points = building_points(buildings)
+    # Only the buildings in the run area: the server gives no value outside it, so
+    # a building there scores 100 % for every shift (live run 2026-11-09, context).
+    if len(points):
+        width, height = frame.size_m
+        inside = (points[:, 0] >= 0) & (points[:, 0] <= width) & (points[:, 1] >= 0) & (points[:, 1] <= height)
+        points = points[inside]
     if grid.size == 0 or len(points) == 0 or result.bounds is None:
         return []
     cell = frame_mod.grid_cell_m(result.bounds, grid.shape)

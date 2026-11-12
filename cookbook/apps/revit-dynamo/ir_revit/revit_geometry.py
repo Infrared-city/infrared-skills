@@ -4,7 +4,9 @@ The terrain is what the ``terrain`` input holds, of any type (a Toposolid, a
 floor, a mass, an import). With an empty ``terrain`` input, the Toposolids and
 TopographySurfaces in the main selection are terrain; with none there either,
 every terrain element of the document is used. Everything else is a building.
-A linked Revit model is not read (its elements are in another document).
+This module reads the open model only. ``revit_scene`` reads the linked models
+and the elements that only shade; an analysis run uses it. The OBJ export uses
+``collect_scene`` here.
 
 One building per element. Its id is the ElementId as text. The triangles come
 from the solids of the element at Fine detail, including the solids inside
@@ -141,11 +143,12 @@ def _document_terrain(doc: Any) -> List[Any]:
     return found
 
 
-def _options() -> Any:
+def _options(fine: bool = True) -> Any:
+    """Geometry options. ``fine = False``: Medium detail, for elements that only shade."""
     from Autodesk.Revit.DB import Options, ViewDetailLevel  # type: ignore
 
     options = Options()
-    options.DetailLevel = ViewDetailLevel.Fine
+    options.DetailLevel = ViewDetailLevel.Fine if fine else ViewDetailLevel.Medium
     options.ComputeReferences = False
     options.IncludeNonVisibleObjects = False
     return options
@@ -245,7 +248,7 @@ def collect_scene(
     doc : Autodesk.Revit.DB.Document
         Used only to find the terrain when no terrain is selected.
     elements : Any
-        What the Dynamo "Select Model Elements" node gives: elements or lists
+        The elements to read: elements or lists
         of elements (Dynamo wrappers or Revit API elements).
     true_north_rad : float
         ``revit_location.SiteLocation.true_north_rad``.

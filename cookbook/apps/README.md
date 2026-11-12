@@ -8,7 +8,7 @@ Small, runnable web apps on the [Infrared TypeScript SDK](https://infrared.city/
 | [`map-grid/`](map-grid/) | MapLibre + deck.gl. Draw an area, see the job preview, press Run, see the ground grid with a legend. |
 | [`facades-3d/`](facades-3d/) | three.js. Solar radiation on facades and roofs, one colour per cell, value on hover. |
 | [`cloudflare-proxy/`](cloudflare-proxy/) | Production setup. A Cloudflare Worker holds the API key and serves the app. |
-| [`revit-dynamo/`](revit-dynamo/) | Python SDK in Revit 2026. Two Dynamo scripts colour the ground or the facades of the selected buildings in the active view. |
+| [`revit-dynamo/`](revit-dynamo/) | Python SDK in Revit 2026. One Dynamo script with one command line colours the ground and the facades of the selected buildings, or of the whole model. |
 
 All three use the same rule: **the browser never holds the API key.** The browser
 calls `/api/ir/*` on its own origin. A proxy adds the key and forwards the call to

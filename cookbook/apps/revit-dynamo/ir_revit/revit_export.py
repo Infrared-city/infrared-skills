@@ -1,4 +1,4 @@
-"""``analysis = "export-obj"``: write the selection as an OBJ file for the platform upload.
+"""The ``export-obj`` command: write the selection as an OBJ file for the platform upload.
 
 Free: no API key and no API call. The rules are in ``ir_dynamo.obj_export``;
 this file reads Revit, writes the file and gives the Watch lines.

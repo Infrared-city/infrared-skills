@@ -26,7 +26,7 @@ def test_the_line_names_the_station_and_its_distance() -> None:
 
 def test_a_far_station_asks_to_check_the_location() -> None:
     line = payloads.station_line(VIENNA, 48.5, 16.3721)  # about 34 km north
-    assert "33." in line and "check the project location" in line
+    assert "33." in line and "Warning: that is far. Check the project location" in line
 
 
 def test_a_row_without_location_data_gives_its_file_name() -> None:

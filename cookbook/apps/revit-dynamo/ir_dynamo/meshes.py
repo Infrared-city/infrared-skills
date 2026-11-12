@@ -50,6 +50,17 @@ def soup_bbox(soups: Soup) -> Tuple[float, float, float, float]:
     )
 
 
+def near(soups: Soup, bbox_m: Sequence[float], reach_m: float) -> Soup:
+    """The soups whose box meets ``bbox_m`` grown by ``reach_m`` (buildings that can shade)."""
+    x0, y0, x1, y1 = bbox_m[0] - reach_m, bbox_m[1] - reach_m, bbox_m[2] + reach_m, bbox_m[3] + reach_m
+    out: Soup = {}
+    for name, flat in soups.items():
+        xyz = np.asarray(flat, dtype=np.float64).reshape(-1, 3)
+        if len(xyz) and xyz[:, 0].min() < x1 and xyz[:, 0].max() > x0 and xyz[:, 1].min() < y1 and xyz[:, 1].max() > y0:
+            out[name] = flat
+    return out
+
+
 def build_buildings(
     frame: frame_mod.SiteFrame,
     soups: Soup,

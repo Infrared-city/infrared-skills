@@ -1,9 +1,9 @@
-"""The one function a Dynamo node calls: Revit elements in, a status text out.
+"""The one function the Dynamo node calls: a command line in, a status text out.
 
-Order: key dialog (optional) -> project location -> geometry -> ``ir_dynamo``
-(preview or run) -> show the result in the active view.
-All rules live in ``ir_dynamo`` and in the three ``revit_*`` modules. This file
-only joins them.
+Order: the command (``ir_dynamo.command``) -> the Revit selection -> project
+location -> geometry -> ``ir_dynamo`` (preview or run) -> the result in the model.
+All rules live in ``ir_dynamo`` and in the ``revit_*`` modules. This file only
+joins them.
 """
 
 from __future__ import annotations
@@ -14,11 +14,20 @@ import math
 import os
 import time
 import traceback
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
-from ir_dynamo import colors, settings, targets
+from ir_dynamo import command as command_line
+from ir_dynamo import command_help, payloads, settings, summary, targets
 
-from . import revit_apikey, revit_display, revit_export, revit_geometry, revit_location
+from . import (
+    revit_apikey,
+    revit_display,
+    revit_export,
+    revit_geometry,
+    revit_location,
+    revit_scene,
+    revit_selection,
+)
 
 # Dynamo keeps the Watch text nowhere. Each run writes its lines here, so the
 # user (or a helper) can read the last run. The API key is never in these lines.
@@ -26,8 +35,6 @@ LOG_FILE = os.path.join(os.path.expanduser("~"), ".infrared", "revit-dynamo-runs
 LAST_RESULT_FILE = os.path.join(
     os.path.expanduser("~"), ".infrared", "revit-dynamo-last-result.json"
 )
-SHOW_LAST = "show-last"
-SHOW_LAST_NAMES = (SHOW_LAST, "show-latest", "show last", "last")
 
 
 def _log(lines: List[str]) -> None:
@@ -59,49 +66,70 @@ def _progress(text: str) -> None:
         pass
 
 
-def run(*args: Any, **kwargs: Any) -> List[str]:
-    """See ``_run``. Writes the returned lines (or the traceback) to ``LOG_FILE``."""
+def run(command: Any = "", elements: Any = None, **old: Any) -> List[str]:
+    """Run one command line. Writes the returned lines (or the traceback) to ``LOG_FILE``.
+
+    Parameters
+    ----------
+    command : str
+        The text of the ``command`` node, for example ``"svf both context run"``.
+        See ``ir_dynamo.command``. Empty: the help text.
+    elements : Any, optional
+        Elements to analyse (Dynamo wrappers or Revit API elements), for a graph
+        that has its own selection node. Leave it out: the script reads the
+        selection of Revit.
+    **old
+        The inputs of the graph before 2026-11-12 (``target``, ``analysis``, ...).
+        They are not used; a line says so.
+
+    Returns
+    -------
+    list of str
+        Lines for the Watch node, the warnings first. Errors you can fix are
+        lines, not exceptions.
+    """
     _START[0] = time.time()
     _progress("run started")
     try:
-        lines = _run(*args, **kwargs)
+        lines = _run(command, elements)
+        if old:
+            lines.append(
+                "This graph is an older version: its input nodes (%s) are not used any "
+                "more. Open the new IR_Analysis.dyn; it has the command node only."
+                % ", ".join(sorted(old))
+            )
     except Exception:
         _log(["Unexpected error:", traceback.format_exc()])
         raise
+    finally:
+        _progress(_mark_for_rerun())
     _log(lines)
     return lines
 
 
-def _optional_float(value: Any, name: str) -> Optional[float]:
-    """Dynamo gives an empty string for "not set". Return None for that."""
-    if value is None or str(value).strip() == "":
-        return None
+def _mark_for_rerun() -> str:
+    """Dynamo runs a node again only when an input changed; see ``dynamo_rerun``."""
     try:
-        return float(str(value).replace(",", "."))
-    except ValueError:
-        raise ValueError("%s must be a number, for example 48.208." % name)
+        from . import dynamo_rerun
+
+        return dynamo_rerun.mark()
+    except Exception as error:  # not in Dynamo (the tests), or another Dynamo
+        return "rerun: not set (%s)" % type(error).__name__
 
 
-PREVIEW_HINT_NODES = "Set preview_only to False to run."
-PREVIEW_HINT_COMMAND = "Add the word run to the command to run it."
+NO_GEOMETRY = (
+    "No building geometry found. Select walls, floors, roofs or masses in Revit and "
+    "press Run again (or run the command select and click them), or add the word model "
+    "to analyse every building of the model."
+)
 
 
-def _run(*args: Any, command: Any = "", **kwargs: Any) -> List[str]:
-    """``_run_inputs`` with the input nodes, or with the ``command`` node when it has text.
-
-    A command sets every input except ``elements`` (and ``terrain``); a word it
-    does not have takes the default of ``ir_dynamo.command``, not the node value.
-    """
-    from ir_dynamo import command as command_line
-    from ir_dynamo import command_help
-
+def _run(command: Any, elements: Any = None) -> List[str]:
     text = str(command or "").strip()
     if not text:
-        lines = _run_inputs(*args, **kwargs)
-        inputs = dict(zip(_INPUT_NAMES, args), **kwargs)
-        inputs = {k: v for k, v in inputs.items() if k not in ("elements", "terrain")}
-        same = command_help.from_inputs(**inputs)
-        return lines + (["Same as the command: %s" % same] if same else [])
+        return ["The command is empty. Type one in the command node, for example: svf"] + (
+            command_help.help_lines()
+        )
     try:
         cmd = command_line.parse(text)
     except ValueError as error:
@@ -109,187 +137,132 @@ def _run(*args: Any, command: Any = "", **kwargs: Any) -> List[str]:
     if cmd.action == "help":
         return command_help.help_lines()
     _progress("command: %s" % cmd.text)
-    kept = {k: kwargs[k] for k in ("elements", "terrain") if k in kwargs}
-    kept.update((k, v) for k, v in zip(_INPUT_NAMES, args) if k in ("elements", "terrain"))
-    lines = _run_inputs(**dict(cmd.inputs(), **kept))
-    lines = [line.replace(PREVIEW_HINT_NODES, PREVIEW_HINT_COMMAND) for line in lines]
-    head = [
-        "Command: %s" % cmd.text,
-        "The command node is set: the other input nodes (except the selection) are not used.",
-    ]
-    paid = (
-        ["To run it (paid): %s" % cmd.paid_text()]
-        if any("Preview only:" in line for line in lines)
-        else []
-    )
-    return head + lines + paid
+    if cmd.action == "set-key":
+        saved = revit_apikey.ask_and_save()
+        return ["API key saved. Type a command and run again." if saved else "No key saved."]
+    try:
+        if cmd.action == "select":
+            lines = revit_selection.pick(_document(), in_link=cmd.scope == "link")
+        elif cmd.action == "show-last":
+            lines = _show_last(cmd)
+        elif cmd.action == "export-obj":
+            lines = _export(cmd, elements)
+        else:
+            lines = _analysis(cmd, elements)
+    except (ValueError, RuntimeError, OSError) as error:
+        lines = ["Error: %s" % error]
+    lines = "\n".join(lines).split("\n")  # a drawn result is one text of many lines
+    if any("Preview only:" in line for line in lines):
+        lines.append("To run it (paid): %s" % cmd.paid_text())
+    return ["Command: %s" % cmd.text] + summary.warnings_first(lines)
 
 
-_INPUT_NAMES = (
-    "target", "elements", "analysis", "months", "hours", "preview_only", "fetch_context",
-    "lat", "lon", "set_api_key", "wind_speed", "wind_direction", "surfaces", "legend",
-    "gradient", "terrain",
-)  # fmt: skip  (the order of the arguments of _run_inputs)
-
-
-def _run_inputs(
-    target: str,
-    elements: Any,
-    analysis: str,
-    months: str,
-    hours: str,
-    preview_only: bool,
-    fetch_context: bool,
-    lat: Any,
-    lon: Any,
-    set_api_key: bool,
-    wind_speed: float = 5.0,
-    wind_direction: float = 270,
-    surfaces: str = "all",
-    legend: str = "",
-    gradient: bool = False,
-    terrain: Any = None,
-) -> List[str]:
-    """Preview or run one analysis on the selected elements.
-
-    Parameters
-    ----------
-    target : str
-        ``"ground"``, ``"facades"`` or ``"both"`` (also ``"all"``). "both" is two
-        runs and two costs. An analysis that exists on one target only runs there.
-    elements : Any
-        The output of "Select Model Elements".
-    analysis, months, hours : str
-        See ``ir_dynamo.settings`` (labels) and ``ir_dynamo.run.run_analysis``.
-        ``analysis = "show-last"`` draws the saved results again, free.
-        ``analysis = "export-obj"`` writes the selection and the terrain as an
-        OBJ file for the platform upload, free (``revit_export``).
-    preview_only : bool
-        True: free preview, no tokens.
-    fetch_context : bool
-        Add public buildings around the selection.
-    lat, lon : Any
-        Degrees as text or number. Empty: use the location of the Revit project.
-    set_api_key : bool
-        True: only open the key dialog and stop.
-    wind_speed, wind_direction : float
-        Ground wind only.
-    surfaces : str
-        Facade part only: ``"facades"``, ``"roofs"`` or ``"all"``.
-    legend : str
-        Colour range: ``"platform"`` (default: as the platform draws it, with
-        its fixed range where it has one), ``"trimmed"`` (2-98 % of the values)
-        or ``"exact"`` (min..max).
-        Change it and use "show-last" to see the same result again, free.
-    gradient : bool
-        True: wind speed and UTCI are drawn as a smooth gradient through the
-        platform colours instead of the platform's flat bins.
-    terrain : Any
-        Not in the graph (removed 2026-11-05: the second selection node misled
-        users); the Toposolids are the terrain. Kept for a script that passes
-        the output of a second "Select Model Elements" node: the ground, of
-        any type (a Toposolid, a floor, a mass, an import). The ground result
-        is drawn on it. Empty: the Toposolids of the selection, else of the
-        document.
-
-    Returns
-    -------
-    list of str
-        Lines for a Watch node. Errors you can fix are lines, not exceptions.
-    """
-    from ir_dynamo import env
-    from ir_dynamo.run import run_analysis
+def _document() -> Any:
     from RevitServices.Persistence import DocumentManager  # type: ignore
 
-    if set_api_key:
-        if revit_apikey.ask_and_save():
-            return ["API key saved. Set set_api_key to False and run again."]
-        return ["No key saved."]
-    try:
-        range_mode = colors.parse_range_mode(legend)
-    except ValueError as error:
-        return ["Error: %s" % error]
-    _progress(
-        "inputs: target %s, analysis %s, months %s, hours %s, preview_only %s, legend %s, "
-        "gradient %s, wind %s m/s from %s deg, surfaces %s, fetch_context %s"
-        % (target, analysis, months, hours, bool(preview_only), range_mode, bool(gradient),
-           wind_speed, wind_direction, surfaces, bool(fetch_context))
+    return DocumentManager.Instance.CurrentDBDocument
+
+
+def _picks(doc: Any, elements: Any, need: bool) -> Any:
+    """The elements to analyse: the ``elements`` input when it has any, else the Revit selection."""
+    given = [revit_geometry.unwrap(e) for e in revit_geometry.flatten(elements)]
+    if given:
+        return given, [], []
+    return revit_selection.read(doc, need)
+
+
+def _site(doc: Any, cmd: Any) -> Any:
+    lat = float(cmd.lat) if cmd.lat else None
+    lon = float(cmd.lon) if cmd.lon else None
+    return revit_location.read_location(doc, lat, lon)
+
+
+def _export(cmd: Any, elements: Any) -> List[str]:
+    doc = _document()
+    host, linked, notes = _picks(doc, elements, need=cmd.scope != "model")
+    if cmd.scope == "model":
+        host = list(revit_scene.building_elements(doc))
+        notes = ["Model: the %d building element(s) of the open model are exported." % len(host)]
+    if linked:
+        notes.append(
+            "Warning: %d selected element(s) are inside a linked model. The export "
+            "writes the open model only: open the linked file and export there." % len(linked)
+        )
+    label = "export-obj all" if cmd.export_all else "export-obj"
+    lat = float(cmd.lat) if cmd.lat else None
+    lon = float(cmd.lon) if cmd.lon else None
+    return revit_export.export_obj(doc, host, None, lat, lon, _progress, label) + notes
+
+
+def _analysis(cmd: Any, elements: Any) -> List[str]:
+    """Preview or run one analysis on the selection (or the model), and draw the result."""
+    from ir_dynamo import env
+    from ir_dynamo.run import run_analysis
+
+    to_run, skipped = targets.plan_runs(cmd.target, cmd.analysis)
+    env.setup()
+    doc = _document()
+    site = _site(doc, cmd)
+    host, linked, picked_notes = _picks(doc, elements, need=cmd.scope != "model")
+    _progress("reading geometry from Revit")
+    buildings, shade, terrain_m, notes = revit_scene.collect(
+        doc, host, linked, site.true_north_rad, cmd.scope, _progress
     )
-    if str(analysis).strip().lower() in SHOW_LAST_NAMES:
-        return _show_last(range_mode, bool(gradient))
-    if revit_export.is_export(analysis):
-        try:
-            return revit_export.export_obj(
-                DocumentManager.Instance.CurrentDBDocument,
-                elements,
-                terrain,
-                _optional_float(lat, "lat"),
-                _optional_float(lon, "lon"),
-                _progress,
-                str(analysis),
-            )
-        except (ValueError, RuntimeError, OSError) as error:
-            return ["Error: %s" % error]
-    try:
-        to_run, skipped = targets.plan_runs(target, analysis)
-        env.setup()
-        doc = DocumentManager.Instance.CurrentDBDocument
-        site = revit_location.read_location(
-            doc, _optional_float(lat, "lat"), _optional_float(lon, "lon")
+    _progress(
+        "geometry read: %d result element(s) with %d triangles, %d shade element(s), %d terrain element(s)"
+        % (len(buildings), sum(len(v) for v in buildings.values()) // 9, len(shade), len(terrain_m))
+    )
+    if not buildings:
+        only_result = any("Infrared result shape(s) in the selection" in n for n in notes)
+        hint = (
+            ["Warning: the selection holds only an Infrared result shape, not a building. "
+             "Select the building under it: hide the shape, or press Tab at the building."]
+            if only_result
+            else []
         )
-        _progress("reading geometry from Revit")
-        buildings, terrain_m, notes = revit_geometry.collect_scene(
-            doc, elements, site.true_north_rad, terrain
-        )
-        _progress(
-            "geometry read: %d building(s) with %d triangles, %d terrain element(s)"
-            % (len(buildings), sum(len(v) for v in buildings.values()) // 9, len(terrain_m))
-        )
-        if not buildings:
-            return [
-                "No building geometry found. Select walls, floors, roofs or masses."
-            ] + notes
-        lines = [
-            "Terrain: %d element(s) with geometry." % len(terrain_m),
-            "Location: lon %.5f, lat %.5f (%s), true north %.1f deg."
-            % (site.lon, site.lat, site.source, math.degrees(site.true_north_rad)),
-        ] + skipped
-    except (ValueError, RuntimeError) as error:
-        return ["Error: %s" % error]
+        return hint + [NO_GEOMETRY] + picked_notes + notes
+    location = "Location: lon %.5f, lat %.5f (%s), true north %.1f deg." % (
+        site.lon, site.lat, site.source, math.degrees(site.true_north_rad),
+    )  # fmt: skip
+    lines = payloads.default_location_note(site.lat, site.lon, site.source)
+    lines += [location, "Terrain: %d element(s) with geometry." % len(terrain_m)] + skipped
     outs: Dict[str, Dict[str, Any]] = {}
     for surface in to_run:
         _progress("%s: preparing and sending" % surface)
         try:
             outs[surface] = run_analysis(
                 surface,
-                analysis,
+                cmd.analysis,
                 buildings,
                 site.lon,
                 site.lat,
-                preview_only=bool(preview_only),
-                months=months,
-                hours=hours,
-                fetch_context=bool(fetch_context),
+                preview_only=not cmd.paid,
+                months=cmd.months,
+                hours=cmd.hours,
+                buffer_m=float(cmd.margin) if cmd.margin else None,
+                fetch_context=cmd.fetch_context,
                 terrain_m=terrain_m,
-                wind_speed=float(wind_speed),
-                wind_direction=int(round(float(wind_direction))),
-                surfaces=surfaces,
+                shade_m=shade,
+                wind_speed=float(cmd.wind_speed),
+                wind_direction=int(round(float(cmd.wind_direction))),
+                surfaces=cmd.surfaces,
                 on_status=lambda text, s=surface: _progress("%s: %s" % (s, text)),
             )
             _progress("%s: done" % surface)
         except (ValueError, RuntimeError) as error:
             # A failed second target must not hide a first one that was paid for.
             lines.append("Error on %s: %s" % (surface, error))
-    lines += notes
+    lines += picked_notes + notes
     if len(outs) > 1:
-        verb = "Preview" if preview_only else "Cost"
-        lines.append("%s of both targets: %s." % (verb, targets.combined_cost(outs)))
+        lines.append("%s of both targets: %s." % ("Cost" if cmd.paid else "Preview", targets.combined_cost(outs)))
+    stamp = datetime.datetime.now().strftime("%Y-%m-%d %H.%M")
     entries = []
     for surface, out in outs.items():
         lines += ["[%s] %s" % (surface, out["status"])] + [
             "[%s] %s" % (surface, w) for w in out["warnings"]
         ]
         if out["ran"]:
+            weather = [w for w in out["warnings"] if w.startswith("Weather:")]
             entries.append(
                 {
                     "target": surface,
@@ -299,11 +272,14 @@ def _run_inputs(
                     "analysis_type": out["analysis_type"],
                     "true_north_rad": site.true_north_rad,
                     "document": doc.PathName or doc.Title,
+                    # For the legend view and the Comments of the shape.
+                    "info": ["Command: %s" % cmd.text, location] + weather + ["Run: %s" % stamp],
+                    "label": "%s (%s)" % (cmd.text, stamp),
                 }
             )
     if entries:
         _save_last(entries)  # paid results are kept: "show-last" draws them again for free
-        lines += [_show(entry, range_mode, bool(gradient)) for entry in entries]
+        lines += [_show(entry, cmd.legend, cmd.gradient, cmd.keep) for entry in entries]
     return lines
 
 
@@ -320,7 +296,7 @@ def _save_last(entries: List[Dict[str, Any]]) -> None:
         pass
 
 
-def _show(entry: Dict[str, Any], range_mode: str, gradient: bool) -> str:
+def _show(entry: Dict[str, Any], range_mode: str, gradient: bool, keep: bool = False) -> str:
     _progress("%s: drawing %d values in Revit" % (entry["target"], len(entry["result"]["values"])))
     return revit_display.show(
         entry["result"],
@@ -332,11 +308,14 @@ def _show(entry: Dict[str, Any], range_mode: str, gradient: bool) -> str:
         entry.get("analysis_type") or settings.sdk_type_of_title(entry.get("title", "")),
         range_mode,
         gradient,
+        info=entry.get("info") or [],
+        label=entry.get("label") or "",
+        keep=keep,
     )
 
 
-def _show_last(range_mode: str, gradient: bool) -> List[str]:
-    """Draw the saved results again, without a new run (analysis = "show-last")."""
+def _show_last(cmd: Any) -> List[str]:
+    """Draw the saved results again, without a new run (``show-last``)."""
     if not os.path.isfile(LAST_RESULT_FILE):
         return ["There is no saved result yet. Run an analysis first."]
     with open(LAST_RESULT_FILE, "r", encoding="utf-8") as handle:
@@ -344,5 +323,5 @@ def _show_last(range_mode: str, gradient: bool) -> List[str]:
     if not entries:
         return ["The saved result file has no result. Run an analysis first."]
     return ["Showing the last saved result(s) (no new run)."] + [
-        _show(e, range_mode, gradient) for e in entries
+        _show(e, cmd.legend, cmd.gradient, cmd.keep) for e in entries
     ]

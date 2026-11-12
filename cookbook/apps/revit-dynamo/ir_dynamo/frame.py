@@ -11,7 +11,7 @@ of each origin. The kernel gives the exact affine, so no degree maths is
 written here.
 
 NOTE: every kernel call of ir_dynamo is in this file. The functions used
-(``infrared_sdk.tiling.reanchor`` and
+(``infrared_sdk.tiling.reanchor``, ``infrared_sdk.tiling.tiles.TileService`` and
 ``infrared_sdk.ground_materials.cleaning.project_polygon_to_meters``) are not
 documented public API. They are pinned to infrared-sdk 1.0.0. A later SDK
 swap touches only this file.
@@ -19,11 +19,13 @@ swap touches only this file.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Dict, List, Sequence, Tuple
 
 import numpy as np
 from infrared_sdk.ground_materials.cleaning import project_polygon_to_meters
+from infrared_sdk.tiling.tiles import TileService
 from infrared_sdk.tiling.reanchor import (
     FrameAffine,
     frame_affine,
@@ -100,6 +102,49 @@ def make_frame(
         to_sdk=frame_affine(site_lon, site_lat, origin_lon, origin_lat),
         to_revit=frame_affine(origin_lon, origin_lat, site_lon, site_lat),
     )
+
+
+def tile_count(polygon: Dict, analysis_type: str) -> int:
+    """The number of tiles (billed jobs) the SDK cuts ``polygon`` into."""
+    service = TileService(
+        polygon=polygon, logger=logging.getLogger("ir_dynamo"), analysis_type=analysis_type
+    )
+    return sum(1 for row in service.generate_tiles_for_polygon() for tile in row if not tile.empty)
+
+
+FILL_REACH_M = 1100.0  # more than two tiles: the search always finds the next tile count
+FILL_SAFETY_M = 1.0
+
+
+def fill_buffer(
+    site_lon: float, site_lat: float, bbox_m: Sequence[float], buffer_m: float, analysis_type: str
+) -> float:
+    """The largest margin that costs the same number of tiles as ``buffer_m``.
+
+    A tile starts at the south-west corner of the run polygon. With a small
+    polygon the selection sits in that corner of its tile, and the public
+    buildings the SDK reads lie mostly north and east of it. A polygon that
+    fills the tile puts the selection in the middle, for the same cost.
+    """
+
+    def count(buffer: float) -> int:
+        frame = make_frame(site_lon, site_lat, bbox_m, buffer)
+        try:
+            return tile_count(frame.polygon, analysis_type)
+        except ValueError:  # over the tile limit of the SDK
+            return -1
+
+    base = count(buffer_m)
+    low, high = buffer_m, buffer_m + FILL_REACH_M
+    if base < 0 or count(high) == base:
+        return buffer_m
+    while high - low > 0.5:
+        middle = 0.5 * (low + high)
+        if count(middle) == base:
+            low = middle
+        else:
+            high = middle
+    return max(buffer_m, low - FILL_SAFETY_M)
 
 
 def point_lonlat(site_lon: float, site_lat: float, x: float, y: float) -> Tuple[float, float]:
