@@ -9,11 +9,11 @@ from __future__ import annotations
 import math
 import os
 from collections import Counter
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from ir_dynamo import frame, obj_export, summary
 
-from . import revit_geometry, revit_location
+from . import revit_geometry, revit_location, revit_scene
 
 EXPORT_FOLDER = os.path.join(os.path.expanduser("~"), "Documents", "Infrared")
 
@@ -30,25 +30,41 @@ def export_obj(
     lon: Optional[float],
     progress: Any = None,
     label: str = "export-obj",
+    linked: Sequence[Tuple[Any, Any]] = (),
+    every_link: bool = False,
 ) -> List[str]:
     """Read the selection and the terrain, write the OBJ, return the Watch lines.
 
     ``label`` is the ``analysis`` text. ``"export-obj"`` keeps the building
     categories only (``obj_export.is_building``), ``"export-obj all"`` keeps all.
+
+    Linked models: the building elements of a link selected as a whole, the
+    elements picked inside a link (``linked``: ``(RevitLinkInstance, element)``)
+    and, with ``every_link``, those of every loaded link are written too. The
+    terrain of a link is not read.
     """
     keep_all = bool(obj_export.parse_export(label))
     site = revit_location.read_location(doc, lat, lon)
     if progress:
         progress("export: reading geometry from Revit")
     categories: Dict[str, str] = {}
+    picked = [revit_geometry.unwrap(item) for item in revit_geometry.flatten(elements)]
+    instances = [e for e in picked if revit_geometry.is_link(e)]
+    skip = None if keep_all else obj_export.not_building
     buildings, terrain_m, notes = revit_geometry.collect_scene(
         doc,
-        elements,
+        [e for e in picked if not revit_geometry.is_link(e)],
         site.true_north_rad,
         terrain,
-        skip=None if keep_all else obj_export.not_building,
+        skip=skip,
         categories=categories,
     )
+    if instances or linked or every_link:
+        more, link_notes = revit_scene.link_buildings(
+            doc, instances, linked, site.true_north_rad, skip, categories, every_link
+        )
+        buildings.update(more)
+        notes += link_notes
     if not buildings:
         return [
             "No building geometry found. Select walls, floors, roofs or masses."

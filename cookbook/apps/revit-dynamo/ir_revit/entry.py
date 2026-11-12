@@ -202,16 +202,18 @@ def _export(cmd: Any, elements: Any) -> List[str]:
     host, linked, notes = _picks(doc, elements, need=cmd.scope != "model")
     if cmd.scope == "model":
         host = list(revit_scene.building_elements(doc))
-        notes = ["Model: the %d building element(s) of the open model are exported." % len(host)]
-    if linked:
-        notes.append(
-            "Warning: %d selected element(s) are inside a linked model. The export "
-            "writes the open model only: open the linked file and export there." % len(linked)
-        )
+        linked = []
+        notes = [
+            "Model: the %d building element(s) of the open model and those of its loaded "
+            "links are exported." % len(host)
+        ]
     label = "export-obj all" if cmd.export_all else "export-obj"
     lat = float(cmd.lat) if cmd.lat else None
     lon = float(cmd.lon) if cmd.lon else None
-    return revit_export.export_obj(doc, host, None, lat, lon, _progress, label) + notes
+    lines = revit_export.export_obj(
+        doc, host, None, lat, lon, _progress, label, linked=linked, every_link=cmd.scope == "model"
+    )
+    return lines + notes
 
 
 def _analysis(cmd: Any, elements: Any) -> List[str]:

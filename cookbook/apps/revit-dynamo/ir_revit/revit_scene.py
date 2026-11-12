@@ -261,6 +261,91 @@ def collect(
     return metres(result_ft), metres(shade_ft), metres(terrain_ft), notes
 
 
+def link_buildings(
+    doc: Any,
+    instances: Sequence[Any],
+    linked: Sequence[Tuple[Any, Any]],
+    true_north_rad: float,
+    skip: Optional[Callable[[str, str], bool]] = None,
+    categories: Optional[Dict[str, str]] = None,
+    every_link: bool = False,
+) -> Tuple[Soup, List[str]]:
+    """The building elements of linked models, for ``export-obj``. No terrain.
+
+    Parameters
+    ----------
+    doc : Autodesk.Revit.DB.Document
+    instances : sequence
+        Linked models selected as a whole (``RevitLinkInstance``): every
+        building element of each is read.
+    linked : sequence of (RevitLinkInstance, element)
+        Elements picked inside a linked model.
+    true_north_rad : float
+        ``revit_location.SiteLocation.true_north_rad``.
+    skip : callable, optional
+        ``skip(builtin_name, display_name)``: True leaves a picked element out
+        (``ir_dynamo.obj_export.not_building``).
+    categories : dict, optional
+        Filled with ``{id: category display name}``.
+    every_link : bool
+        Read every building element of every loaded link (``export-obj model``).
+
+    Returns
+    -------
+    buildings_m : dict
+        ``{"link<link id>-<element id>": flat [x, y, z, ...]}``, metres, Revit
+        frame of the open model.
+    notes : list of str
+    """
+    fine = rg._options()
+    found, notes = links(doc)
+    by_key = {link.key: link for link in found}
+    feet_by_key: Dict[str, Any] = {}
+    skipped: List[str] = []
+    empty: List[str] = []
+
+    def add(element: Any, link: Link, check: bool) -> None:
+        key = _key(element, link)
+        if key in feet_by_key or rg.is_terrain(element):
+            return
+        builtin, name = rg.category_names(element)
+        if check and skip is not None and skip(builtin, name):
+            skipped.append(rg.describe(element))
+            return
+        feet = rg._element_feet(element, fine)
+        if not feet:
+            empty.append(rg.describe(element))
+            return
+        feet_by_key[key] = link.to_host(feet)
+        if categories is not None:
+            categories[key] = name or "no category"
+
+    for instance, element in linked:
+        link = by_key.get(rg.element_key(instance))
+        if link is not None:
+            add(element, link, True)
+    if linked:
+        notes.append("Linked models: %d picked element(s) inside them are exported." % len(feet_by_key))
+    keys = list(dict.fromkeys(rg.element_key(instance) for instance in instances))
+    whole = found if every_link else [by_key[key] for key in keys if key in by_key]
+    for link in whole:
+        before = len(feet_by_key)
+        for element in building_elements(link.document):
+            add(element, link, False)
+        notes.append(
+            "Linked model %s: its %d building element(s) are exported." % (link.key, len(feet_by_key) - before)
+        )
+    if skipped:
+        notes.append(summary.selection_line("Left out in linked models (not a building category)", skipped))
+    if empty:
+        notes.append(summary.selection_line("Skipped in linked models, no 3D geometry", empty))
+    metres = {
+        key: revit_location.internal_ft_to_site_m(feet, true_north_rad).tolist()
+        for key, feet in feet_by_key.items()
+    }
+    return metres, notes
+
+
 def _terrain(
     doc: Any, picked: List[Tuple[Any, Optional[Link]]], found: List[Link], options: Any
 ) -> Tuple[Dict[str, Any], List[str]]:

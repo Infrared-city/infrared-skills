@@ -214,7 +214,7 @@ A ground modelled as a floor, a mass or an import is not terrain: if you select 
 ## Export to the Infrared platform
 
 The platform upload (platform.infrared.city) reads GeoJSON, OBJ and EPW files, not RVT or IFC.
-Type `export-obj` and press Run. This is free: there is no API call, and no key is needed. `export-obj model` writes every building element of the open model, without a selection. The export writes the open model only, not its links.
+Type `export-obj` and press Run. This is free: there is no API call, and no key is needed. `export-obj model` writes every building element of the open model and of its loaded links, without a selection. A linked model that you select as a whole, and elements you pick inside a link, are written too. The terrain of a link is not written.
 The script writes `Documents\Infrared\<model name>-<date>-<time>.obj`. The Watch text gives the path.
 
 The file:

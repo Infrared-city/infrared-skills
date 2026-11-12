@@ -86,7 +86,7 @@ Selection: there is no selection node. The script reads the selection of Revit, 
 
 ## 6a. Export to the platform
 
-The platform upload reads GeoJSON, OBJ and EPW, not RVT or IFC ([`platform-byo-upload.md`](../platform-byo-upload.md)). The command `export-obj` writes `Documents\Infrared\<model>-<date>-<time>.obj`; `export-obj model` writes every building element of the open model without a selection. The export writes the open model only, not its links. It makes no API call and needs no key.
+The platform upload reads GeoJSON, OBJ and EPW, not RVT or IFC ([`platform-byo-upload.md`](../platform-byo-upload.md)). The command `export-obj` writes `Documents\Infrared\<model>-<date>-<time>.obj`; `export-obj model` writes every building element of the open model and of its loaded links without a selection. A link selected as a whole and elements picked inside a link are written too; the terrain of a link is not. It makes no API call and needs no key.
 
 - Metres, Z up, +Y north (the platform takes Z as up). All building elements are one object, `building_model`, with a comment `# element <ElementId>: <category>` above each element; each terrain element is `ground_<ElementId>`. The platform splits an object into connected parts and gives a raised part with nothing under it a floor at z = 0; with one object per element, a bay window on an upper floor got its outline drawn on the ground. No `usemtl` lines: a Revit material name like "Concrete" is a ground word for the platform classifier.
 - The parts below the ground are left out, and triangles that cross it are cut: the platform puts the lowest point on its ground, so a basement would lift the building. An element less than 0.5 m above the ground after the cut (a ground-floor slab) is left out.
