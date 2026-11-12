@@ -99,9 +99,15 @@ def build_buildings(
     below = 0
     buried_ids: List[str] = []
     unusable_ids: List[str] = []
-    for name, flat in soups.items():
-        tri = _array(flat, name).reshape(-1, 3, 3)
-        gone = terrain_mod.buried(tri, sampler, z_offset)
+    # One terrain lookup for all the buildings: a lookup walks every terrain
+    # triangle, so one per building did not end on a model of 4765 elements
+    # with terrain (live run 2026-11-12).
+    arrays = {name: _array(flat, name).reshape(-1, 3, 3) for name, flat in soups.items()}
+    ends = np.cumsum([len(tri) for tri in arrays.values()])
+    every = np.concatenate(list(arrays.values())) if arrays else np.zeros((0, 3, 3))
+    gone_all = terrain_mod.buried(every, sampler, z_offset)
+    for (name, tri), end in zip(arrays.items(), ends):
+        gone = gone_all[end - len(tri):end]
         below += int(gone.sum())
         if gone.all():
             buried_ids.append(str(name))

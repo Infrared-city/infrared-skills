@@ -14,7 +14,7 @@ import math
 import os
 import time
 import traceback
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from ir_dynamo import command as command_line
 from ir_dynamo import command_help, payloads, settings, summary, targets
@@ -89,6 +89,15 @@ def run(command: Any = "", elements: Any = None, **old: Any) -> List[str]:
         lines, not exceptions.
     """
     _START[0] = time.time()
+    live = _live_command()
+    if live is not None and live.strip() != str(command or "").strip():
+        # Dynamo runs a marked node with the earlier text first (see dynamo_rerun).
+        _progress("skipped: Dynamo gave the earlier text %r, the command node has %r" % (command, live))
+        _mark_for_rerun()
+        return [
+            "Dynamo ran the script with the earlier command text; nothing was done.",
+            "The new command runs next. If it does not, press Run again.",
+        ]
     _progress("run started")
     try:
         lines = _run(command, elements)
@@ -102,9 +111,20 @@ def run(command: Any = "", elements: Any = None, **old: Any) -> List[str]:
         _log(["Unexpected error:", traceback.format_exc()])
         raise
     finally:
-        _progress(_mark_for_rerun())
+        if live is not None:  # without the text of the node, a marked node could run an old command
+            _progress(_mark_for_rerun())
     _log(lines)
     return lines
+
+
+def _live_command() -> Optional[str]:
+    """The text in the command node now; None outside Dynamo. See ``dynamo_rerun``."""
+    try:
+        from . import dynamo_rerun
+
+        return dynamo_rerun.live_command()
+    except Exception:
+        return None
 
 
 def _mark_for_rerun() -> str:
@@ -142,7 +162,7 @@ def _run(command: Any, elements: Any = None) -> List[str]:
         return ["API key saved. Type a command and run again." if saved else "No key saved."]
     try:
         if cmd.action == "select":
-            lines = revit_selection.pick(_document(), in_link=cmd.scope == "link")
+            lines = revit_selection.pick(_document(), in_link=cmd.scope == "link", progress=_progress)
         elif cmd.action == "show-last":
             lines = _show_last(cmd)
         elif cmd.action == "export-obj":

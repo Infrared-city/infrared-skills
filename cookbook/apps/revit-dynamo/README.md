@@ -267,7 +267,7 @@ Read the Watch text first. Its warnings and errors are in one block at the top.
 | `No building geometry found` | Select walls, floors, roofs or masses in Revit (or use `select`), or add the word `model`. |
 | `Unknown word 'facdes'. Did you mean 'facades'?` | Correct the word. Type `help` to see every word. |
 | A warning about the Boston area | Set Manage > Location, or add `lat` and `lon` to the command. |
-| Press Run, and nothing changes | Look for a Revit dialog or a pick that waits (press Esc in Revit). In an old Dynamo the same command does not run two times: change the command. |
+| Press Run, and nothing changes | Look for a Revit dialog or a pick that waits (press Esc in Revit). If the same command does not run a second time, change it (add a space at the end). |
 | No colours in the view | Use a Shaded or Realistic 3D view, not Hidden Line or Wireframe. |
 | Everything has one colour | Add `legend trimmed` (free: `show-last legend trimmed`). |
 | The ground result is at the wrong height | Model the site as a Toposolid. A floor or a mass is not terrain. |

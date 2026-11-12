@@ -5,17 +5,24 @@ after ``select`` and a cancel, a second Run with the same command did nothing:
 the log had no "run started" line (live run 2026-11-12). This module marks the
 Python node as modified during its own run, so the next Run executes it again.
 
+A marked node has a price: when the command text changed, the next Run executes
+the node two times, first with the earlier text and then with the new text (live
+run 2026-11-12: ``select``, then ``svf both run`` typed, gave ``select`` again and
+then ``svf both run``). So ``live_command`` reads the text of the command node from
+the graph, and ``ir_revit.entry.run`` skips an execution whose text is not that
+text. ``entry`` marks the node only when ``live_command`` gave a text.
+
 Only in Manual mode: in Automatic mode a node that marks itself would run in a
 loop. A failure here stops nothing; ``mark`` returns a short text for the log.
 
 Dynamo API used: ``Dynamo.Applications.DynamoRevit.RevitDynamoModel``,
 ``CurrentWorkspace`` (``Nodes``, ``RunSettings.RunType``),
-``NodeModel.MarkNodeAsModified``.
+``NodeModel.MarkNodeAsModified``, ``NodeModel.Name``, ``StringInput.Value``.
 """
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
 
 
 def _model() -> Any:
@@ -31,6 +38,24 @@ def _model() -> Any:
     if model is None:
         model = DynamoRevit().RevitDynamoModel
     return model
+
+
+def live_command() -> Optional[str]:
+    """The text in the command node of the open graph now. None when it cannot be read.
+
+    The command node is the String node with the name ``command``, or the only
+    String node of the graph.
+    """
+    try:
+        strings = [n for n in list(_model().CurrentWorkspace.Nodes) if n.GetType().Name == "StringInput"]
+        named = [n for n in strings if str(n.Name).strip().lower() == "command"]
+        nodes = named or strings
+        if len(nodes) != 1:
+            return None
+        value = nodes[0].Value
+        return None if value is None else str(value)
+    except Exception:
+        return None
 
 
 def mark() -> str:

@@ -14,14 +14,16 @@ Revit API calls used here: ``UIDocument.Selection`` (``GetElementIds``,
 ``GetReferences`` of Revit 2023 and later, for the picks inside a link),
 ``PickObjects`` with ``ObjectType.Element`` or ``LinkedElement``, ``SetElementIds``),
 ``Reference.LinkedElementId``, ``Document.GetElement`` (by id and by UniqueId),
-``RevitLinkInstance.GetLinkDocument``.
+``RevitLinkInstance.GetLinkDocument``; for the pick, ``View.HideElements`` and
+``UnhideElements`` on the result shapes (``Element.IsHidden``, ``CanBeHidden``),
+``View.GetCategoryHidden`` and ``SetCategoryHidden`` for ``OST_Mass``.
 """
 
 from __future__ import annotations
 
 import json
 import os
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 SELECTION_FILE = os.path.join(os.path.expanduser("~"), ".infrared", "revit-dynamo-selection.json")
 Picks = Tuple[List[Any], List[Tuple[Any, Any]]]
@@ -136,11 +138,81 @@ def _result_filter() -> Any:
         return None
 
 
-def pick(doc: Any, in_link: bool = False) -> List[str]:
+def _mass_category() -> Any:
+    from Autodesk.Revit.DB import BuiltInCategory, ElementId  # type: ignore
+
+    return ElementId(BuiltInCategory.OST_Mass)
+
+
+def _set_view(doc: Any, view: Any, shapes: List[Any], mass: bool, picking: bool) -> None:
+    """``picking``: hide ``shapes`` and, with ``mass``, show the Mass category. Else the reverse."""
+    from Autodesk.Revit.DB import ElementId  # type: ignore
+    from RevitServices.Transactions import TransactionManager  # type: ignore
+    from System.Collections.Generic import List as NetList  # type: ignore
+
+    ids = NetList[ElementId]()
+    for element in shapes:
+        ids.Add(element.Id)
+    TransactionManager.Instance.EnsureInTransaction(doc)
+    try:
+        if shapes and picking:
+            view.HideElements(ids)
+        elif shapes:
+            view.UnhideElements(ids)
+        if mass:
+            view.SetCategoryHidden(_mass_category(), not picking)
+    finally:
+        TransactionManager.Instance.ForceCloseTransaction()  # the view must show it during the pick
+
+
+def _prepare_view(doc: Any) -> Tuple[Any, List[Any], bool]:
+    """Make the active view ready for a pick. Returns the view, the hidden shapes, and
+    True when the Mass category was switched on.
+
+    * The Infrared result shapes are hidden. A shape covers the ground and the
+      facades; the pick filter refuses it, and Revit then offers nothing under
+      the pointer (live run 2026-11-12).
+    * The Mass category is switched on when the view has it off. Masses that
+      show only by "Show Mass Form and Floors" are not drawn during the pick
+      (live run 2026-11-12: with the shapes hidden, the masses were gone too).
+    """
+    import clr  # type: ignore
+    from Autodesk.Revit.DB import DirectShape, FilteredElementCollector  # type: ignore
+
+    from . import revit_geometry
+
+    try:
+        view = doc.ActiveView
+    except Exception:
+        return None, [], False
+    try:
+        shapes = [
+            s
+            for s in list(FilteredElementCollector(doc).OfClass(clr.GetClrType(DirectShape)))
+            if revit_geometry.is_own_result(s) and s.CanBeHidden(view) and not s.IsHidden(view)
+        ]
+    except Exception:
+        shapes = []
+    try:
+        mass = bool(view.GetCategoryHidden(_mass_category()))
+    except Exception:
+        mass = False
+    for with_mass in ([True, False] if mass else [False]):  # a view template can lock the category
+        try:
+            if shapes or with_mass:
+                _set_view(doc, view, shapes, with_mass, True)
+            return view, shapes, with_mass
+        except Exception:
+            continue
+    return view, [], False
+
+
+def pick(doc: Any, in_link: bool = False, progress: Optional[Callable[[str], None]] = None) -> List[str]:
     """The ``select`` command: the user clicks the elements in Revit and presses Finish.
 
     The picks are saved as the last selection, so the next commands use them.
-    Picks in the open model also become the selection of Revit.
+    Picks in the open model also become the selection of Revit. During the
+    pick the result shapes are hidden in the active view and the Mass category is on.
     """
     from Autodesk.Revit.DB import ElementId  # type: ignore
     from Autodesk.Revit.UI.Selection import ObjectType  # type: ignore
@@ -155,12 +227,26 @@ def pick(doc: Any, in_link: bool = False) -> List[str]:
     prompt = "Infrared: click the %s, then press Finish in the Options Bar (Esc cancels)." % (
         "elements inside the linked models" if in_link else "buildings"
     )
+    say = progress or (lambda text: None)
     picker = None if in_link else _result_filter()
+    view, hidden, mass = _prepare_view(doc)
+    say(
+        "pick: %d result shape(s) hidden, Mass category %s, waiting for the clicks in Revit"
+        % (len(hidden), "switched on" if mass else "not changed")
+    )
     try:
-        if picker is None:
-            references = list(selection.PickObjects(kind, prompt))
-        else:
-            references = list(selection.PickObjects(kind, picker, prompt))
+        try:
+            if picker is None:
+                references = list(selection.PickObjects(kind, prompt))
+            else:
+                references = list(selection.PickObjects(kind, picker, prompt))
+        finally:
+            say("pick: ended")
+            if hidden or mass:
+                try:
+                    _set_view(doc, view, hidden, mass, False)
+                except Exception as error:
+                    say("pick: the view was not put back (%s); Reveal Hidden Elements shows the result" % error)
     except Exception as error:
         if "Cancel" in type(error).__name__:
             return [

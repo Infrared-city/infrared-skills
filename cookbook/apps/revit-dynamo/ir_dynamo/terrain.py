@@ -85,6 +85,9 @@ class Sampler:
 
     def __init__(self, tri: np.ndarray) -> None:
         self.tri = np.asarray(tri, dtype=np.float64).reshape(-1, 3, 3)
+        # The xy box of each triangle: a lookup walks only the triangles near its points.
+        self._low = self.tri[:, :, :2].min(axis=1) if len(self.tri) else np.zeros((0, 2))
+        self._high = self.tri[:, :, :2].max(axis=1) if len(self.tri) else np.zeros((0, 2))
 
     def z_at(self, xy: np.ndarray) -> np.ndarray:
         """Heights for ``(m, 2)`` points. Where triangles overlap, the highest wins."""
@@ -94,7 +97,10 @@ class Sampler:
             return out
         order = np.argsort(xy[:, 0], kind="stable")
         xs = xy[order, 0]
-        for t in self.tri:
+        # One lookup per element walked the whole terrain each time: a model of
+        # 4765 elements with terrain did not end (live run 2026-11-12).
+        near = np.all(self._high >= xy.min(axis=0) - EPS, axis=1) & np.all(self._low <= xy.max(axis=0) + EPS, axis=1)
+        for t in self.tri[near]:
             (ax, ay, az), (bx, by, bz), (cx, cy, cz) = t
             det = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy)
             if abs(det) < 1e-12:
