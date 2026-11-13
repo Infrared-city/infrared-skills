@@ -23,7 +23,8 @@ Rules that the SDK cannot check for you:
 - The origin is the south-west corner of the polygon bounding box, not the centre.
 - Lat and lon swapped is caught only when the latitude is above 90. Check the order.
 - A tree with no `height` or `crownDiameter` gets 6 m and 4 m, with no warning.
-- Ground materials change only the thermal results. Terrain and far shade go on the request:
+- Ground materials change the thermal and solar radiation results. Wind, SVF, sun hours and daylight do not read them.
+  Pass every input you have. Terrain and far shade go on the request:
   [surfaces-and-sensors.md](surfaces-and-sensors.md).
 
 ## Footprints (GeoJSON) to building meshes

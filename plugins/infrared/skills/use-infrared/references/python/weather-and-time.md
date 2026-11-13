@@ -81,14 +81,16 @@ place = Location(latitude=lat, longitude=lon)
 
 # UTCI: 7 weather columns, picked for you.
 utci = UtciModelRequest.from_weatherfile_payload(
-    payload=UtciModelBaseRequest(analysis_type=AnalysesName.thermal_comfort_index),
+    payload=UtciModelBaseRequest(analysis_type=AnalysesName.thermal_comfort_index,
+                                 physics="advanced"),   # advanced tier
     location=place, time_period=summer_day, weather_data=rows)
 
 # Thermal comfort statistics: the same columns, plus a subtype per call.
 tcs = TcsModelRequest.from_weatherfile_payload(
     payload=TcsModelBaseRequest(
         analysis_type=AnalysesName.thermal_comfort_statistics,
-        subtype=TcsSubtype.heat_stress),             # or thermal_comfort, cold_stress
+        subtype=TcsSubtype.heat_stress,              # or thermal_comfort, cold_stress
+        physics="advanced"),                    # default tier, as for UTCI
     location=place, time_period=summer_day, weather_data=rows)
 
 # Solar radiation: direct and diffuse radiation only.
@@ -100,7 +102,9 @@ solar = SolarRadiationModelRequest.from_weatherfile_payload(
 print(len(winter_rows), "winter hours")      # 990
 ```
 
-The UTCI default has a wall afterglow of about 3 hours and a ground lag of about 43 minutes,
+Set `physics="advanced"` for UTCI and TCS: the advanced tier (same price as `standard`). Without it the
+SDK runs the simple `standard` tier.
+The UTCI model has a wall afterglow of about 3 hours and a ground lag of about 43 minutes,
 and no memory over days. The air comes from the weather file.
 Comfort materials are optional fields on the UTCI and TCS request:
 `wall_albedo`, `wall_absorptivity`, `canopy_transmissivity`, `ground_albedo`, `ground_dt_max`.
@@ -137,14 +141,18 @@ coordinates = [c for z in (0, 30) for x, y in xy for c in (x, y, z)]
 indices = [0, 2, 1, 0, 3, 2, 4, 5, 6, 4, 6, 7, 0, 1, 5, 0, 5, 4,
            1, 2, 6, 1, 6, 5, 2, 3, 7, 2, 7, 6, 3, 0, 4, 3, 4, 7]
 buildings = {"tower": {"coordinates": coordinates, "indices": indices}}
+# Pass every input you have. Wind and PWC read buildings and trees only.
+trees = client.vegetation.get_area(polygon).features
+ground = client.ground_materials.get_area(polygon).layers
 
 # Preview each request with its own payload. Cost grows with the number of requests.
 for name, req in {"utci": utci, "tcs": tcs, "solar": solar, "wind": wind, "pwc": pwc}.items():
-    p = client.preview_area(polygon, payload=req)
+    p = client.preview_area(polygon, payload=req, buildings=buildings)
     print(name, p.would_bill_jobs, "job(s)", p.estimated_cost_tokens, "tokens")
 
 # One call, several analyses on the same geometry. Results keep the list order.
-res_utci, res_solar = client.run_area_and_wait([utci, solar], polygon, buildings=buildings)
+res_utci, res_solar = client.run_area_and_wait(
+    [utci, solar], polygon, buildings=buildings, vegetation=trees, ground_materials=ground)
 print("UTCI (C):", float(np.nanmin(res_utci.physical_grid())), float(np.nanmax(res_utci.physical_grid())))
 print("Winter solar (kWh/m2):", float(np.nanmax(res_solar.physical_grid())))
 ```

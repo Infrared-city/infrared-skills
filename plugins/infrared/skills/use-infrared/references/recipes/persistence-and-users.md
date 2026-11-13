@@ -108,14 +108,17 @@ def input_hash(request, polygon: dict, buildings=None, vegetation=None,
 import gzip, uuid
 from sqlalchemy.exc import IntegrityError
 
-def start_run(db, blobs, client, pool, user, request, polygon, buildings) -> dict:
-    key = input_hash(request, polygon, buildings)
+def start_run(db, blobs, client, pool, user, request, polygon, buildings,
+              vegetation=None, ground_materials=None) -> dict:
+    # Pass every input the user has: trees and ground materials too, not buildings only.
+    key = input_hash(request, polygon, buildings, vegetation, ground_materials)
     with db.session() as s:
         if (old := s.query(Run).filter_by(input_hash=key).one_or_none()) and old.status != "failed":
             return {"run_id": old.id, "cached": True}            # same inputs: no new bill
         if old:
             s.delete(old)
-        jobs = client.preview_area(polygon, payload=request, buildings=buildings).would_bill_jobs
+        jobs = client.preview_area(polygon, payload=request, buildings=buildings, vegetation=vegetation,
+                                  ground_materials=ground_materials).would_bill_jobs
         if balance(s, user.id) < jobs:
             raise PermissionError("not enough credits")          # HTTP 402 to your front end
         run = Run(id=uuid.uuid4().hex, user_id=user.id, input_hash=key,
@@ -128,12 +131,15 @@ def start_run(db, blobs, client, pool, user, request, polygon, buildings) -> dic
             s.rollback()
             return {"run_id": s.query(Run).filter_by(input_hash=key).one().id, "cached": True}
         run_id = run.id                                          # read it while the session is open
-    pool.submit(execute, db, blobs, client, run_id, request, polygon, buildings)
+    pool.submit(execute, db, blobs, client, run_id, request, polygon, buildings,
+                vegetation, ground_materials)
     return {"run_id": run_id, "cached": False}
 
-def execute(db, blobs, client, run_id, request, polygon, buildings) -> None:
+def execute(db, blobs, client, run_id, request, polygon, buildings,
+            vegetation=None, ground_materials=None) -> None:
     try:
-        result = client.run_area_and_wait(request, polygon, buildings=buildings)
+        result = client.run_area_and_wait(request, polygon, buildings=buildings,
+                                          vegetation=vegetation, ground_materials=ground_materials)
         body = gzip.compress(json.dumps(result.to_dict()).encode())  # real values, null = no value
         blobs.put(f"results/{run_id}.json.gz", body, "application/gzip")
         update_run(db, run_id, status="done", result_key=f"results/{run_id}.json.gz")

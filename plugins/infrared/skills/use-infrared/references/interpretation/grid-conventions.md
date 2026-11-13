@@ -83,8 +83,10 @@ UTCI -40 to 46 C. More: [../recipes/rendering-results-well.md](../recipes/render
 ## Compare scenarios
 
 ```python
-baseline = client.run_area_and_wait(request, polygon, buildings=existing)
-proposed = client.run_area_and_wait(request, polygon, buildings=redesign)
+# Same trees, ground materials and terrain in both runs: only the buildings change.
+layers = dict(vegetation=trees, ground_materials=ground)    # drop ground_materials for SVF, sun hours, daylight, wind
+baseline = client.run_area_and_wait(request, polygon, buildings=existing, **layers)
+proposed = client.run_area_and_wait(request, polygon, buildings=redesign, **layers)
 delta = proposed.physical_grid() - baseline.physical_grid()       # cell by cell
 improved = (delta < 0).sum() / np.isfinite(delta).sum()           # when lower is better
 ```

@@ -12,13 +12,17 @@ import time
 from infrared_sdk import WindModelRequest
 from infrared_sdk.analyses.types import AnalysesName
 
+# Pass every input wind reads: buildings and trees (no ground materials, terrain or installations).
+buildings = client.buildings.get_area(polygon)
+trees = client.vegetation.get_area(polygon).features
+
 request = WindModelRequest(
     analysis_type=AnalysesName.wind_speed,
     wind_speed=4.5,         # float, m/s, 0 or more. Do not round an EPW mean.
     wind_direction=270,     # whole degrees (int), wind FROM this bearing (270 = from the west)
 )
 # Wind speed: ALWAYS merge with the directional blend. The default merge shows seams.
-schedule = client.run_area(request, polygon, buildings=buildings)
+schedule = client.run_area(request, polygon, buildings=buildings, vegetation=trees)
 known = {}                                   # job states, reused between checks
 while not client.check_area_state(schedule, known=known).is_complete:
     time.sleep(1)
@@ -35,7 +39,7 @@ speed = result.physical_grid()          # m/s, NaN = no value
 | `wind_direction` | int | Meteorological: 0 = from north, 90 = from east. Values outside 0-360 wrap. A fraction is refused |
 | `latitude`, `longitude` | optional | Ignored by wind |
 
-Wind takes buildings, trees and ground. It has no `ground_geometry` (so `terrain_alignment` has no use), no `context_geometry` and no facade sensors.
+Wind takes buildings and trees: pass both. It reads no ground materials, no installations and no `ground_geometry` (use `terrain_alignment` for terrain), and it takes no `context_geometry` and no facade sensors.
 
 ## Tiles
 

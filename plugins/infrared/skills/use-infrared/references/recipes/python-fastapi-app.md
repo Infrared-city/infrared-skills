@@ -93,7 +93,7 @@ Bad input gets HTTP 422 with a clear message, before anything is billed:
    `analyses.run_area` does it for wind:
 
    ```python
-   schedule = client.run_area(request, polygon, buildings=buildings)
+   schedule = client.run_area(request, polygon, buildings=buildings, vegetation=trees)
    known = {}
    while not client.check_area_state(schedule, known=known).is_complete:
        time.sleep(1)
@@ -140,15 +140,16 @@ for the same polygon that you run.
 Other own layers go straight to the run, in lon/lat: trees
 (`vegetation=`, GeoJSON Points with `genus`, `height`, `crownDiameter`) and
 ground materials (`ground_materials=`, one FeatureCollection per layer:
-`asphalt`, `concrete`, `soil`, `vegetation`, `water`). Only the thermal
-comfort analyses read the ground. See "Your inputs" in the SDK guide.
+`asphalt`, `concrete`, `soil`, `vegetation`, `water`). Pass every input you have.
+Only the thermal and solar radiation analyses read the ground materials. See "Your inputs" in the SDK guide.
 
 ### Public fallback
 
 ```python
 # needs: pip install "infrared-sdk[geodata]==1.0.0"
 buildings = client.buildings.get_area(polygon, analysis_type=analysis)
-result = client.run_area_and_wait(request, polygon, buildings=buildings)
+trees = client.vegetation.get_area(polygon, analysis_type=analysis)
+result = client.run_area_and_wait(request, polygon, buildings=buildings, vegetation=trees.features)
 ```
 
 Pass the returned object itself, not `buildings.buildings`. The object keeps
@@ -190,7 +191,7 @@ def check_site(site: SiteRequest) -> dict:
     request = build_request(site.analysis, site.polygon, site.params)
     try:
         p = state["client"].preview_area(site.polygon, payload=request,
-                                         max_tiles_override=site.max_tiles(), buildings=...)
+                                         max_tiles_override=site.max_tiles(), buildings=..., vegetation=...)
     except ValueError as exc:              # for example over the 100-tile cap
         raise HTTPException(422, str(exc)) from None
     return {"tiles": p.tile_count, "jobs": p.would_bill_jobs,
@@ -218,7 +219,7 @@ def execute(run: Run) -> None:
         run.jobs_done, run.jobs_total = s.succeeded, s.total
     try:
         run.result = run_area(client, request, polygon,      # analyses.py
-                              buildings=buildings, on_progress=on_progress)
+                              buildings=buildings, vegetation=trees, on_progress=on_progress)
         store.finish(run, "done")
     except AreaRunError:                   # a tile failed twice: no partial map
         store.finish(run, "failed", "the run did not complete (one or more tiles failed); try again")

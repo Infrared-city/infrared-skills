@@ -66,7 +66,10 @@ def main() -> None:
 
     # 3. The request (the seven weather columns are filled in for you), and the cost.
     request = UtciModelRequest.from_weatherfile_payload(
-        payload=UtciModelBaseRequest(analysis_type=AnalysesName.thermal_comfort_index),
+        payload=UtciModelBaseRequest(
+            analysis_type=AnalysesName.thermal_comfort_index,
+            physics="advanced",  # the advanced tier (same price as standard)
+        ),
         location=Location(latitude=lat, longitude=lon),
         time_period=window,
         weather_data=hours,

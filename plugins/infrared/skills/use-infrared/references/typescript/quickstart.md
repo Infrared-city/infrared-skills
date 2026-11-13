@@ -43,14 +43,17 @@ const indices = [0, 2, 1, 0, 3, 2, 4, 5, 6, 4, 6, 7, 0, 1, 5, 0, 5, 4,
                  1, 2, 6, 1, 6, 5, 2, 3, 7, 2, 7, 6, 3, 0, 4, 3, 4, 7];
 const buildings = { tower: { coordinates, indices } };
 // No model? Public data: const buildings = await client.buildings.getBuildingsInArea(polygon);
+// Pass every input you have. Trees (and ground materials, for the analyses that read them):
+const vegetation = await client.vegetation.getArea(polygon);   // or your own { id: GeoJSON Point Feature }
 
 // 4. Preview: local, free. One tile = one billed job.
-const preview = client.previewArea(polygon, { analysisType: "sky-view-factors" });
+const preview = client.previewArea(polygon, { analysisType: "sky-view-factors" }); // planned with the same layers as the run
 console.log(`${preview.tileCount} tile(s), about ${preview.estimatedCostTokens} tokens`);
 
 // 5. Run: tiles, upload, submit, poll and merge in one call.
 const result = (await client.runAreaAndWait({ analysisType: "sky-view-factors" }, polygon, {
   buildings,
+  vegetation,                    // also groundMaterials and installations when the analysis reads them
   onProgress: (s) => console.log(`${s.completedCount}/${s.totalCount} tiles done`),
 })) as AreaResult;
 
@@ -70,7 +73,7 @@ Tested output (1 tile): `rows: 512, cols: 512`, `bounds` = the tile in degrees,
 - **`initializeCore()` first.** Node loads the packaged WASM. In a browser pass a URL
   (`initializeCore({ url })`), see [map-grid.md](map-grid.md).
 - **Preview before every run.** `previewArea(polygon, { analysisType })` for a ground
-  grid. For a facade or roof run use `await client.previewAreaBatches(input, polygon, { buildings })`
+  grid. For a facade or roof run use `await client.previewAreaBatches(input, polygon, { buildings, vegetation })`
   (`plannedJobCount`, `sensorCount`): it bills per building batch, not per tile.
 - **Use the helpers.** f16 grids hold half-float bits. `areaGridValuesF32(result)` and
   `surfaceValuesF32(columns)` give real values, NaN = no value.
@@ -81,6 +84,9 @@ Tested output (1 tile): `rows: 512, cols: 512`, `bounds` = the tile in degrees,
 - **Own data first.** Pass your meshes as `buildings` (`{ id: { coordinates, indices } }`,
   flat arrays, metres, z up). Public `getBuildingsInArea(polygon)` is the fallback;
   pass the whole returned object, so the SDK can check its frame and read margin.
+- **Pass every input you have.** Run options: `buildings`, `vegetation`, `groundMaterials`,
+  `installations`. Terrain is `groundGeometry` on the input. Wind reads buildings and trees only.
+  UTCI and statistics: set `physics: "advanced"` in the input.
 - **Weather analyses** (`solar-radiation`, `thermal-comfort-index`) take hours from
   `client.weather.filterWeatherData(stationUuid, { period })` as `weatherData`, plus
   `latitude`, `longitude` and `dateFilters: { period }`. See [facades-3d.md](facades-3d.md).

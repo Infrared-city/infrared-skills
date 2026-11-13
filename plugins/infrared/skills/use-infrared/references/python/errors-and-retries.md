@@ -56,9 +56,10 @@ buildings = {"tower": {
     "indices": [0, 2, 1, 0, 3, 2, 4, 5, 6, 4, 6, 7, 0, 1, 5, 0, 5, 4,
                 1, 2, 6, 1, 6, 5, 2, 3, 7, 2, 7, 6, 3, 0, 4, 3, 4, 7]}}
 request = SvfModelRequest(analysis_type=AnalysesName.sky_view_factors)
+trees = client.vegetation.get_area(polygon).features   # pass every input you have
 try:
     result = client.run_area_and_wait(
-        request, polygon, buildings=buildings,
+        request, polygon, buildings=buildings, vegetation=trees,
         retries=1,                 # the default: failed tiles go out one more time
         area_timeout=900,          # seconds for the whole area
     )
@@ -121,11 +122,11 @@ failed tiles again with the same request and the same layers. Tiles that succeed
 bill once.
 
 ```python
-schedule = client.run_area(request, polygon, buildings=buildings,
+schedule = client.run_area(request, polygon, buildings=buildings, vegetation=trees,
                            on_accepted=lambda job_id, tile: print("accepted", tile))
 # ... wait for the jobs, for example with client.run_area_and_wait on the same request,
 # or check client.check_area_state(schedule) from time to time ...
-# schedule = client.run_area(request, polygon, buildings=buildings, retry_from=schedule)
+# schedule = client.run_area(request, polygon, buildings=buildings, vegetation=trees, retry_from=schedule)
 # result = client.merge_area_jobs(schedule)
 ```
 

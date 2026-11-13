@@ -7,8 +7,15 @@ no time period, no weather, no sun.
 from infrared_sdk import SvfModelRequest
 from infrared_sdk.analyses.types import AnalysesName
 
-request = SvfModelRequest(analysis_type=AnalysesName.sky_view_factors)
-result = client.run_area_and_wait(request, polygon, buildings=buildings)
+# Pass every input you have. Your own data wins; public data is the fallback.
+buildings = client.buildings.get_area(polygon)
+trees = client.vegetation.get_area(polygon).features
+
+request = SvfModelRequest(analysis_type=AnalysesName.sky_view_factors,
+                          ground_geometry=terrain)   # your terrain {id: mesh}; None = flat plane
+# Ground materials are not read here.
+result = client.run_area_and_wait(request, polygon, buildings=buildings, vegetation=trees,
+                                  installations=installations)   # {id: mesh} or None
 svf = result.physical_grid()            # 0 to 100, NaN = no value
 ```
 
@@ -22,7 +29,7 @@ svf = result.physical_grid()            # 0 to 100, NaN = no value
 
 ## Pitfalls
 
-- If every cell reads 100, you forgot to pass `buildings`.
+- If every cell reads 100, you forgot to pass `buildings`. Trees, terrain and installations also change the value: pass them.
 - It does not change with season or weather. One run covers all.
 - It is not shade. A high SVF point can be in shade for hours.
 

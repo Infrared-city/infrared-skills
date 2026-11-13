@@ -21,6 +21,9 @@ Do not write your own poll loop around single jobs. The SDK asks for the status 
 
 ## The blocking call, with progress
 
+In the snippets here, `buildings` and `trees` stand for every input you have. Add `ground_materials=`
+and `installations=` when the analysis reads them ([byo-inputs](byo-inputs.md)).
+
 ```python
 from infrared_sdk import InfraredClient, AreaRunError
 
@@ -30,7 +33,7 @@ def on_progress(state):                                     # AreaState, called 
     print(f"{state.succeeded}/{state.total} jobs done")
 
 try:
-    result = client.run_area_and_wait(request, polygon, buildings=buildings,
+    result = client.run_area_and_wait(request, polygon, buildings=buildings, vegetation=trees,
                                       on_progress=on_progress)
 except AreaRunError as exc:                                 # a tile failed twice: no map with holes
     print(len(exc.failed_jobs), "job(s) failed")
@@ -51,7 +54,7 @@ from infrared_sdk import AreaSchedule
 
 # 1. Submit. on_accepted stores each job id at once, so a crash during the
 #    submit loses nothing. The SDK calls it from its submit threads.
-schedule = client.run_area(request, polygon, buildings=buildings,
+schedule = client.run_area(request, polygon, buildings=buildings, vegetation=trees,
                            on_accepted=lambda job_id, tile: db.add_job(run_key, job_id, tile))
 db.save_schedule(run_key, json.dumps(schedule.to_dict()))   # plain JSON
 
@@ -65,7 +68,7 @@ print(state.status, state.succeeded, state.failed, state.total)
 if state.is_complete and state.failed == 0:
     result = client.merge_area_jobs(schedule)
 elif state.is_complete:
-    schedule = client.run_area(request, polygon, buildings=buildings,
+    schedule = client.run_area(request, polygon, buildings=buildings, vegetation=trees,
                                retry_from=schedule, known=known)
 ```
 
@@ -111,7 +114,7 @@ from infrared_sdk import WEBHOOK_EVENT_SUCCEEDED, WEBHOOK_EVENT_FAILED
 HOOK = "https://your-app.example/hooks/infrared"
 client.webhooks.register(HOOK, "production")                # one time; "development" for tests
 
-schedule = client.run_area(request, polygon, buildings=buildings, webhook_url=HOOK,
+schedule = client.run_area(request, polygon, buildings=buildings, vegetation=trees, webhook_url=HOOK,
                            webhook_events=[WEBHOOK_EVENT_SUCCEEDED, WEBHOOK_EVENT_FAILED])
 ```
 

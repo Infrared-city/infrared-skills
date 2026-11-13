@@ -8,16 +8,25 @@ from infrared_sdk.analyses.types import TcsModelRequest
 from infrared_sdk.analyses.types import AnalysesName, TcsModelBaseRequest, TcsSubtype
 from infrared_sdk.models import Location
 
+# Pass every input you have (as in the UTCI page): buildings, trees, ground materials,
+# terrain, installations.
+buildings = client.buildings.get_area(polygon)
+trees = client.vegetation.get_area(polygon).features
+ground = client.ground_materials.get_area(polygon).layers
+
 request = TcsModelRequest.from_weatherfile_payload(
     payload=TcsModelBaseRequest(
         analysis_type=AnalysesName.thermal_comfort_statistics,
         subtype=TcsSubtype.heat_stress,        # thermal_comfort, heat_stress or cold_stress
+        physics="advanced",               # advanced tier
+        ground_geometry=terrain,               # your terrain {id: mesh}; None = flat plane
     ),
     location=Location(latitude=48.208, longitude=16.371),
     time_period=tp, weather_data=rows,         # as in the UTCI page
 )
 result = client.run_area_and_wait(request, polygon,
-                                  buildings=buildings, vegetation=trees, ground_materials=ground)
+                                  buildings=buildings, vegetation=trees, ground_materials=ground,
+                                  installations=installations)   # {id: mesh} or None
 share = result.physical_grid()                 # 0 to 100 (% of the window), NaN = no value
 ```
 
@@ -36,6 +45,6 @@ For all three, run three requests. Each call is one subtype.
 - The window comes only from the `TimePeriod`: months, then days, then hours.
 - Percent is relative to the window. Do not compare runs with different windows without care.
 - Keep the weather file fixed when you compare designs.
-- Same inputs and materials as UTCI: pass trees and ground.
+- Same inputs, materials and `physics` as UTCI: pass trees, ground, terrain and installations, and set `physics="advanced"`.
 
 Read the result: [../interpretation/thermal-results.md](../interpretation/thermal-results.md)

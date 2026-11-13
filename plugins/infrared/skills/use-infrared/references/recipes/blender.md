@@ -15,7 +15,7 @@ the layout of every file and stops on a mismatch.
 ```python
 from export_buffers import save_buffers
 
-svf, solar = client.run_area_and_wait([svf_request, solar_request], polygon, buildings=buildings)
+svf, solar = client.run_area_and_wait([svf_request, solar_request], polygon, buildings=buildings, vegetation=trees)
 sw = (sw_x, sw_y)  # the polygon's south-west corner in YOUR model frame, metres
 save_buffers(svf, "svf.npz", buildings, frame_offset=sw)
 save_buffers(solar, "solar.npz", buildings, frame_offset=sw)

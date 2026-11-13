@@ -34,6 +34,7 @@ coordinates = [c for z in (0, 30) for x, y in xy for c in (x, y, z)]
 indices = [0, 2, 1, 0, 3, 2, 4, 5, 6, 4, 6, 7, 0, 1, 5, 0, 5, 4,
            1, 2, 6, 1, 6, 5, 2, 3, 7, 2, 7, 6, 3, 0, 4, 3, 4, 7]
 buildings = {"tower": {"coordinates": coordinates, "indices": indices}}
+trees = client.vegetation.get_area(polygon).features   # or your own trees; pass every input you have
 
 request = SvfModelRequest(
     analysis_type=AnalysesName.sky_view_factors,
@@ -43,10 +44,11 @@ request = SvfModelRequest(
 
 # Pass payload= and buildings=. Without them the job count is too low,
 # because a big facade run splits into batches, and each batch is one billed job.
-preview = client.preview_area(polygon, payload=request, buildings=buildings)
+preview = client.preview_area(polygon, payload=request, buildings=buildings, vegetation=trees)
 print(preview.would_bill_jobs, "jobs,", preview.sensor_count, "sensors")
 
-result = client.run_area_and_wait(request, polygon, buildings=buildings)
+# Also pass terrain (ground_geometry on the request) and installations= when you have them.
+result = client.run_area_and_wait(request, polygon, buildings=buildings, vegetation=trees)
 
 cols = result.columns                       # every surface of the run, by row
 values = cols.physical_values()             # real values, NaN = no value
@@ -122,7 +124,7 @@ request = SvfModelRequest(
     ground_geometry={"terrain": terrain},
     terrain_alignment="auto-align",   # seats buildings on the terrain
 )
-result = client.run_area_and_wait(request, polygon, buildings=buildings)
+result = client.run_area_and_wait(request, polygon, buildings=buildings, vegetation=trees)
 grid = result.physical_grid()          # a raster with no z: re-sample your terrain to draw it in 3D
 print(grid.shape)
 ```

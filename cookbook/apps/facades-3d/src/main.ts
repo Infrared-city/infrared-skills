@@ -72,6 +72,9 @@ const client = new InfraredClient({
 
 // Public data as the fallback: your own building meshes go into the same `buildings` option.
 const buildings = await client.buildings.getBuildingsInArea(polygon);
+// Trees and ground materials too: pass every input you have.
+const vegetation = await client.vegetation.getArea(polygon);
+const groundMaterials = await client.groundMaterials.getArea(polygon);
 scene.add(createContextMesh(buildings.buildings as never));
 const stations = await client.weather.getWeatherFileFromLocation(lat, lon, 100);
 const weatherData = await client.weather.filterWeatherData(stations[0].uuid, { period });
@@ -84,7 +87,7 @@ const input = {
 } as const;
 
 // Preview is local and free. For a facade run use previewAreaBatches, not previewArea.
-const preview = await client.previewAreaBatches(input as never, polygon, { buildings });
+const preview = await client.previewAreaBatches(input as never, polygon, { buildings, vegetation, groundMaterials });
 status(`${preview.plannedJobCount} job(s) · ${preview.sensorCount?.toLocaleString()} sensors\n`
   + `about ${preview.estimatedCostTokens} tokens. Press Run.`);
 $("run").removeAttribute("disabled");
@@ -98,7 +101,7 @@ $("run").addEventListener("click", async () => {
     status("Submitting...");
     // runAreaAndWait polls in batches; do not write your own poll loop.
     const columns = (await client.runAreaAndWait(input as never, polygon, {
-      buildings,
+      buildings, vegetation, groundMaterials,
       onProgress: (s) => status(`Running: ${s.completedCount} of ${s.totalCount} job(s) done`),
     })) as SurfaceColumns;
     const buffers = surfaceRenderBuffers(columns);
