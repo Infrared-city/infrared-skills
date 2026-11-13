@@ -20,6 +20,30 @@ project location in Revit"). The sun, the weather and the public buildings come 
 
 Type `help` in the `command` node to see every word.
 
+## A first session, from zero
+
+Each row is one step. Type the text of the "Type" column in the `command` node and press Run.
+
+| Step | Do this | Type | What you get |
+|---|---|---|---|
+| 1. Folder | Unzip `infrared-dynamo-libs.zip` into `%APPDATA%\Infrared\revit-dynamo`. Delete an earlier version first. | | The folder holds `ir_dynamo`, `ir_revit`, `dynamo` and the SDK packages. |
+| 2. Script | In Revit, open Manage > Dynamo. Open `dynamo\IR_Analysis.dyn` from that folder. | | Three nodes: `command`, the Python node, Watch. |
+| 3. Words | Read the list of words. | `help` | The Watch node lists every word, with examples. |
+| 4. Key | Paste your API key in the dialog and press Save. | `set-key` | `API key saved.` You do this one time. |
+| 5. Location | Set Manage > Location to the city of the project. | | The sun and the weather of the right place. A new project is in the Boston area. |
+| 6. View | Open a 3D view. Set it to Shaded. | | The view that shows the colours. |
+| 7. Select | Click the buildings in Revit. Press Finish in the Options Bar. | `select` | The next commands use these buildings. |
+| 8. Preview | Look at the cost. This is free. | `svf` | The area, the tiles and the tokens of the run. |
+| 9. Run | Wait: Revit does not respond during the run. | `svf run` | Sky view factor on the ground, and a legend view. |
+| 10. Second run | Run another analysis. | `wind 5 W run` | The wind result. The first result stays in the model, hidden in this view. |
+| 11. Show, hide | In the 3D view type `VG`. Open the Filters tab. Change Visibility. | | One line for each result. You choose the results that the view shows. |
+| 12. Colours | Draw the last result again with another range. This is free. | `show-last legend trimmed` | The same result with more contrast. |
+| 13. Facades | Run an analysis on the walls and roofs. | `solar facades run` | Solar radiation on the facades. The ground results stay visible. |
+| 14. Platform | Write a file for platform.infrared.city. This is free. | `export-obj` | An OBJ file in `Documents\Infrared`. |
+| 15. Clean | Delete every result, legend view and filter. | `clear` | An empty model. `show-last` can draw the last result again. |
+
+Each run with the word `run` spends tokens. Without it, the command is a free preview.
+
 ## Copy a command
 
 Each line is a free preview. Add `run` at the end to run it and pay tokens.
@@ -39,7 +63,7 @@ Each line is a free preview. Add `run` at the end to run it and pay tokens.
 | The whole model, without a selection | `svf model` |
 | With the public buildings around the site | `svf both context` |
 | A larger ground area around the buildings | `svf margin 100` |
-| A second result next to the first one | `daylight facades months 1-12 keep` |
+| Delete every result from the model | `clear` |
 | The last result again with another colour range (free) | `show-last legend exact` |
 | An OBJ file for the Infrared platform (free) | `export-obj` |
 
@@ -162,11 +186,10 @@ Type `help` to see every word. The words can be in any order.
 | `margin 100` | Metres of ground around the selection | 30 (ground), 5 (facades) |
 | `legend exact`, `gradient` | The colours (see Colours) | `legend platform` |
 | `lat 48.2085 lon 16.3721` | Another location | the Revit project location |
-| `keep` | The earlier result stays in the model | the new result replaces it |
 | `run` | Run and pay tokens | free preview |
 
-Other commands: `show-last` draws the saved results again, free (it takes `legend`,
-`gradient` and `keep`). The script saves the last paid result of each target in
+Other commands: `show-last` draws the saved results again, free (it takes `legend`
+and `gradient`). `clear` deletes every result from the model. The script saves the last paid result of each target in
 `.infrared\revit-dynamo-last-result.json` in your user folder. `export-obj` writes an
 OBJ file for the platform upload, free (see "Export to the Infrared platform").
 `set-key` opens the API key dialog.
@@ -244,20 +267,24 @@ A coloured surface in the model (a DirectShape in Generic Models): a square per
 ground cell, a triangle per facade cell. Look at it in a Shaded or Realistic 3D view.
 The colours are the platform colours (see Colours). The Watch node shows a status
 text: the location, the cost, the values and the legend.
-Each target has its own shape in the model. A new ground run replaces only the old
-ground shape, and a facade run only the old facade shape, whatever the analysis.
-The Watch text has a legend for each target.
+Each target has its own shape in the model. The Watch text has a legend for each
+target.
 
-To keep an earlier result, add the word `keep` to the new command, for example
-`daylight facades months 1-12 run keep`. The earlier shape stays in the model and
-its legend view gets a name with its command and time. No later run deletes a kept
-shape. Properties > Comments of a shape gives its command and time. The shapes lie
-in the same place: use one 3D view per result, and hide the other shapes there
-(Hide in View > Elements).
+Every result stays in the model, with its legend view. No run deletes the result
+of another run. Properties > Comments of a shape gives its target, command and time.
 
-To delete a result, select the shape in a 3D view and delete it. Delete the legend
-drafting view in the Project Browser. Manage > Purge Unused removes the
-`Infrared ...` materials.
+The results of one target lie in the same place. A new result hides the earlier
+results of its target in the view that is active during the run. To show or hide
+a result, type `VG` in the 3D view, open the Filters tab and change Visibility.
+Each result has one filter there, named `Infrared result - ` with the target, the
+command and the time. Another view shows every result: add the filters there with
+Filters > Add, and clear Visibility of the results to hide.
+
+To delete every result, type `clear` and press Run. It deletes the result shapes,
+the legend views and the filters. To delete one result, select the shape in a 3D
+view and delete it, and delete its legend drafting view in the Project Browser; the
+next run deletes its filter. Manage > Purge Unused removes the `Infrared ...`
+materials.
 
 ## When something is wrong
 
@@ -282,9 +309,9 @@ The full text of each run is also in `.infrared\revit-dynamo-runs.log` in your u
 
 ## Limits
 
-- A new run replaces the earlier result of the same target (ground or facades), also
-  of another analysis. Add `keep` to keep it. `show-last` holds only the last result
-  of each target.
+- Each result adds a shape to the model. Many large results make the model slow:
+  delete them with `clear`. `show-last` holds only the last result of each target,
+  and draws it again in place of its shape.
 - A tile of the SDK starts at the south-west corner of the run area. A small area
   without `context` has its buildings in that corner, so elements more than about
   150 m south or west of the area do not shade it. With `context` the area fills the tile.
@@ -327,7 +354,7 @@ The result uses the colours of the Infrared platform. The SDK renderer (`render_
 - `trimmed`: the 2nd to 98th percentile of the values. A few extreme cells do not wash out the colours, so the variation is visible (for example the wind wake behind a building).
 - `exact`: the minimum and maximum of the result.
 
-Each run also draws the legend in a drafting view: "Infrared legend - ground" and "Infrared legend - facades" (Project Browser > Views > Drafting Views). It shows one colour swatch and value range per bin, the highest value on top, the colour range in use, and the run: the command, the location and true north, the weather station, the date and time. For PWC it shows one swatch per comfort class (for example "A Frequent Sitting"), the first class on top, and no range. A new run of the same target redraws the same view, so you can put it on a sheet once. (The Revit API cannot create a Legend view; a drafting view can go on a sheet in the same way.)
+Each run also draws the legend in a drafting view (Project Browser > Views > Drafting Views). Its name has the target, the command and the time, for example "Infrared legend - ground - wind 5 25 run (2026-11-13 09.10)". It shows one colour swatch and value range per bin, the highest value on top, the colour range in use, and the run: the command, the location and true north, the weather station, the date and time. For PWC it shows one swatch per comfort class (for example "A Frequent Sitting"), the first class on top, and no range. Each run has its own legend view. `show-last` redraws the view of its result, so a legend on a sheet stays. (The Revit API cannot create a Legend view; a drafting view can go on a sheet in the same way.)
 
 To see the same result with another range, type `show-last legend exact` and press Run. This is free.
 

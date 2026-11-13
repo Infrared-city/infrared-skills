@@ -9,13 +9,13 @@ Words (any order, any case; see ``help_lines``)::
 
     svf | solar | sun-hours | daylight | wind | pwc | tcs | utci   the analysis
     pwc lawson-2001, tcs heat-stress                            PWC criterion, TCS subtype
-    show-last | export-obj [all] | set-key | help               the other actions
+    show-last | export-obj [all] | clear | set-key | help       the other actions
     select | select link                                        pick the elements in Revit
     ground | facades | both                                     the target
     months 6-8   hours 9-17   surfaces roofs   legend exact     values
     wind 5 270 (or wind 5 W, speed 5, direction 270)            wind analysis only
     gradient   context   lat 48.2 lon 16.37   run               the rest
-    model | alone   margin 100   keep                           what gets a result, the area
+    model | alone   margin 100                                  what gets a result, the area
 """
 
 from __future__ import annotations
@@ -35,6 +35,8 @@ SET_KEY_WORDS = ("set-key", "set-api-key", "api-key", "key")
 SHOW_LAST_WORDS = ("show-last", "show-latest", "last")
 EXPORT_WORDS = ("export-obj", "export", "obj")
 SELECT_WORDS = ("select", "pick")
+CLEAR_WORDS = ("clear",)
+IGNORED_WORDS = ("keep",)  # until 2026-11-13 it kept the earlier result; now every result stays
 LINK_WORDS = ("link", "linked", "links")
 TARGET_WORDS = {"ground": "ground", "facades": "facades", "facade": "facades", "both": "both"}
 SURFACE_VALUES = ("facades", "roofs", "all")
@@ -60,9 +62,10 @@ ANALYSIS_WORDS = dict(
 )
 # The fields each action other than an analysis takes; any other word is an error.
 ACTION_FIELDS = {
-    "show-last": ("legend", "gradient", "keep"),
+    "show-last": ("legend", "gradient"),
     "export-obj": ("all", "lat", "lon", "scope"),
     "select": ("scope",),
+    "clear": (),
     "set-key": (),
     "help": (),
 }
@@ -72,7 +75,7 @@ ACTION_FIELDS = {
 class Command:
     """What one command line runs. ``ir_revit.entry`` reads the fields."""
 
-    action: str  # "analysis", "show-last", "export-obj", "select", "set-key" or "help"
+    action: str  # "analysis", "show-last", "export-obj", "select", "clear", "set-key" or "help"
     analysis: str = ""  # the label with its variant, for example "pwc lawson-lddc"
     target: str = ""  # "ground", "facades" or "both"
     months: str = DEFAULT_MONTHS
@@ -89,12 +92,11 @@ class Command:
     paid: bool = False
     scope: str = ""  # "": the selection, the rest of the model shades; "model"; "alone"; select: "link"
     margin: str = ""  # metres around the selection; "": the default of the run
-    keep: bool = False  # the earlier result shapes stay in the model
 
     @property
     def text(self) -> str:
         """The command line with every value that matters; ``parse(text)`` gives it back."""
-        if self.action in ("help", "set-key"):
+        if self.action in ("help", "set-key", "clear"):
             return self.action
         if self.action == "select":
             return " ".join(["select"] + [self.scope] * bool(self.scope))
@@ -118,7 +120,7 @@ class Command:
 
     def _look(self) -> List[str]:
         out = [] if self.legend == colors.DEFAULT_RANGE_MODE else ["legend", self.legend]
-        return out + ["gradient"] * self.gradient + ["keep"] * self.keep
+        return out + ["gradient"] * self.gradient
 
     def _place(self) -> List[str]:
         return ["lat", self.lat, "lon", self.lon] if self.lat else []
@@ -140,10 +142,11 @@ def vocabulary() -> List[str]:
         | variants
         | set(settings.VARIANT_ALIASES)
         | set(HELP_WORDS + SET_KEY_WORDS + SHOW_LAST_WORDS + EXPORT_WORDS + SELECT_WORDS + LINK_WORDS)
+        | set(CLEAR_WORDS + IGNORED_WORDS)
         | set(TARGET_WORDS)
         | set(VALUE_WORDS)
         | set(colors.RANGE_MODES)
-        | {"wind", "gradient", "context", "run", "preview", "all", "model", "alone", "keep"}
+        | {"wind", "gradient", "context", "run", "preview", "all", "model", "alone"}
     )
 
 
@@ -192,13 +195,17 @@ def parse(line: Any) -> Command:
             put("action", "export-obj", word)
         elif word in SELECT_WORDS:
             put("action", "select", word)
+        elif word in CLEAR_WORDS:
+            put("action", "clear", word)
+        elif word in IGNORED_WORDS:
+            continue
         elif word in LINK_WORDS:
             put("scope", "link", word)
         elif word in TARGET_WORDS:
             put("target", TARGET_WORDS[word], word)
         elif word in colors.RANGE_MODES:
             put("legend", word, word)
-        elif word in ("gradient", "context", "all", "keep"):
+        elif word in ("gradient", "context", "all"):
             put(word, True, word)
         elif word in ("model", "alone"):
             put("scope", word, word)
@@ -230,7 +237,7 @@ def _resolve(found: Dict[str, Any]) -> Command:
         raise ValueError("%s and %s cannot run together. Keep one." % (action, found["analysis"]))
     if action is None and "analysis" not in found:
         raise ValueError(
-            "Say what to run: one of %s, or select, show-last, export-obj, set-key. Type help to see every word."
+            "Say what to run: one of %s, or select, show-last, export-obj, clear, set-key. Type help to see every word."
             % ", ".join(settings.ANALYSES)
         )
     if action:
@@ -288,9 +295,8 @@ def _look_and_place(found: Dict[str, Any]) -> Dict[str, Any]:
     out: Dict[str, Any] = {}
     if "legend" in found:
         out["legend"] = colors.parse_range_mode(found.pop("legend"))
-    for flag in ("gradient", "keep"):
-        if found.pop(flag, False):
-            out[flag] = True
+    if found.pop("gradient", False):
+        out["gradient"] = True
     lat, lon = found.pop("lat", None), found.pop("lon", None)
     if (lat is None) != (lon is None):
         raise ValueError("Give both lat and lon, or neither (then the Revit project location is used).")

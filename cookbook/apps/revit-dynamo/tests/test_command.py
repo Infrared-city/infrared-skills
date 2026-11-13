@@ -53,6 +53,7 @@ def test_any_order_and_every_value() -> None:
         "show-last legend exact gradient",
         "export-obj all lat 1 lon 2",
         "set-key",
+        "clear",
     ],
 )
 def test_text_reads_back_to_the_same_command(line: str) -> None:
@@ -98,14 +99,24 @@ def test_errors_say_what_to_write(line: str, message: str) -> None:
         c.parse(line)
 
 
-def test_scope_margin_and_keep() -> None:
-    cmd = c.parse("daylight facades model margin 100m keep run")
-    assert (cmd.scope, cmd.margin, cmd.keep, cmd.paid) == ("model", "100", True, True)
-    assert cmd.text == "daylight facades months 6-8 hours 8-18 model margin 100 keep run"
+def test_scope_and_margin() -> None:
+    cmd = c.parse("daylight facades model margin 100m run")
+    assert (cmd.scope, cmd.margin, cmd.paid) == ("model", "100", True)
+    assert cmd.text == "daylight facades months 6-8 hours 8-18 model margin 100 run"
     assert c.parse(cmd.text) == cmd
     assert c.parse("svf alone").scope == "alone" and c.parse("svf").scope == ""
-    assert c.parse("show-last keep").keep and c.parse("show-last keep").text == "show-last keep"
     assert c.parse("export-obj model").scope == "model"
+
+
+def test_keep_is_read_and_not_used_and_clear_is_an_action() -> None:
+    # Every result stays now. A command with the old word keep must still run.
+    assert c.parse("daylight facades keep run") == c.parse("daylight facades run")
+    assert c.parse("show-last keep").text == "show-last"
+    assert c.parse("clear").action == "clear" and c.parse("clear").text == "clear"
+    with pytest.raises(ValueError, match="clear takes nothing else"):
+        c.parse("clear ground")
+    with pytest.raises(ValueError, match="cannot run together"):
+        c.parse("clear svf")
 
 
 @pytest.mark.parametrize(
@@ -115,7 +126,7 @@ def test_scope_margin_and_keep() -> None:
         ("svf margin", "needs a value"),
         ("svf margin 5000", "0 to 2000"),
         ("export-obj alone", "takes model, not alone"),
-        ("show-last model", "show-last takes legend, gradient, keep"),
+        ("show-last model", "show-last takes legend, gradient; remove"),
     ],
 )
 def test_scope_and_margin_errors(line: str, message: str) -> None:

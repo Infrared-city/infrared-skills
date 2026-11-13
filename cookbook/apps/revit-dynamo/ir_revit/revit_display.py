@@ -6,8 +6,9 @@
 Each cell takes the colour the SDK renderer gives it (``ir_dynamo.cell_colors``).
 Each distinct colour is one material, named by analysis and colour, for example
 "Infrared svf 08AEC4". The Watch text gives the legend in bins, with counts.
-The shape stays in the model (it is "baked"); the next run of the same target
-(ground or facades) replaces it. Look at
+The shape stays in the model (it is "baked"): no later run deletes it, and the
+command ``clear`` deletes them all (``revit_results``). A new result hides the
+earlier results of its target in the active view (``revit_filters``). Look at
 it in a Shaded or Realistic 3D view. The legend is in the Watch node text.
 
 Dynamo wraps a node run in a transaction. This file asks Dynamo's
@@ -22,10 +23,10 @@ import numpy as np
 
 from ir_dynamo import cell_colors, colors, settings, summary, variants
 
-from . import result_mesh, revit_legend, revit_location
+from . import result_mesh, revit_filters, revit_legend, revit_location, revit_results
+from .revit_results import APP_ID  # noqa: F401  (revit_geometry and revit_selection read it here)
 
 SHAPE_NAME = "Infrared result"
-APP_ID = "Infrared Dynamo"
 MATERIAL_PREFIX = "Infrared "
 
 
@@ -63,44 +64,13 @@ def _materials(doc: Any, analysis_type: str, palette: List[Tuple[int, int, int]]
     return ids
 
 
-LEGACY_DATA_ID = "result"  # the tag of shapes drawn before there were two targets
-KEPT_DATA_ID = "kept"  # a shape the user kept (the word keep): no later run deletes it
-
-
-def _comments(element: Any) -> Any:
-    from Autodesk.Revit.DB import BuiltInParameter  # type: ignore
-
-    return element.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS)
-
-
-def _retire_old_shapes(doc: Any, target: str, keep: bool) -> Tuple[int, List[str]]:
-    """Delete the earlier shapes of ``target`` (and the untagged legacy ones).
-
-    ``keep``: they stay in the model instead, tagged ``KEPT_DATA_ID``. Returns
-    their number and, for kept shapes, the run label of each (its Comments).
-    """
-    import clr  # type: ignore
-    from Autodesk.Revit.DB import DirectShape, FilteredElementCollector  # type: ignore
-
-    # Copy to a list first: deleting while the collector runs breaks the iterator.
-    shapes = list(FilteredElementCollector(doc).OfClass(clr.GetClrType(DirectShape)))
-    old = [
-        s
-        for s in shapes
-        if s.ApplicationId == APP_ID
-        and s.ApplicationDataId in (target, LEGACY_DATA_ID)
-    ]
-    labels: List[str] = []
-    for shape in old:
-        if not keep:
-            doc.Delete(shape.Id)
-            continue
-        shape.ApplicationDataId = KEPT_DATA_ID
-        try:
-            labels.append(str(_comments(shape).AsString() or ""))
-        except Exception:
-            labels.append("")
-    return len(old), labels
+def _sync_filters(doc: Any, target: str, comment: str) -> str:
+    """A filter for each result; the earlier results of ``target`` are hidden in the view."""
+    doc.Regenerate()  # the collector must see the new shape and not the deleted ones
+    found = [(c, revit_results.target_of(data_id, c)) for _, c, data_id in revit_results.results(doc)]
+    labels = sorted({c for c, _ in found if c} | ({comment} if comment else set()))
+    hide = sorted({c for c, t in found if c and c != comment and t == target})
+    return revit_filters.sync(doc, labels, show=comment, hide=hide)
 
 
 def _build_shape(
@@ -113,8 +83,8 @@ def _build_shape(
 ) -> Any:
     """One DirectShape with all faces; each face takes the material of its colour.
 
-    ``label`` (the command and the time of the run) goes into the Comments of the
-    shape: Properties shows which run a shape is, also for a kept one.
+    ``label`` (the target, the command and the time of the run) goes into the
+    Comments of the shape: Properties shows which run a shape is.
 
     ``faces``: ``(colour, [ring])`` in internal feet, one ring per face (no holes);
     a triangle is a ring of 3 corners. A Revit ``Mesh`` has ONE material, and a
@@ -176,7 +146,7 @@ def _build_shape(
         pass
     try:
         if label:
-            _comments(shape).Set(label)
+            revit_results.comments(shape).Set(label)
     except Exception:
         pass
     materials = set()
@@ -207,9 +177,11 @@ def show(
     gradient: bool = False,
     info: Sequence[str] = (),
     label: str = "",
-    keep: bool = False,
 ) -> str:
     """Draw the result as a coloured surface. Return the text for the Watch node.
+
+    The earlier results stay in the model. A shape of the same run and target is
+    replaced (``show-last`` draws a saved result again).
 
     Parameters
     ----------
@@ -221,7 +193,7 @@ def show(
         The angle that ``revit_geometry`` used. The shape is turned back with it.
     target : str
         ``"ground"`` or ``"facades"``. The shape is tagged with it; a new shape
-        replaces only the old shape of the same target.
+        hides the earlier shapes of the same target in the active view.
     analysis_type : str
         The SDK analysis name; it picks the platform colours. Empty or unknown:
         the built-in gradient, with a warning line.
@@ -235,9 +207,8 @@ def show(
         Lines about the run for the legend view: the command, the location, the
         weather station, the time.
     label : str
-        One short text for the run (command and time): the Comments of the shape.
-    keep : bool
-        True: the earlier shape and legend view of the target stay in the model.
+        One short text for the run (command and time). With the target in front
+        it is the Comments of the shape (``revit_results.shape_label``).
     """
     from RevitServices.Persistence import DocumentManager  # type: ignore
     from RevitServices.Transactions import TransactionManager  # type: ignore
@@ -272,9 +243,10 @@ def show(
     feet = revit_location.site_m_to_internal_ft(tri_m.reshape(-1), true_north_rad)
     cell_faces = [(int(k), [t]) for k, t in zip(bins, feet.reshape(-1, 3, 3))]
     doc = DocumentManager.Instance.CurrentDBDocument
+    comment = revit_results.shape_label(target, label)
     TransactionManager.Instance.EnsureInTransaction(doc)
     try:
-        removed, kept_labels = _retire_old_shapes(doc, target, keep)
+        removed = revit_results.delete_same_run(doc, target, label)
         materials = _materials(doc, analysis_type, palette)
         # No per-colour subcategories for the edges: with 263 of them (live run
         # 2026-11-05) Dynamo did not start another run; Revit itself still responded.
@@ -286,12 +258,12 @@ def show(
             ]
             drawn = "%d region(s) of one colour" % len(faces)
             try:
-                shape, check = _build_shape(doc, faces, materials, target, True, label)
+                shape, check = _build_shape(doc, faces, materials, target, True, comment)
             except Exception as error:  # draw the cells, as before
                 region_note.append("Colour regions failed in Revit (%s): one face per cell." % error)
         if shape is None:
             drawn = "%d triangles" % len(cell_faces)
-            shape, check = _build_shape(doc, cell_faces, materials, target, False, label)
+            shape, check = _build_shape(doc, cell_faces, materials, target, False, comment)
     except Exception as error:
         TransactionManager.Instance.ForceCloseTransaction()
         return "Display failed: %s (%d triangles)" % (error, len(cell_faces))
@@ -305,26 +277,24 @@ def show(
             "Colour range (%s): %.3g - %.3g %s; values outside take the end colours."
             % (colors.parse_range_mode(range_mode), low, high, unit)
         ] + list(info) + warnings
-    kept_line = []
     try:  # a legend that fails must not take the result with it
-        if keep and removed:
-            name = revit_legend.keep_view(doc, target, next((x for x in kept_labels if x), ""))
-            kept_line = [
-                "Kept %d earlier %s shape(s) in the model%s. Hide a shape in a view with "
-                "Hide in View; Properties > Comments names its run."
-                % (removed, target, ', with the legend view "%s"' % name if name else "")
-            ]
-        legend_line = revit_legend.draw_legend(doc, legend, title, unit, target, legend_notes)
+        legend_line = revit_legend.draw_legend(
+            doc, legend, title, unit, target, legend_notes, label, reuse=bool(removed)
+        )
     except Exception as error:
         legend_line = "Legend view not drawn: %s" % error
+    try:  # the same for the view filters
+        filter_line = _sync_filters(doc, target, comment)
+    except Exception as error:
+        filter_line = "View filters not made: %s" % error
     TransactionManager.Instance.TransactionTaskDone()
+    again = " (drawn again: it replaced %d shape(s) of the same run)" % removed if removed else ""
     lines = [
-        "Showed %s on %s (%s) as %s, element %s (replaced %d old %s shape(s)). "
-        "Use a Shaded or Realistic 3D view."
-        % (title, target, unit, drawn, shape.Id, 0 if keep else removed, target),
+        "Showed %s on %s (%s) as %s, element %s%s. Use a Shaded or Realistic 3D view."
+        % (title, target, unit, drawn, shape.Id, again),
         check,
-    ] + kept_line + [
         legend_line,
+        filter_line,
         "Cell colours: drawn by the SDK renderer, %d distinct colour(s)%s."
         % (len(palette), ", smooth gradient" if gradient and not legend.labels else ""),
     ]

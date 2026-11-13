@@ -36,6 +36,26 @@ The zip holds Windows x64 packages only. The script refuses an SDK other than 1.
 - The location matters for the sun, the weather and `context` (public buildings around the selection). An error of some metres changes nothing in a run without context.
 - A new Revit project has a default location in the Boston area. A model of another city that keeps it is analysed with the sun and weather of Boston. The Watch text then starts with a warning: tell the user to set Manage > Location, or give `lat` and `lon`.
 
+### The first session, in order
+
+Lead a new user through these steps, one at a time. The README has the same steps as a table ("A first session, from zero").
+
+1. Unzip the libs zip into `%APPDATA%\Infrared\revit-dynamo`. Delete an earlier version first.
+2. In Revit, open Manage > Dynamo and open `dynamo\IR_Analysis.dyn` from that folder.
+3. `help`: the Watch node lists every word.
+4. `set-key`: the user pastes the API key in the dialog. One time.
+5. Manage > Location: the city of the project.
+6. Open a Shaded 3D view.
+7. `select`: the user clicks the buildings and presses Finish.
+8. `svf`: the free preview, with the cost.
+9. `svf run`: the first result and its legend view.
+10. `wind 5 W run`: a second result. The first one stays in the model, hidden in this view.
+11. `VG` > Filters in the 3D view: the user shows or hides each result.
+12. `show-last legend trimmed`: the last result with another range, free.
+13. `solar facades run`: a result on the walls and roofs.
+14. `export-obj`: a file for the platform, free.
+15. `clear`: deletes every result, legend view and filter.
+
 ## 4. The command
 
 The graph has one input, the `command` node. One line runs everything. A word that is not in the line takes the default below. Words, any order, any case:
@@ -43,7 +63,7 @@ The graph has one input, the `command` node. One line runs everything. A word th
 | Words | Default when left out |
 |---|---|
 | `svf`, `solar`, `sun-hours`, `daylight`, `wind`, `pwc`, `tcs`, `utci`; `pwc lawson-2001`, `tcs heat-stress` (also `lddc`, `vdi`, `nen`, `heat`, `cold`) | (one is needed); PWC `lawson-lddc`, TCS `thermal-comfort` |
-| `show-last` (takes `legend`, `gradient`, `keep`), `export-obj [all] [model]`, `set-key`, `help` | |
+| `show-last` (takes `legend`, `gradient`), `export-obj [all] [model]`, `clear`, `set-key`, `help` | |
 | `select`, `select link` | Revit asks the user to click the buildings (or elements inside linked models) and to press Finish. The next commands use them. During the pick the result shapes are hidden in the active view and the Mass category is shown |
 | `ground`, `facades`, `both` | `ground` where the analysis runs, else `facades` |
 | `months 6-8` or `months jun-aug`, `hours 9-17` | `6-8`, `8-18`; PWC `1-12`, `0-23` |
@@ -54,10 +74,10 @@ The graph has one input, the `command` node. One line runs everything. A word th
 | `margin 100` | Metres around the selection: 30 (ground), 5 (facades); with `context` the largest margin that costs no extra tile (the area is about 500 m wide) |
 | `legend platform\|trimmed\|exact` (or the bare word), `gradient` | `platform`, off |
 | `lat 48.2085 lon 16.3721` | the Revit project location |
-| `keep` | off: a new result replaces the earlier one of the same target. `keep` leaves the earlier shape and its legend view in the model |
+| `keep` | read and not used (until 2026-11-13 it kept the earlier result): every result stays now |
 | `run` | **no `run` = free preview**. Only `run` spends tokens |
 
-Examples: `pwc` · `wind 5 270 run` · `utci months jun-aug hours 12-15` · `solar both context run` · `daylight facades model run keep` · `show-last legend exact`. Each run writes `Command: <the line with every value filled in>` at the top of the Watch text, then a `Warnings (n):` block with every warning and error, then the other lines; a preview ends with `To run it (paid): <line> run`. A wrong word gives `Command error: Unknown word 'facdes'. Did you mean 'facades'?` and runs nothing. An empty command gives the help text. The script marks its node as modified on each run, so the same line can run again (the log has a `rerun:` line); it skips the execution that Dynamo then makes with the earlier text (a `skipped:` line).
+Examples: `pwc` · `wind 5 270 run` · `utci months jun-aug hours 12-15` · `solar both context run` · `daylight facades model run` · `clear` · `show-last legend exact`. Each run writes `Command: <the line with every value filled in>` at the top of the Watch text, then a `Warnings (n):` block with every warning and error, then the other lines; a preview ends with `To run it (paid): <line> run`. A wrong word gives `Command error: Unknown word 'facdes'. Did you mean 'facades'?` and runs nothing. An empty command gives the help text. The script marks its node as modified on each run, so the same line can run again (the log has a `rerun:` line); it skips the execution that Dynamo then makes with the earlier text (a `skipped:` line).
 
 Selection: there is no selection node. The script reads the selection of Revit, or the picks of the `select` command; with nothing selected it uses the last selection in the same model again. Walls, floors, roofs, masses, families, DirectShapes and imported meshes work. An element inside a linked model is picked with Tab; a selected link gives a result on all its building elements. The building elements that are not selected (the building categories and the imports, in the model and in its loaded links, up to 400 m away) only shade: the Watch text counts them in a `Shade only:` line. The terrain is the Toposolids and Topography surfaces of the selection, else every one of the model and its links; the ground result is drawn on it. A ground modelled as a floor, a mass or an import is analysed as a building if it is selected: the site must be a Toposolid. Without terrain the ground is a flat plane at Revit elevation 0. Wind and PWC do not accept terrain: the buildings are lowered to their base, and the result is drawn on the terrain.
 
@@ -72,10 +92,12 @@ Selection: there is no selection node. The script reads the selection of Revit, 
 
 ## 6. Results in Revit
 
-- **Shape.** One DirectShape per target (Generic Models, name "Infrared result (ground)" or "(facades)"). Look at it in a Shaded or Realistic 3D view. A new run of the same target replaces only that shape, whatever the analysis; with `keep` the earlier shape stays (tagged so no later run deletes it) and its legend view is renamed with its command and time. Properties > Comments of a shape gives its command and time. A facade result has no cells on the shade-only elements: the surface id of the SDK is `<building id>/<number>`, and the script drops the cells of those buildings.
+- **Shape.** One DirectShape per run and target (Generic Models, name "Infrared result (ground)" or "(facades)"). Look at it in a Shaded or Realistic 3D view. Every result stays in the model; only `show-last` replaces a shape, that of the same run. Properties > Comments of a shape gives its target, command and time (`revit_results.shape_label`).
+- **View filters.** Each result has a filter `Infrared result - <target> - <command> (<time>)` on its Comments (`revit_filters`). A run adds the filters to the active view and hides the earlier results of its target there, because they lie in the same place. The user shows or hides a result in Visibility/Graphics (VG) > Filters; another view shows every result until the filters are added there.
+- **Clear.** The command `clear` deletes every result shape, legend view and result filter of the model. The saved results stay for `show-last`. A facade result has no cells on the shade-only elements: the surface id of the SDK is `<building id>/<number>`, and the script drops the cells of those buildings.
 - **Edges.** On a flat ground the cells of one colour are joined into one face, so only the borders between colours show as lines. To hide those too, clear Show Edges in the view's Graphic Display Options. Do not give each colour a subcategory with its line colour: with 263 of them, Dynamo did not start another run (Revit itself still responded).
 - **Materials.** One material per colour, for example `Infrared svf 08AEC4` or `Infrared pwc lawson-lddc 0000FF`. A smooth scale has up to 256 colours, so up to 256 materials.
-- **Legend.** A drafting view per target: "Infrared legend - ground" or "Infrared legend - facades" (Project Browser > Views > Drafting Views). A new run redraws the same view, so it can stay on a sheet. Under the swatches it has the run: the command, the location and true north, the weather station, the date and time. The Revit API cannot create a Legend view.
+- **Legend.** A drafting view per result, named "Infrared legend - <target> - <command> (<time>)" (Project Browser > Views > Drafting Views). Each run has its own view; `show-last` redraws the view of its result, so it can stay on a sheet. Under the swatches it has the run: the command, the location and true north, the weather station, the date and time. The Revit API cannot create a Legend view.
 - **PWC classes.** The PWC result is a comfort class per cell (A, B, C, ... S). The legend shows one swatch per class with its name (for example "A Frequent Sitting"), the first class on top, and no range; `legend` and `gradient` do not apply. The Watch text gives the share of cells in each class. TCS is a percentage of time (0 to 100 %) on the colour scale of its subtype.
 - **Colour range** (the `legend` word):
   - `platform` (default): the fixed range of the platform where it has one (wind speed 0 to 20 m/s, UTCI -40 to 46 °C), else the 2nd to 98th percentile. Revit then shows the colours of the platform. A 5 m/s wind shows in blue only.

@@ -1,11 +1,12 @@
-"""Draw a legend in a Revit drafting view: one view per target, renewed each run.
+"""Draw a legend in a Revit drafting view: one view for each result.
 
 The Revit API cannot create a Legend view (only duplicate one), so the legend
-is a drafting view named ``"Infrared legend - ground"`` (or ``- facades``),
+is a drafting view named ``"Infrared legend - ground - <command> (<time>)"``
+(or ``- facades - ...``),
 at scale 1:1: one solid filled region per colour and a text note per line
 (``ir_dynamo.legend_layout``). Find it in the Project Browser under Drafting
-Views; it can go on a sheet. A new run of the same target clears and redraws
-the same view, so a viewport on a sheet stays.
+Views; it can go on a sheet. Each run has its own view. A result that is drawn
+again (``show-last``) clears and redraws its view, so a viewport on a sheet stays.
 
 Call it inside the Dynamo transaction (``revit_display.show`` does).
 
@@ -75,8 +76,13 @@ def _drafting_views(doc: Any) -> List[Any]:
     return [v for v in _by_class(doc, ViewDrafting) if not getattr(v, "IsTemplate", False)]
 
 
-def _view(doc: Any, target: str) -> Any:
-    """The legend view of ``target``: found by name and cleared, or created."""
+def _view(doc: Any, target: str, label: str = "", reuse: bool = False) -> Any:
+    """The legend view for a result of ``target``, empty and with its name.
+
+    Each run has its own view. ``reuse``: the result of this run is drawn again
+    (``show-last``), so its view (``current_view_name``) is cleared and used
+    again, and a viewport on a sheet stays.
+    """
     from Autodesk.Revit.DB import (  # type: ignore
         FilledRegion,
         TextNote,
@@ -85,16 +91,21 @@ def _view(doc: Any, target: str) -> Any:
         ViewFamilyType,
     )
 
-    name = VIEW_PREFIX + target
-    for view in _drafting_views(doc):
-        if element_name(view) == name:
-            for cls in (FilledRegion, TextNote):
-                for element in _by_class(doc, cls, view.Id):
-                    doc.Delete(element.Id)
-            return view
+    views = _drafting_views(doc)
+    names = [element_name(v) for v in views]
+    current = current_view_name(target, label, names) if reuse else ""
+    view = next((v for v, n in zip(views, names) if n == current), None) if current else None
+    if view is not None:
+        for cls in (FilledRegion, TextNote):
+            for element in _by_class(doc, cls, view.Id):
+                doc.Delete(element.Id)
+        new = view_name(target, label, [n for n in names if n != current])
+        if new != current:
+            _set_name(view, new)
+        return view
     family = next(t for t in _by_class(doc, ViewFamilyType) if t.ViewFamily == ViewFamily.Drafting)
     view = ViewDrafting.Create(doc, family.Id)
-    _set_name(view, name)
+    _set_name(view, view_name(target, label, names))
     try:
         view.Scale = 1  # sizes are paper millimetres
     except Exception:
@@ -105,29 +116,41 @@ def _view(doc: Any, target: str) -> Any:
 BAD_NAME_CHARS = "\\:{}[]|;<>?`~"  # Revit refuses these in a view name
 
 
-def kept_name(target: str, label: str, taken: Sequence[str]) -> str:
-    """The name of a kept legend view: the target and the run label, and unique."""
-    clean = "".join("-" if c in BAD_NAME_CHARS else c for c in label).strip() or "kept"
-    base = "%s%s - %s" % (VIEW_PREFIX, target, clean)
+def _unique(base: str, taken: Sequence[str]) -> str:
     name, n = base, 2
     while name in taken:
         name, n = "%s (%d)" % (base, n), n + 1
     return name
 
 
-def keep_view(doc: Any, target: str, label: str) -> str:
-    """Rename the legend view of ``target`` so the next run draws a new one.
+def view_name(target: str, label: str, taken: Sequence[str]) -> str:
+    """The name of a legend view: the target and the run label, and unique.
 
-    Returns the new name; empty when the target has no legend view.
+    Without a label (a result saved by an earlier version): the target only.
     """
-    views = _drafting_views(doc)
-    names = [element_name(v) for v in views]
-    for view, name in zip(views, names):
-        if name == VIEW_PREFIX + target:
-            new = kept_name(target, label, names)
-            _set_name(view, new)
-            return new
-    return ""
+    clean = "".join("-" if c in BAD_NAME_CHARS else c for c in label).strip()
+    return _unique(VIEW_PREFIX + target + (" - " + clean if clean else ""), taken)
+
+
+def current_view_name(target: str, label: str, names: Sequence[str]) -> str:
+    """The name of the legend view that a result in the model has.
+
+    ``label``: the run label of that result. ``names``: the names of the
+    drafting views. The view has the name that ``view_name`` gave it, the last
+    one if several views have this label. If there is none, it is the view of
+    an earlier version, with the target only. Empty: the result has no view.
+    """
+    base = VIEW_PREFIX + target
+    if label.strip():
+        stem = view_name(target, label, ())
+        same = [
+            n
+            for n in names
+            if n == stem or (n.startswith(stem + " (") and n.endswith(")") and n[len(stem) + 2 : -1].isdigit())
+        ]
+        if same:
+            return max(same, key=lambda n: int(n[len(stem) + 2 : -1]) if n != stem else 1)
+    return base if base in names else ""
 
 
 def _set_name(view: Any, name: str) -> None:
@@ -203,8 +226,14 @@ def draw_legend(
     unit: str,
     target: str,
     notes: Sequence[str] = (),
+    label: str = "",
+    reuse: bool = False,
 ) -> str:
-    """Draw (or redraw) the legend view of ``target``. Returns a line for the Watch node."""
+    """Draw the legend view of a result. Returns a line for the Watch node.
+
+    ``label``: the run label of the result, for the view name. ``reuse``: the
+    result is drawn again, so its view is drawn again and no new view is made.
+    """
     from Autodesk.Revit.DB import (  # type: ignore
         CurveLoop,
         ElementTypeGroup,
@@ -216,7 +245,7 @@ def draw_legend(
     from System.Collections.Generic import List as NetList  # type: ignore
 
     swatches, texts = legend_layout.legend_layout(legend, title, unit, target, notes)
-    view = _view(doc, target)
+    view = _view(doc, target, label, reuse)
     region_types = _region_types(doc, [s.rgb for s in swatches])
     for s in swatches:
         x0, y0 = s.x * MM_TO_FT, s.y * MM_TO_FT

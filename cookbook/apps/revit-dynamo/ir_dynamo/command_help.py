@@ -44,11 +44,12 @@ def help_lines() -> List[str]:
         "legend platform, trimmed or exact (default %s); gradient: smooth colours for wind and utci."
         % colors.DEFAULT_RANGE_MODE,
         "lat 48.2085 lon 16.3721: another location (default: the Revit project, Manage > Location).",
-        "keep: the earlier result stays in the model next to the new one (default: the new "
-        "result replaces the old one of the same target).",
+        "Every result stays in the model. A new result hides the earlier results of its target in "
+        "the active view: show them again in Visibility/Graphics (VG) > Filters.",
         "run: run it and pay tokens.",
-        "Other actions: show-last (draw the saved result again, free; takes legend, gradient, keep), "
-        "export-obj [all] [model] (OBJ file for the platform, free), set-key (the API key dialog), help.",
+        "Other actions: show-last (draw the saved result again, free; takes legend, gradient), "
+        "export-obj [all] [model] (OBJ file for the platform, free), clear (delete every Infrared "
+        "result, legend view and view filter of the model), set-key (the API key dialog), help.",
         "Examples: svf | pwc run | wind 5 270 run | utci months jun-aug hours 12-15 run | "
-        "solar both context run | daylight facades model run keep | show-last legend exact | export-obj",
+        "solar both context run | daylight facades model run | show-last legend exact | export-obj | clear",
     ]

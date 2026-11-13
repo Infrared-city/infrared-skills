@@ -25,6 +25,7 @@ from . import (
     revit_export,
     revit_geometry,
     revit_location,
+    revit_results,
     revit_scene,
     revit_selection,
 )
@@ -167,6 +168,8 @@ def _run(command: Any, elements: Any = None) -> List[str]:
             lines = _show_last(cmd)
         elif cmd.action == "export-obj":
             lines = _export(cmd, elements)
+        elif cmd.action == "clear":
+            lines = _clear()
         else:
             lines = _analysis(cmd, elements)
     except (ValueError, RuntimeError, OSError) as error:
@@ -181,6 +184,18 @@ def _document() -> Any:
     from RevitServices.Persistence import DocumentManager  # type: ignore
 
     return DocumentManager.Instance.CurrentDBDocument
+
+
+def _clear() -> List[str]:
+    """Delete every result, legend view and result filter of the model (``clear``)."""
+    from RevitServices.Transactions import TransactionManager  # type: ignore
+
+    doc = _document()
+    TransactionManager.Instance.EnsureInTransaction(doc)
+    try:
+        return revit_results.clear(doc)
+    finally:
+        TransactionManager.Instance.TransactionTaskDone()
 
 
 def _picks(doc: Any, elements: Any, need: bool) -> Any:
@@ -301,7 +316,7 @@ def _analysis(cmd: Any, elements: Any) -> List[str]:
             )
     if entries:
         _save_last(entries)  # paid results are kept: "show-last" draws them again for free
-        lines += [_show(entry, cmd.legend, cmd.gradient, cmd.keep) for entry in entries]
+        lines += [_show(entry, cmd.legend, cmd.gradient) for entry in entries]
     return lines
 
 
@@ -318,7 +333,7 @@ def _save_last(entries: List[Dict[str, Any]]) -> None:
         pass
 
 
-def _show(entry: Dict[str, Any], range_mode: str, gradient: bool, keep: bool = False) -> str:
+def _show(entry: Dict[str, Any], range_mode: str, gradient: bool) -> str:
     _progress("%s: drawing %d values in Revit" % (entry["target"], len(entry["result"]["values"])))
     return revit_display.show(
         entry["result"],
@@ -332,7 +347,6 @@ def _show(entry: Dict[str, Any], range_mode: str, gradient: bool, keep: bool = F
         gradient,
         info=entry.get("info") or [],
         label=entry.get("label") or "",
-        keep=keep,
     )
 
 
@@ -345,5 +359,5 @@ def _show_last(cmd: Any) -> List[str]:
     if not entries:
         return ["The saved result file has no result. Run an analysis first."]
     return ["Showing the last saved result(s) (no new run)."] + [
-        _show(e, cmd.legend, cmd.gradient, cmd.keep) for e in entries
+        _show(e, cmd.legend, cmd.gradient) for e in entries
     ]

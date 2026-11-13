@@ -9,7 +9,7 @@ import numpy as np
 from boxes import box_soup
 
 from ir_dynamo import frame, grid_check, meshes, payloads, results, run, summary
-from ir_revit import revit_legend, revit_selection
+from ir_revit import revit_filters, revit_legend, revit_results, revit_selection
 
 LON, LAT = 16.3701, 48.1983
 BOX = (-10.0, -10.0, 10.0, 10.0)
@@ -115,13 +115,57 @@ def test_warnings_first_keeps_the_order_of_the_rest() -> None:
     assert summary.warnings_first(["a", "b"]) == ["a", "b"]
 
 
-def test_a_kept_legend_view_gets_a_legal_unique_name() -> None:
+def test_a_legend_view_gets_a_legal_unique_name() -> None:
     label = "daylight facades months 1-12 hours 8-18 run (2026-11-12 14.41)"
-    name = revit_legend.kept_name("facades", label, [])
+    name = revit_legend.view_name("facades", label, [])
     assert name == "Infrared legend - facades - " + label
-    assert revit_legend.kept_name("facades", "a:b;c", [name]) == "Infrared legend - facades - a-b-c"
-    assert revit_legend.kept_name("facades", label, [name]) == name + " (2)"
-    assert revit_legend.kept_name("ground", "", []) == "Infrared legend - ground - kept"
+    assert revit_legend.view_name("facades", "a:b;c", [name]) == "Infrared legend - facades - a-b-c"
+    assert revit_legend.view_name("facades", label, [name]) == name + " (2)"
+
+
+def test_a_shape_tells_its_run_and_its_target() -> None:
+    label = "solar both run (2026-11-13 09.10)"
+    ground = revit_results.shape_label("ground", label)
+    assert ground == "ground - " + label and revit_results.shape_label("ground", "") == ""
+    # The two shapes of a `both` run have their own text, so each has its own filter.
+    assert ground != revit_results.shape_label("facades", label)
+    assert revit_results.target_of("ground", label) == "ground"
+    assert revit_results.target_of("kept", ground) == "ground"  # the tag of an earlier version
+    assert revit_results.target_of("kept", label) == ""
+    # Drawn again (show-last): the shape of the same run and target is replaced, no other.
+    assert revit_results.same_run(ground, "ground", "ground", label)
+    assert revit_results.same_run(label, "ground", "ground", label)  # drawn by an earlier version
+    assert not revit_results.same_run(ground, "ground", "facades", label)
+    assert not revit_results.same_run(label, "kept", "ground", label)
+    assert not revit_results.same_run(ground, "ground", "ground", "wind 5 25 run (2026-11-13 09.20)")
+    assert not revit_results.same_run("", "kept", "ground", "")
+
+
+def test_a_legend_view_has_the_run_in_its_name() -> None:
+    old, new = "wind 5 25 run (2026-11-13 09.10)", "daylight ground run (2026-11-13 09.20)"
+    base, name = "Infrared legend - ground", "Infrared legend - ground - " + old
+    assert revit_legend.view_name("ground", old, []) == name
+    assert revit_legend.view_name("ground", "", []) == base  # a result without a label
+    # The view of the result in the model: by its label, the last one of that label.
+    assert revit_legend.current_view_name("ground", old, [base, name]) == name
+    assert revit_legend.current_view_name("ground", old, [name, name + " (2)", name + " (x)"]) == name + " (2)"
+    # A view of an earlier version has the target only. The view of another run is not it.
+    other = "Infrared legend - ground - " + new
+    assert revit_legend.current_view_name("ground", old, [base, other]) == base
+    assert revit_legend.current_view_name("ground", old, [other]) == ""
+    assert revit_legend.current_view_name("ground", "", [name]) == ""
+
+
+def test_each_result_label_has_one_view_filter() -> None:
+    old = "wind 5 25 run (2026-11-13 09.10)"
+    new = "facades - daylight facades months 1-12 run (2026-11-13 09.20)"
+    assert revit_filters.filter_name("a:b;c") == "Infrared result - a-b-c"
+    create, delete = revit_filters.plan([old, new, new, ""], [])
+    assert create == {"Infrared result - " + old: old, "Infrared result - " + new: new}
+    assert delete == []
+    # The result of `old` is gone: its filter goes. A filter of the user stays.
+    existing = ["Infrared result - " + old, "Infrared result - " + new, "Walls 200"]
+    assert revit_filters.plan([new], existing) == ({}, ["Infrared result - " + old])
 
 
 def test_the_last_selection_is_kept_for_its_own_model(tmp_path: Any) -> None:
