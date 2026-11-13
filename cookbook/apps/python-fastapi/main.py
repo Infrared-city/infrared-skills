@@ -109,8 +109,8 @@ def site_trees(site: SiteRequest, fetch_public: bool) -> Any:
 
 def check_site(site: SiteRequest) -> dict:
     """Preview the run (local, free). Turn every input problem into HTTP 422."""
-    # The geodata extra adds pyarrow (the public-data reader). Check before any work.
-    if site.public_buildings and not site.buildings and importlib.util.find_spec("pyarrow") is None:
+    # The geodata extra adds pyarrow (the public-data reader). Public buildings and trees both need it.
+    if site.public_buildings and importlib.util.find_spec("pyarrow") is None:
         raise HTTPException(422, GEODATA_HINT)
     request = build_request(site.analysis, site.polygon, site.params)
     try:
