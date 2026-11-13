@@ -38,7 +38,9 @@ class SiteRequest(BaseModel):
     params: dict[str, Any] = Field(default_factory=dict)
     # Own data first: footprints in lon/lat with properties.height in metres.
     buildings: dict | None = Field(default=None, description="GeoJSON FeatureCollection")
-    # Fallback when the user has no model: public buildings for the polygon.
+    # Own trees: {id: GeoJSON Point Feature} with genus, height, crownDiameter (lon/lat).
+    trees: dict | None = None
+    # Fallback when the user has no model: public buildings and trees for the polygon.
     public_buildings: bool = False
     # The SDK refuses more than 100 tiles. True lifts the cap to MAX_TILES_LARGE.
     allow_large: bool = False
@@ -96,6 +98,15 @@ def site_buildings(site: SiteRequest, fetch_public: bool) -> Any:
     return None
 
 
+def site_trees(site: SiteRequest, fetch_public: bool) -> Any:
+    """The trees for the run: the user's own trees, else public data. Trees shade the ground."""
+    if site.trees:
+        return site.trees
+    if site.public_buildings and fetch_public:
+        return state["client"].vegetation.get_area(site.polygon, analysis_type=site.analysis).features
+    return None
+
+
 def check_site(site: SiteRequest) -> dict:
     """Preview the run (local, free). Turn every input problem into HTTP 422."""
     # The geodata extra adds pyarrow (the public-data reader). Check before any work.
@@ -106,6 +117,7 @@ def check_site(site: SiteRequest) -> dict:
         p = state["client"].preview_area(
             site.polygon, payload=request, max_tiles_override=site.max_tiles(),
             buildings=site_buildings(site, fetch_public=False),
+            vegetation=site_trees(site, fetch_public=False),
         )
     except ValueError as exc:  # a polygon the SDK refuses, for example over the tile cap
         hint = f"This server runs at most {MAX_TILES_LARGE} tiles." if site.allow_large else (
@@ -132,12 +144,13 @@ def execute(run: Run) -> None:
     try:
         request = build_request(site.analysis, site.polygon, site.params)
         buildings = site_buildings(site, fetch_public=True)
+        trees = site_trees(site, fetch_public=True)  # all three analyses read trees
         # The SDK tiles, uploads, submits, polls (50 jobs per request) and merges.
         # A lost submit is resent with the same idempotency key (never billed
         # twice); a failed tile is sent again once. Wind uses the directional blend.
         run.result = run_area(
-            client, request, site.polygon, buildings=buildings, on_progress=on_progress,
-            max_tiles_override=site.max_tiles(),
+            client, request, site.polygon, buildings=buildings, vegetation=trees,
+            on_progress=on_progress, max_tiles_override=site.max_tiles(),
         )
         store.finish(run, "done")
     except AreaRunError as exc:  # a tile failed twice or did not come back: no partial map

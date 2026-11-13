@@ -50,7 +50,7 @@ Every row: read [building-fast-apps](references/building-fast-apps.md) for speed
 ### Inputs: your data first
 
 - Your own buildings, trees and ground are the main path ([byo-inputs](references/byo-inputs.md)). Ask what the user has
-  (BIM, Rhino, IFC, GeoJSON). Public data (Overture, city data) is a fallback. Its source and heights vary: say so. Getting data and shaping it for the SDK are two separate jobs: read [shaping-data](references/shaping-data.md) first.
+  (BIM, Rhino, IFC, GeoJSON). Public data (Overture, city data) is a fallback. Pass every input you have (buildings, context, trees, ground materials, terrain, installations), except those an analysis does not read ([byo-inputs](references/byo-inputs.md)). UTCI and statistics: always `physics="advanced-wind"` ([07](references/analyses/07-thermal-comfort-utci.md)). Its source and heights vary: say so. Getting data and shaping it for the SDK are two separate jobs: read [shaping-data](references/shaping-data.md) first.
 - Sensors: ground, facades and roofs, or own points ([09](references/analyses/09-facade-terrain.md)). Terrain and far
   shade (128 m reach in 1.0): [11](references/analyses/11-terrain-and-context.md). Time: [03](references/03-time-period.md).
 
@@ -77,12 +77,12 @@ lon, lat = 16.371, 48.208                                  # [lon, lat], WGS84
 polygon = {"type": "Polygon", "coordinates": [[[lon, lat], [lon + 0.004, lat],
            [lon + 0.004, lat + 0.003], [lon, lat + 0.003], [lon, lat]]]}
 # Your meshes {id: {"coordinates": [x, y, z, ...], "indices": [...]}}, metres from the SW corner (own-data.md).
-buildings = my_buildings
+buildings, trees = my_buildings, my_trees                  # trees: or client.vegetation.get_area(polygon).features
 
 client = InfraredClient()                                  # reads INFRARED_API_KEY
 request = SvfModelRequest(analysis_type=AnalysesName.sky_view_factors)
-print(client.preview_area(polygon, payload=request).would_bill_jobs, "job(s)")   # free
-result = client.run_area_and_wait(request, polygon, buildings=buildings)
+print(client.preview_area(polygon, payload=request, buildings=buildings).would_bill_jobs, "job(s)")   # free
+result = client.run_area_and_wait(request, polygon, buildings=buildings, vegetation=trees)  # all inputs you have
 grid = result.physical_grid()                              # real values, NaN = no value
 ```
 
@@ -102,11 +102,11 @@ import { InfraredClient, initializeCore, areaGridValuesF32, type AreaResult } fr
 await initializeCore();                                    // once, before any area run
 const client = new InfraredClient({ apiKey: process.env.INFRARED_API_KEY });
 const polygon = { type: "Polygon", coordinates: [[[16.371, 48.208], [16.375, 48.208], [16.375, 48.211], [16.371, 48.211], [16.371, 48.208]]] };
-const buildings = { tower: { coordinates, indices } };     // your meshes in metres (see references/typescript/quickstart.md)
+const buildings = { tower: { coordinates, indices } }, vegetation = myTrees; // metres (references/typescript/quickstart.md); trees: or await client.vegetation.getArea(polygon)
 
-const plan = await client.previewAreaBatches({ analysisType: "sky-view-factors" }, polygon, { buildings });
+const plan = await client.previewAreaBatches({ analysisType: "sky-view-factors" }, polygon, { buildings, vegetation });
 console.log(plan.plannedJobCount);                         // free
-const result = await client.runAreaAndWait({ analysisType: "sky-view-factors" }, polygon, { buildings });
+const result = await client.runAreaAndWait({ analysisType: "sky-view-factors" }, polygon, { buildings, vegetation });
 const grid = areaGridValuesF32(result as AreaResult);      // Float32Array, NaN = no value
 ```
 Facades and roofs: `surfaceRenderBuffers(columns)`. TypeScript pages and apps: see the table above.

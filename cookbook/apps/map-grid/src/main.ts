@@ -115,10 +115,13 @@ $("run").addEventListener("click", async () => {
     // { id: { coordinates, indices } } map (metres, polygon's south-west corner = origin).
     status("Reading buildings...");
     const buildings = await client.buildings.getBuildingsInArea(polygon(), { analysisType: ANALYSIS });
+    status("Reading trees...");
+    const vegetation = await client.vegetation.getArea(polygon(), { analysisType: ANALYSIS });
     status("Submitting...");
     // runAreaAndWait tiles, uploads, submits, polls (batched) and merges. No own poll loop.
     const result = (await client.runAreaAndWait({ analysisType: ANALYSIS }, polygon(), {
       buildings,
+      vegetation,   // trees shade the ground: pass every input you have (SVF reads no ground materials)
       onProgress: (s) => status(`Running: ${s.completedCount} of ${s.totalCount} tile(s) done`),
     })) as AreaResult;
 

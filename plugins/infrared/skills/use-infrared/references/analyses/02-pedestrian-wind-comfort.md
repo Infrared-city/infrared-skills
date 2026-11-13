@@ -12,12 +12,16 @@ year = TimePeriod(start_month=1, start_day=1, start_hour=0,
                   end_month=12, end_day=31, end_hour=23)
 rows = client.weather.filter_weather_data(identifier=station_uuid, time_period=year)
 
+# Pass every input wind reads: buildings and trees (no ground materials, terrain or installations).
+buildings = client.buildings.get_area(polygon)
+trees = client.vegetation.get_area(polygon).features
+
 request = PwcModelRequest(
     analysis_type=AnalysesName.pedestrian_wind_comfort,
     criteria=PwcCriteria.lawson_lddc,
     **extract_weather_fields(rows, ["windSpeed", "windDirection"]),   # two hourly lists
 )
-result = client.run_area_and_wait(request, polygon, buildings=buildings)
+result = client.run_area_and_wait(request, polygon, buildings=buildings, vegetation=trees)
 classes = result.physical_grid()        # class codes; NaN = no value
 labels = result.legend                  # class names, indexed by the code
 ```

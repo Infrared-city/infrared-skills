@@ -109,7 +109,7 @@ epw = parse_epw("site.epw")                    # a gap in the data raises: do no
 period = TimePeriod(start_month=6, start_day=1, start_hour=8,
                     end_month=8, end_day=31, end_hour=18)
 payload = UtciModelRequest.from_weatherfile_payload(
-    payload=UtciModelBaseRequest(analysis_type=AnalysesName.thermal_comfort_index),
+    payload=UtciModelBaseRequest(analysis_type=AnalysesName.thermal_comfort_index, physics="advanced-wind"),  # needs hourly wind direction
     location=Location(latitude=lat, longitude=lon),
     time_period=period,
     weather_data=epw,
@@ -149,14 +149,14 @@ Sky view factor needs no weather. `SvfModelRequest(analysis_type="sky-view-facto
 `preview_area` is free and local. Call it before every paid run. Pass `analysis_type` and `payload` as keywords.
 
 ```python
-preview = client.preview_area(polygon, analysis_type="thermal-comfort-index",
-                              payload=payload, buildings=buildings)
+preview = client.preview_area(polygon, analysis_type="thermal-comfort-index", payload=payload,
+                              buildings=buildings, vegetation=trees, ground_materials=ground)
 print(preview.tile_count, preview.would_bill_jobs, preview.sensor_count,
       preview.estimated_cost_tokens)
 
 result = client.run_area_and_wait(
     payload, polygon,                     # polygon: GeoJSON, WGS84 [lon, lat]
-    buildings=buildings,                  # see grasshopper-geometry-and-drawing.md
+    buildings=buildings, vegetation=trees, ground_materials=ground, installations=installs,  # every input you have; None = none
     on_progress=lambda st: stage("server %d/%d" % (st.succeeded, st.total)),
     on_accepted=lambda job_id, *_: save_job_id(job_id),   # log what the server took
     max_workers=8,                        # submit pool; split it between parallel variants
@@ -168,7 +168,7 @@ result = client.run_area_and_wait(
 - A failed tile raises `AreaRunError`. There is no partial map.
 - Write the job IDs to a file in `on_accepted`. After a Rhino crash you still know what the server took.
 - Ground analyses give an `AreaResult`. Facade analyses give a `SurfaceAnalysisResult`.
-- Wind and PWC: when the buildings sit on terrain, set `terrain_alignment="to-ground"`. They refuse `ground_geometry`.
+- Wind and PWC: when the buildings sit on terrain, set `terrain_alignment="to-ground"`. They refuse `ground_geometry`, and read no ground materials or installations.
 - Comfort materials (UTCI and TCS only): `wall_albedo`, `wall_absorptivity`, `canopy_transmissivity`, `ground_albedo`, `ground_dt_max`.
 
 ### Daylight factor: one job

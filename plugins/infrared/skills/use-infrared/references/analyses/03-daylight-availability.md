@@ -8,14 +8,21 @@ from infrared_sdk import SolarModelRequest
 from infrared_sdk.analyses.types import AnalysesName
 from infrared_sdk.models import TimePeriod
 
+# Pass every input you have. Your own data wins; public data is the fallback.
+buildings = client.buildings.get_area(polygon)
+trees = client.vegetation.get_area(polygon).features
+
 request = SolarModelRequest(
     analysis_type=AnalysesName.daylight_availability,
     latitude=48.208, longitude=16.371,        # required: they set the sun position
     time_period=TimePeriod(start_month=6, start_day=1, start_hour=9,
                            end_month=6, end_day=30, end_hour=17),
     accuracy="standard",                      # or "precision": finer rays, slower
+    ground_geometry=terrain,                  # your terrain {id: mesh}; None = flat plane
 )
-result = client.run_area_and_wait(request, polygon, buildings=buildings)
+# Ground materials are not read here.
+result = client.run_area_and_wait(request, polygon, buildings=buildings, vegetation=trees,
+                                  installations=installations)   # {id: mesh} or None
 daylight = result.physical_grid()             # see the unit note below
 ```
 

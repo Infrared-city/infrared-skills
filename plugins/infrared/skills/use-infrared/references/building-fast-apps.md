@@ -63,12 +63,12 @@ Do not write a poll loop. `runAreaAndWait` (`run_area_and_wait`) asks for the st
 Preview is free and local. It sends no job. Show the user the tiles, the jobs and the cost first.
 
 ```python
-preview = client.preview_area(polygon, payload=request, buildings=buildings)
+preview = client.preview_area(polygon, payload=request, buildings=buildings, vegetation=trees)
 print(preview.would_bill_jobs, preview.estimated_cost_tokens)     # price from would_bill_jobs
 ```
 
 ```ts
-const plan = await client.previewAreaBatches(input, polygon, { buildings });
+const plan = await client.previewAreaBatches(input, polygon, { buildings, vegetation: trees });
 console.log(plan.plannedJobCount);          // same input and layers as the run
 ```
 
@@ -81,7 +81,7 @@ Pass a list of requests in one call. Analyses of one grid family share the geome
 That saves time. The job count stays the same.
 
 ```python
-sky, solar = client.run_area_and_wait([svf_request, solar_request], polygon, buildings=buildings)
+sky, solar = client.run_area_and_wait([svf_request, solar_request], polygon, buildings=buildings, vegetation=trees)
 ```
 
 ## 6. Helpers, then the colour scale
@@ -107,7 +107,8 @@ When the user presses Run, the live result replaces the baked one.
 ```python
 # bake.py: run in CI or by hand, then ship the file with the app
 import numpy as np
-result = client.run_area_and_wait(request, sample_polygon, buildings=sample_buildings)
+result = client.run_area_and_wait(request, sample_polygon, buildings=sample_buildings,
+                                  vegetation=sample_trees)    # and ground_materials=, installations= if you have them
 np.savez_compressed("public/samples/svf.npz", grid=result.physical_grid(), bounds=result.bounds)
 ```
 

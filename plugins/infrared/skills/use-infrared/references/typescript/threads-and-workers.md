@@ -103,7 +103,7 @@ const sdk = createWorkerClient({
   config: { baseUrl }, // plain, cloneable client settings only
   getToken,            // runs on the page, never in the worker
 });
-const schedule = await sdk.runArea(input, polygon, { onProgress });
+const schedule = await sdk.runArea(input, polygon, { buildings, vegetation, onProgress }); // every input you have
 const result = await sdk.mergeAreaJobs(schedule); // grid buffer is transferred
 ```
 

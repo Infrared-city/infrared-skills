@@ -46,11 +46,14 @@ def main() -> None:
 
     # 2. Public buildings (no model of your own yet). Keep the object: it knows its origin.
     buildings = client.buildings.get_area(polygon)
-    print(f"{buildings.total_buildings} buildings")
+    # Pass every input that is available: trees too (SVF reads no ground materials).
+    trees = client.vegetation.get_area(polygon)
+    print(f"{buildings.total_buildings} buildings, {trees.total_trees} trees")
 
     # 3. The request, and a free local preview of the jobs and the cost.
     request = SvfModelRequest(analysis_type=AnalysesName.sky_view_factors)
-    preview = client.preview_area(polygon, payload=request, buildings=buildings)
+    layers = dict(buildings=buildings, vegetation=trees.features)
+    preview = client.preview_area(polygon, payload=request, **layers)
     print(
         f"tiles {preview.tile_count}, jobs {preview.would_bill_jobs}, "
         f"cost {preview.estimated_cost_tokens} tokens"
@@ -59,7 +62,7 @@ def main() -> None:
         return
 
     # 4. Run. physical_grid() gives real values (NaN = no value, e.g. inside a building).
-    result = client.run_area_and_wait(request, polygon, buildings=buildings)
+    result = client.run_area_and_wait(request, polygon, **layers)
     grid = result.physical_grid()
     values = grid[np.isfinite(grid)]
     print(

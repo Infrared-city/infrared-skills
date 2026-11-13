@@ -21,9 +21,12 @@ const input = {
   analysisType: "solar-radiation", analysisSurfaces: "all", surfaceGridSize: 3, // cell size, m
   latitude: lat, longitude: lon, dateFilters: { period }, weatherData,
 };
-const preview = await client.previewAreaBatches(input, polygon, { buildings }); // free, local
+const trees = await client.vegetation.getArea(polygon);    // pass every input you have
+const ground = await client.groundMaterials.getArea(polygon);
+const layers = { buildings, vegetation: trees, groundMaterials: ground };
+const preview = await client.previewAreaBatches(input, polygon, layers); // free, local
 // show preview.plannedJobCount, preview.sensorCount, preview.estimatedCostTokens before Run
-const columns = (await client.runAreaAndWait(input, polygon, { buildings, onProgress })) as SurfaceColumns;
+const columns = (await client.runAreaAndWait(input, polygon, { ...layers, onProgress })) as SurfaceColumns;
 const buffers = surfaceRenderBuffers(columns);
 const values = surfaceValuesF32(columns);                // kWh/m², NaN = no value (tooltips)
 const range = legendRange(values, "trimmed") ?? [buffers.valueMin, buffers.valueMax];

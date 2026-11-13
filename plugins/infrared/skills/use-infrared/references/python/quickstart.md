@@ -45,11 +45,14 @@ client = InfraredClient()
 request = SvfModelRequest(analysis_type=AnalysesName.sky_view_factors)
 
 # 5. Preview first. It is free and local: it sends no job.
-preview = client.preview_area(polygon, payload=request)
+preview = client.preview_area(polygon, payload=request, buildings=buildings)
 print(preview.would_bill_jobs, preview.estimated_cost_tokens)
 
 # 6. Run. The SDK tiles the area, uploads, polls and merges for you.
-result = client.run_area_and_wait(request, polygon, buildings=buildings)
+#    Pass every input you have: buildings, trees, terrain (ground_geometry on the request),
+#    installations. SVF reads no ground materials; UTCI and solar radiation do.
+trees = client.vegetation.get_area(polygon).features    # or your own trees
+result = client.run_area_and_wait(request, polygon, buildings=buildings, vegetation=trees)
 
 # 7. Read values with the helper. NaN means "no value".
 grid = result.physical_grid()          # 2-D array, row 0 = south, 1 m cells

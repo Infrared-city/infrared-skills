@@ -38,8 +38,10 @@ status(`${p.tileCount} tile(s), about ${p.estimatedCostTokens} tokens`);     // 
 
 // On Run. Own meshes first; public buildings are the fallback.
 const buildings = await client.buildings.getBuildingsInArea(polygon, { analysisType: "sky-view-factors" });
+const vegetation = await client.vegetation.getArea(polygon, { analysisType: "sky-view-factors" });
 const result = (await client.runAreaAndWait({ analysisType: "sky-view-factors" }, polygon, {
   buildings,
+  vegetation,
   onProgress: (s) => status(`${s.completedCount} of ${s.totalCount} tiles done`),
 })) as AreaResult;
 ```
@@ -95,7 +97,7 @@ tile at its centre and leaves visible seams in a wind field:
 
 ```ts
 const input = { analysisType: "wind-speed", windSpeed: 5, windDirection: 270 } as const;
-const schedule = await client.runArea(input, polygon, { buildings });
+const schedule = await client.runArea(input, polygon, { buildings, vegetation });
 while (!(await client.checkAreaState(schedule)).isComplete) await new Promise((r) => setTimeout(r, 1000));
 const result = await client.mergeAreaJobs(schedule, { strategy: "directional_blend", windDirectionDeg: input.windDirection });
 ```

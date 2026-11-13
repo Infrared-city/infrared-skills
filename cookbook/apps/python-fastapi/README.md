@@ -62,7 +62,9 @@ The same inputs again return the same run (`"cached": true`). It is not billed a
 - `analysis`: `sky-view-factors`, `wind-speed` (`params`: `wind_speed`,
   `wind_direction`) or `direct-sun-hours` (`params`: `month`).
 - `buildings`: your footprints in lon/lat, with `height` in metres.
-- `public_buildings`: set it to `true` only when you have no model. Install
+- `trees`: your trees, `{id: GeoJSON Point Feature}` with `genus`, `height`, `crownDiameter`.
+- `public_buildings`: set it to `true` only when you have no model. It reads public buildings
+  and public trees (each analysis here reads trees). Install
   `infrared-sdk[geodata]==1.0.0` for it. Without it, the API answers 422 with
   the install line.
 - `allow_large`: the SDK refuses more than 100 tiles (HTTP 422). Set it to

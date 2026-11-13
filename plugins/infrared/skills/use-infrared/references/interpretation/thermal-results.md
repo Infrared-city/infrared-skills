@@ -24,7 +24,8 @@ over several days. Do not call night values validated.
 
 **Pitfalls**: surface material changes the value a lot (sunny asphalt against shaded grass: 10 to
 15 C three metres apart). Do not average across material classes. Trees and ground materials
-matter: pass them.
+matter: pass them, with terrain and installations. Run UTCI and TCS with `physics="advanced-wind"`:
+without it the SDK runs the simple `standard` tier.
 
 ## thermal-comfort-statistics (TCS)
 

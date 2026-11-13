@@ -13,7 +13,9 @@ result = client.run_area_and_wait(
     buildings=my_buildings,        # {id: {"coordinates": [x, y, z, ...], "indices": [i, j, k, ...]}}
     vegetation=my_trees,           # {id: GeoJSON Point Feature}
     ground_materials=my_layers,    # {material: GeoJSON FeatureCollection}
+    installations=my_installations,  # {id: mesh} thin shading pieces (not wind). None sends nothing
 )
+# Terrain is a request field: ground_geometry={id: mesh} (not wind). Far shade: context_geometry.
 ```
 
 `None` or `{}` sends nothing for that layer.
@@ -45,21 +47,29 @@ result = client.run_area_and_wait(
 
 - One FeatureCollection in lon/lat for each material: `asphalt`, `concrete`, `soil`, `vegetation`, `water`.
   An unknown name raises. A UUID key is refused.
-- Only the thermal analyses read them. `albedo` in a feature's properties is ignored: use
+- The thermal analyses and solar radiation read them. Wind, SVF, sun hours and daylight do not. `albedo` in a feature's properties is ignored: use
   `ground_albedo` on the request for the whole run.
 - Make layers mutually exclusive. If two overlap, the model picks the top one and a tie can turn
   a lake into asphalt. Fetched layers come pre-cleaned. When you override, replace one key:
   `{**area_g.layers, "vegetation": my_park}`.
 
-## Which layers each analysis needs
+## Default: pass every input you have
 
-| Analysis | Buildings | Trees | Ground materials |
-|---|---|---|---|
-| wind speed, pedestrian wind comfort | required | optional | no effect |
-| sky view factor | required | optional | no effect |
-| daylight availability, direct sun hours | required | optional | no effect |
-| solar radiation | required | recommended | no effect |
-| UTCI, TCS | required | recommended | recommended |
+Never leave out an input that is available. Pass buildings, context, trees, ground materials,
+terrain and installations to every run. A missing input is a silent fault: the run is billed and the
+result looks normal. Fetch public trees and ground materials when you have no own data.
+
+| Analysis | Buildings, context | Trees | Ground materials | Terrain | Installations |
+|---|---|---|---|---|---|
+| wind speed, pedestrian wind comfort | pass | pass | not read | not read (use `terrain_alignment`) | not read |
+| sky view factor, direct sun hours, daylight availability | pass | pass | not read | pass | pass |
+| solar radiation | pass | pass | pass | pass | pass |
+| UTCI, TCS, wall surface temperature | pass | pass | pass | pass | pass |
+
+For UTCI, TCS and wall surface temperature, also set `physics="advanced-wind"` on the payload
+([07](analyses/07-thermal-comfort-utci.md)).
+`physics="advanced-wind"` and the `installations=` run argument need an SDK release that has them. On an
+older SDK, leave them out.
 
 ## Fetched buildings: know the source
 
@@ -81,7 +91,8 @@ result = client.run_area_and_wait(request, polygon, buildings=area_b,
 ## Terrain and context
 
 `ground_geometry` (terrain) and `context_geometry` (far shade) go on the request, in the building
-frame. Never put terrain in `buildings`.
+frame. Never put terrain in `buildings`. Pass both when you have them. `installations` (thin
+panels, fins, PV) go to the run, as `installations=`.
 See [analyses/11-terrain-and-context.md](analyses/11-terrain-and-context.md).
 
 ## Meshes from OBJ, glTF and BIM: weld first

@@ -25,7 +25,7 @@ One mode for each request. Ground and facades are two requests.
 | `buildings=` of the run (or `geometries` on the request) | Analysed. Sensors land here. |
 | `context_geometry` | Casts shade only. Never analysed. |
 | `ground_geometry` | Terrain. Never analysed. |
-| `vegetation` | Trees, GeoJSON points, lon/lat |
+| `vegetation` | Trees, GeoJSON points, lon/lat. Pass them (run argument) |
 | `ground_materials` | Material polygons, lon/lat |
 
 The three mesh channels take `{id: {"coordinates": [...], "indices": [...]}}` in metres, with the
@@ -49,7 +49,7 @@ Put the building you design in `buildings` and the surroundings in `context_geom
 ## Cost
 
 A facade run is split into batches of at most about 250,000 sensors. Each batch is one billed job.
-A tile with no target building sends no job. Use `preview_area(..., payload=, buildings=)` and
+A tile with no target building sends no job. Use `preview_area(..., payload=, buildings=, vegetation=)` and
 read `would_bill_jobs`.
 
 ## Results

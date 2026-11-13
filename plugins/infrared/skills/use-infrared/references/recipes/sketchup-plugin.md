@@ -53,6 +53,8 @@ def site_buildings(site: SiteRequest, fetch_public: bool) -> Any:
     ...                                   # footprints, then the public fallback, as before
 ```
 
+The cookbook app also takes `trees` (`{id: GeoJSON Point Feature}`) and passes them to the run. Send the
+trees of the model too: a run with buildings only gives a normal-looking map with no tree shade.
 `SiteRequest.key()` hashes every field, so the result cache also covers meshes: the same
 model and settings again return the stored run and are not billed again.
 

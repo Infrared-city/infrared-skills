@@ -5,19 +5,29 @@ It uses direct and diffuse radiation from a weather file.
 
 ```python
 from infrared_sdk import SolarRadiationModelRequest
-from infrared_sdk.analyses.types import AnalysesName, BaseAnalysisPayload
+from infrared_sdk.analyses.types import AnalysesName, SolarRadiationModelBaseRequest
 from infrared_sdk.models import Location, TimePeriod
 
 tp = TimePeriod(start_month=6, start_day=1, start_hour=9,
                 end_month=6, end_day=30, end_hour=17)
 rows = client.weather.filter_weather_data(identifier=station_uuid, time_period=tp)
 
+# Pass every input you have. Your own data wins; public data is the fallback.
+buildings = client.buildings.get_area(polygon)
+trees = client.vegetation.get_area(polygon).features
+ground = client.ground_materials.get_area(polygon).layers
+
 request = SolarRadiationModelRequest.from_weatherfile_payload(
-    payload=BaseAnalysisPayload(analysis_type=AnalysesName.solar_radiation),
+    payload=SolarRadiationModelBaseRequest(
+        analysis_type=AnalysesName.solar_radiation,
+        ground_geometry=terrain,         # your terrain {id: mesh}; None = flat plane
+    ),
     location=Location(latitude=48.208, longitude=16.371),
     time_period=tp, weather_data=rows,
 )
-result = client.run_area_and_wait(request, polygon, buildings=buildings)
+result = client.run_area_and_wait(request, polygon, buildings=buildings, vegetation=trees,
+                                  ground_materials=ground,
+                                  installations=installations)   # {id: mesh} or None
 energy = result.physical_grid()         # kWh/m2 over the window
 ```
 
