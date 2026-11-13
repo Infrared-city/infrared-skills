@@ -42,7 +42,7 @@ January first. Do not split it. A full-year window is normal for pedestrian wind
 | wind speed, sky view factor | no | no |
 | daylight availability, direct sun hours | yes | no (needs location) |
 | solar radiation | yes | direct and diffuse radiation |
-| UTCI, TCS | yes | 7 columns |
+| UTCI, TCS | yes (dark hours allowed) | 7 columns |
 | pedestrian wind comfort | yes (to cut the weather) | wind speed and direction lists |
 | energy balance (interior) | no (one year) | 2 or 4 series |
 

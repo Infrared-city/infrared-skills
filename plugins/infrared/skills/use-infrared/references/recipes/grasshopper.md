@@ -109,7 +109,7 @@ epw = parse_epw("site.epw")                    # a gap in the data raises: do no
 period = TimePeriod(start_month=6, start_day=1, start_hour=8,
                     end_month=8, end_day=31, end_hour=18)
 payload = UtciModelRequest.from_weatherfile_payload(
-    payload=UtciModelBaseRequest(analysis_type=AnalysesName.thermal_comfort_index),
+    payload=UtciModelBaseRequest(analysis_type=AnalysesName.thermal_comfort_index, physics="advanced"),
     location=Location(latitude=lat, longitude=lon),
     time_period=period,
     weather_data=epw,

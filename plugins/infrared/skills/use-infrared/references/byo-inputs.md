@@ -16,7 +16,7 @@ result = client.run_area_and_wait(
 )
 ```
 
-`None` or `{}` sends nothing for that layer.
+`None` or `{}` sends nothing for that layer. For UTCI and TCS a run with no `ground_materials` and no `vegetation` gives flat one-colour maps: pass both.
 
 ### Buildings
 

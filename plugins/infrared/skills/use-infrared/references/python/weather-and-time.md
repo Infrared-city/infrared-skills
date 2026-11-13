@@ -36,6 +36,7 @@ year = TimePeriod(start_month=1, start_day=1, start_hour=0,
 
 - The window is a cascade: months, then days, then hours. `end_*` is inclusive.
 - Use the same `TimePeriod` for the weather filter and the request.
+- A UTCI or TCS window may include dark hours. With `physics="advanced"` the model carries the ground and wall afterglow after sunset. Pass it.
 - `direct-sun-hours` on the ground counts night hours as sun. Keep the hours inside sunrise to sunset
   ([../analyses/04-direct-sun-hours.md](../analyses/04-direct-sun-hours.md)).
 
@@ -81,14 +82,16 @@ place = Location(latitude=lat, longitude=lon)
 
 # UTCI: 7 weather columns, picked for you.
 utci = UtciModelRequest.from_weatherfile_payload(
-    payload=UtciModelBaseRequest(analysis_type=AnalysesName.thermal_comfort_index),
+    payload=UtciModelBaseRequest(analysis_type=AnalysesName.thermal_comfort_index,
+                                 physics="advanced"),   # afterglow after sunset, same price
     location=place, time_period=summer_day, weather_data=rows)
 
 # Thermal comfort statistics: the same columns, plus a subtype per call.
 tcs = TcsModelRequest.from_weatherfile_payload(
     payload=TcsModelBaseRequest(
         analysis_type=AnalysesName.thermal_comfort_statistics,
-        subtype=TcsSubtype.heat_stress),             # or thermal_comfort, cold_stress
+        subtype=TcsSubtype.heat_stress,              # or thermal_comfort, cold_stress
+        physics="advanced"),
     location=place, time_period=summer_day, weather_data=rows)
 
 # Solar radiation: direct and diffuse radiation only.

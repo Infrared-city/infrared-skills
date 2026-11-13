@@ -12,6 +12,8 @@ request = TcsModelRequest.from_weatherfile_payload(
     payload=TcsModelBaseRequest(
         analysis_type=AnalysesName.thermal_comfort_statistics,
         subtype=TcsSubtype.heat_stress,        # thermal_comfort, heat_stress or cold_stress
+        physics="advanced",                    # as for UTCI: afterglow after sunset, same price
+        ground_geometry=terrain, terrain_alignment="auto-align",   # your terrain mesh
     ),
     location=Location(latitude=48.208, longitude=16.371),
     time_period=tp, weather_data=rows,         # as in the UTCI page
