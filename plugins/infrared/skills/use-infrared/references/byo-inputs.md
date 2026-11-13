@@ -66,9 +66,9 @@ result looks normal. Fetch public trees and ground materials when you have no ow
 | solar radiation | pass | pass | pass | pass | pass |
 | UTCI, TCS, wall surface temperature | pass | pass | pass | pass | pass |
 
-For UTCI, TCS and wall surface temperature, also set `physics="advanced-wind"` on the payload
+For UTCI, TCS and wall surface temperature, also set `physics="advanced"` on the payload
 ([07](analyses/07-thermal-comfort-utci.md)).
-`physics="advanced-wind"` and the `installations=` run argument need an SDK release that has them. On an
+`physics="advanced"` and the `installations=` run argument need an SDK release that has them. On an
 older SDK, leave them out.
 
 ## Fetched buildings: know the source

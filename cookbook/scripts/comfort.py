@@ -68,7 +68,7 @@ def main() -> None:
     request = UtciModelRequest.from_weatherfile_payload(
         payload=UtciModelBaseRequest(
             analysis_type=AnalysesName.thermal_comfort_index,
-            physics="advanced-wind",  # the advanced tier with local wind; needs hourly wind direction
+            physics="advanced",  # the advanced tier (same price as standard)
         ),
         location=Location(latitude=lat, longitude=lon),
         time_period=window,

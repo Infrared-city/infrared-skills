@@ -24,7 +24,7 @@ For speed rules (one client, preview first, let the SDK poll, baked samples), re
 2. **Preview before Run.** Show jobs and tokens. The preview is free.
 3. **Use the user's own model if they have one.** Public buildings (`infrared-sdk[geodata]`)
    are the fallback. Say where the data comes from. Pass every input you have: trees, ground
-   materials, terrain, installations ([../byo-inputs.md](../byo-inputs.md)). UTCI: `physics="advanced-wind"`.
+   materials, terrain, installations ([../byo-inputs.md](../byo-inputs.md)). UTCI: `physics="advanced"`.
 4. **One fixed colour scale per analysis, with a legend and a unit**
    ([rendering-results-well.md](rendering-results-well.md)).
 5. **Keep the key on a server.** Never in a `VITE_*` variable or the bundle. Set it as a

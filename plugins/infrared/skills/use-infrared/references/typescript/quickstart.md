@@ -86,7 +86,7 @@ Tested output (1 tile): `rows: 512, cols: 512`, `bounds` = the tile in degrees,
   pass the whole returned object, so the SDK can check its frame and read margin.
 - **Pass every input you have.** Run options: `buildings`, `vegetation`, `groundMaterials`,
   `installations`. Terrain is `groundGeometry` on the input. Wind reads buildings and trees only.
-  UTCI and statistics: set `physics: "advanced-wind"` in the input.
+  UTCI and statistics: set `physics: "advanced"` in the input.
 - **Weather analyses** (`solar-radiation`, `thermal-comfort-index`) take hours from
   `client.weather.filterWeatherData(stationUuid, { period })` as `weatherData`, plus
   `latitude`, `longitude` and `dateFilters: { period }`. See [facades-3d.md](facades-3d.md).

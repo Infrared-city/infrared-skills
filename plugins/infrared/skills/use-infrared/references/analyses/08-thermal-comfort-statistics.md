@@ -18,7 +18,7 @@ request = TcsModelRequest.from_weatherfile_payload(
     payload=TcsModelBaseRequest(
         analysis_type=AnalysesName.thermal_comfort_statistics,
         subtype=TcsSubtype.heat_stress,        # thermal_comfort, heat_stress or cold_stress
-        physics="advanced-wind",               # default: needs hourly wind direction (in `rows`)
+        physics="advanced",               # advanced tier
         ground_geometry=terrain,               # your terrain {id: mesh}; None = flat plane
     ),
     location=Location(latitude=48.208, longitude=16.371),
@@ -45,6 +45,6 @@ For all three, run three requests. Each call is one subtype.
 - The window comes only from the `TimePeriod`: months, then days, then hours.
 - Percent is relative to the window. Do not compare runs with different windows without care.
 - Keep the weather file fixed when you compare designs.
-- Same inputs, materials and `physics` as UTCI: pass trees, ground, terrain and installations, and set `physics="advanced-wind"`.
+- Same inputs, materials and `physics` as UTCI: pass trees, ground, terrain and installations, and set `physics="advanced"`.
 
 Read the result: [../interpretation/thermal-results.md](../interpretation/thermal-results.md)

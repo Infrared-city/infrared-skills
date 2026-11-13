@@ -20,7 +20,7 @@ ground = client.ground_materials.get_area(polygon).layers
 request = UtciModelRequest.from_weatherfile_payload(
     payload=UtciModelBaseRequest(
         analysis_type=AnalysesName.thermal_comfort_index,
-        physics="advanced-wind",         # default for UTCI: needs hourly wind direction (in `rows`)
+        physics="advanced",         # advanced tier: the default for UTCI
         ground_geometry=terrain,         # your terrain {id: mesh}; None = flat plane
         # optional comfort materials: wall_albedo=0.4, ground_albedo=0.2, canopy_transmissivity=0.03, ...
     ),
@@ -40,11 +40,12 @@ utci = result.physical_grid()           # degrees C, NaN = no value
   `ground_albedo`, `ground_dt_max`. The first match wins: entry of one building or tree, then the
   request field, then the built-in value.
 - A winter window (Dec to Feb) is one `TimePeriod`.
-- `physics`: set `"advanced-wind"` every time. It is the advanced tier with local wind: the wind
-  speed of each cell comes from the buildings and trees around it. It needs the hourly wind
-  direction in the weather: `from_weatherfile_payload` takes it from `rows`. Without `physics`,
-  the SDK runs the simple `standard` tier, with the one weather wind for all cells. Do not use
-  `v1` or `detail` (deprecated). TypeScript: `physics: "advanced-wind"` in the input.
+- `physics`: set `"advanced"` every time. It adds the roof material and the heat that each ground
+  material gives off after sunset. It costs the same as `standard`. Without `physics`, the SDK runs
+  the simple `standard` tier. `"advanced-wind"` adds local wind (the wind speed of each cell comes
+  from the buildings and trees round it; it needs the hourly wind direction in `rows`) and costs
+  5 times more for each tile: use it only when the user asks. Do not use `v1` or `detail`
+  (deprecated). TypeScript: `physics: "advanced"` in the input.
 - Trees, ground materials, terrain and installations change the result a lot. Pass all of them.
   Do not skip the fetch: without them the run is billed and the result looks normal.
 - The default model has a wall afterglow of about 3 hours and a ground lag of about 43 minutes.

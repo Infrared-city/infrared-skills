@@ -82,7 +82,7 @@ place = Location(latitude=lat, longitude=lon)
 # UTCI: 7 weather columns, picked for you.
 utci = UtciModelRequest.from_weatherfile_payload(
     payload=UtciModelBaseRequest(analysis_type=AnalysesName.thermal_comfort_index,
-                                 physics="advanced-wind"),   # default tier: local wind, needs `rows` wind direction
+                                 physics="advanced"),   # advanced tier
     location=place, time_period=summer_day, weather_data=rows)
 
 # Thermal comfort statistics: the same columns, plus a subtype per call.
@@ -90,7 +90,7 @@ tcs = TcsModelRequest.from_weatherfile_payload(
     payload=TcsModelBaseRequest(
         analysis_type=AnalysesName.thermal_comfort_statistics,
         subtype=TcsSubtype.heat_stress,              # or thermal_comfort, cold_stress
-        physics="advanced-wind"),                    # default tier, as for UTCI
+        physics="advanced"),                    # default tier, as for UTCI
     location=place, time_period=summer_day, weather_data=rows)
 
 # Solar radiation: direct and diffuse radiation only.
@@ -102,8 +102,8 @@ solar = SolarRadiationModelRequest.from_weatherfile_payload(
 print(len(winter_rows), "winter hours")      # 990
 ```
 
-Set `physics="advanced-wind"` for UTCI and TCS: the advanced tier with local wind. Without it the
-SDK runs the simple `standard` tier. The hourly wind direction in `rows` is required.
+Set `physics="advanced"` for UTCI and TCS: the advanced tier (same price as `standard`). Without it the
+SDK runs the simple `standard` tier.
 The UTCI model has a wall afterglow of about 3 hours and a ground lag of about 43 minutes,
 and no memory over days. The air comes from the weather file.
 Comfort materials are optional fields on the UTCI and TCS request:

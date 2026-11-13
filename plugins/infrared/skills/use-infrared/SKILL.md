@@ -50,7 +50,7 @@ Every row: read [building-fast-apps](references/building-fast-apps.md) for speed
 ### Inputs: your data first
 
 - Your own buildings, trees and ground are the main path ([byo-inputs](references/byo-inputs.md)). Ask what the user has
-  (BIM, Rhino, IFC, GeoJSON). Public data (Overture, city data) is a fallback. Pass every input you have (buildings, context, trees, ground materials, terrain, installations), except those an analysis does not read ([byo-inputs](references/byo-inputs.md)). UTCI and statistics: always `physics="advanced-wind"` ([07](references/analyses/07-thermal-comfort-utci.md)). Its source and heights vary: say so. Getting data and shaping it for the SDK are two separate jobs: read [shaping-data](references/shaping-data.md) first.
+  (BIM, Rhino, IFC, GeoJSON). Public data (Overture, city data) is a fallback. Pass every input you have (buildings, context, trees, ground materials, terrain, installations), except those an analysis does not read ([byo-inputs](references/byo-inputs.md)). UTCI and statistics: always `physics="advanced"` ([07](references/analyses/07-thermal-comfort-utci.md)). Its source and heights vary: say so. Getting data and shaping it for the SDK are two separate jobs: read [shaping-data](references/shaping-data.md) first.
 - Sensors: ground, facades and roofs, or own points ([09](references/analyses/09-facade-terrain.md)). Terrain and far
   shade (128 m reach in 1.0): [11](references/analyses/11-terrain-and-context.md). Time: [03](references/03-time-period.md).
 
