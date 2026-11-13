@@ -19,8 +19,10 @@ temperature (computed inside the model), humidity and wind. The grid is one aggr
 | below 0 | Moderate to extreme cold stress |
 
 Read values with `physical_grid()`. The stored type can differ, so do not read the raw array.
-The model has a wall afterglow of about 3 hours and a ground lag of about 43 minutes, and no memory
-over several days. Do not call night values validated.
+A window may include dark hours. With `physics="advanced"` the model keeps the afterglow of each
+ground material and of the walls after sunset (asphalt and concrete for hours, soil and grass much
+shorter), and has no memory over several days. The standard tier has a wall afterglow of about
+3 hours and a ground lag of about 43 minutes for all materials.
 
 **Pitfalls**: surface material changes the value a lot (sunny asphalt against shaded grass: 10 to
 15 C three metres apart). Do not average across material classes. Trees and ground materials

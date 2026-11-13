@@ -127,6 +127,11 @@ result = client.run_area_and_wait(request, polygon, buildings=buildings,
 print(float(np.nanmin(result.physical_grid())))
 ```
 
+For UTCI and TCS, always pass all of these: `ground_materials=`, `vegetation=`, and in the request
+`physics="advanced"`, `ground_geometry=` with `terrain_alignment="auto-align"`
+([07](../analyses/07-thermal-comfort-utci.md)). Without them the standard tier gives about 1 K spread
+and flat one-colour maps.
+
 ## No model yet: public data as a fallback
 
 Use this for a first look, a demo, or the context around your design. Buildings come from the

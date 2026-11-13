@@ -16,7 +16,7 @@ whole polygon. A building beyond the edge is placed at the edge height.
 A BIM terrain solid is closed. `ground_geometry` wants the top surface only. Keep the up-facing
 triangles (normal z above 0.5) and drop the bottom cap and the skirt.
 
-Set `terrain_alignment` yourself: the field is unset by default.
+Set `terrain_alignment` yourself: the field is unset by default. For UTCI and TCS use `"auto-align"` with `physics="advanced"`: a thermal run on flat ground gives flat maps ([07](07-thermal-comfort-utci.md)).
 
 Which analyses take it: the four solar analyses and UTCI and TCS. Wind refuses terrain: it has no `ground_geometry`.
 
