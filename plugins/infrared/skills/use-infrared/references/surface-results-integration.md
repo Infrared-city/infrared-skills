@@ -38,6 +38,7 @@ The shader finds the cell from the outline point. No mesh for each cell.
 - Keep one run to one site so the corners stay accurate.
 - Save the layout (frames and outline) once for each geometry (`FacadeLayout.to_bytes`) and the values
   for each run (`columns.to_bytes`). Rejoin with `attach_values`, which refuses a mismatch.
+- To keep the layout of a run you merge, ask the merge: `mergeSurfaceAreaJobs(schedule, { facadeLayout: true })` gives `facadeLayoutParts` (Python `merge_area_jobs(schedule, facade_layout=True)` gives `facade_layout_parts`; .NET `MergeSurfaceAreaJobs(schedule, facadeLayout: true)`). Open a part with `FacadeLayout.fromBytes`. A merge without every capture gives no parts. Then call `synthesizeFacadeLayout` (Python `synthesize_facade_layout`).
 - Free memory: `client.forget_schedule(schedule)` for a schedule you will not merge.
 
 ## Route 2: textures per surface (BIM tools, engines)

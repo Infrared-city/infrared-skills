@@ -12,12 +12,17 @@ Docs: [Cost and retry](https://infrared.city/docs/sdk/1.0/sdk.md) (chapter "Cost
 - **Bad input fails before you pay.** A request is checked when you build it (pydantic).
   A polygon is checked at `preview_area` and at the run.
 - **No double bill.** Each job has an idempotency key. If a submit gets no answer, the SDK sends
-  the same key again (up to 6 sends). The server returns the job it already has.
+  the same key again. A send that never left the machine is sent again calmly for about 20 s
+  with the same key, then the tile fails with its cause. The server returns the job it already has.
   A job that failed or was refused is sent again as a new job.
 - **One retry round.** `run_area_and_wait(..., retries=1)` sends the failed tiles again one time.
   Use `retries=0` to turn it off.
 - **No map with holes.** If a tile still fails, the call raises `AreaRunError`.
 - **HTTP 429 and 5xx** are retried with backoff. `401` and `403` are not: fix the key.
+- **One run for a list.** A list run is one run: one request cap and one rate.
+- **A request rate.** An area run starts at most about 100 requests per second per API key.
+  City and export runs have no such limit. Set `InfraredClient(max_requests_per_second=...)` to
+  change it (TypeScript `maxRequestsPerSecond`, .NET `MaxRequestsPerSecond`). `0` means no limit.
 - **No poll loop needed.** The SDK polls up to 50 job ids in one request and paces itself.
 
 ## Catch errors at the right layer
