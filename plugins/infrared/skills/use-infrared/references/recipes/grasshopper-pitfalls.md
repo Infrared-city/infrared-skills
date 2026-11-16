@@ -42,7 +42,7 @@ Most expensive failures return HTTP 200 and a plausible result. Look at the pict
 25. **Clean once.** After `clean_mesh`, set `mesh_cleaning="off"` on the payload. Check that facade results still return an outline: if not, leave cleaning on.
 26. **Open shells stay open.** Do not "fix" them by welding and baking them back into the model.
 27. **Check the units and the axes.** The SDK reads numbers as metres, z up. A Y-up or centimetre model gives a billed, wrong result. The origin is the south-west corner of the polygon bounding box, not the centre.
-28. **Wind and PWC on terrain:** set `terrain_alignment="to-ground"`. These models refuse `ground_geometry`.
+28. **Wind and PWC on terrain:** set `terrain_alignment="to-ground"` (default `"as-is"`). These models take no `ground_geometry`.
 29. **A single building above about 250,000 sensors** cannot be split. The server can refuse the job. Use a coarser `surface_grid_size` for it.
 30. **Send only context that can change the result.** A large `context_geometry` raises payload size. Do not cut context vertically: upper floors of a neighbour shade a low floor.
 31. **Mesh a flat shape by hand.** `MeshingParameters.Default` can split a flat quad into many triangles. Log triangle counts: they show a slow job that nothing else shows.

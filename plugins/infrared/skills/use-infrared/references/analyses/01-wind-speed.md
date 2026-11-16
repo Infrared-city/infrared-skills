@@ -35,7 +35,7 @@ speed = result.physical_grid()          # m/s, NaN = no value
 | `wind_direction` | int | Meteorological: 0 = from north, 90 = from east. Values outside 0-360 wrap. A fraction is refused |
 | `latitude`, `longitude` | optional | Ignored by wind |
 
-Wind takes buildings, trees and ground. It has no `ground_geometry` (so `terrain_alignment` has no use), no `context_geometry` and no facade sensors.
+Wind takes buildings, trees and ground. It has no `ground_geometry`, no `context_geometry` and no facade sensors. When the meshes sit on terrain, set `terrain_alignment="to-ground"` (default `"as-is"`): it lowers each mesh so its lowest point is at z = 0.
 
 ## Tiles
 

@@ -57,7 +57,7 @@ Every row: read [building-fast-apps](references/building-fast-apps.md) for speed
 ### Area runs and results
 
 The SDK cuts the area into 512 m tiles, uploads the geometry once, sends one job for each tile and
-analysis, polls, and merges. A failed tile raises (no map with holes). A resend never bills twice.
+analysis, polls, and merges. A failed tile raises (no map with holes). A repeat of the same request while its jobs are still kept on the server is not billed again. There is no result cache: a new run later is billed in full.
 - Always read values with the helper: `result.physical_grid()` (Python), `areaGridValuesF32(result)` (TypeScript).
   Never read the raw array: its stored type differs by analysis. NaN means no value. A facade at 0.0 is real. Ground cells under buildings can be 0.0: mask them with the footprints before a mean or a minimum.
 - Use a fixed colour scale for each analysis: [rendering-results-well](references/recipes/rendering-results-well.md).
@@ -125,6 +125,6 @@ Facades and roofs: `surfaceRenderBuffers(columns)`. TypeScript pages and apps: s
 - A frame error (see Coordinates): lat/lon swapped, Y-up, centimetres, origin not at the south-west corner. An open mesh. Overlapping solids: facades at 0 ([geometry-pitfalls](references/geometry-pitfalls.md)).
 - Weather left out of a thermal or solar request: billed, then fails. Use `from_weatherfile_payload`.
 - No `ground_geometry` means a flat plane. Terrain in `buildings` gives a shattered mesh.
-- Night hours in a `direct-sun-hours` window count as sun. Shade beyond 128 m past a tile is missing. A bare UTCI request (no `physics="advanced"`, `ground_materials`, `vegetation`, `ground_geometry`) gives flat one-colour maps. Use the rich call in [07](references/analyses/07-thermal-comfort-utci.md). A UTCI window may include dark hours: `advanced` models the afterglow after sunset.
+- Night hours in a `direct-sun-hours` window count as sun. Shade beyond 128 m past a tile is missing. A bare UTCI request (no `physics="advanced"`, `ground_materials`, `vegetation`, terrain) gives flat one-colour maps. Use the rich call in [07](references/analyses/07-thermal-comfort-utci.md). A UTCI window may include dark hours: `advanced` models the afterglow after sunset.
 - Interior entities must be nested. `preview_area` without `payload=` prices the wind grid. Wind speed: always merge with `strategy="directional_blend"`, or tiles show seams.
 End of task: read [references/reflection-and-feedback.md](references/reflection-and-feedback.md) once.
