@@ -16,10 +16,10 @@ the real thing. The files were generated once from open data; the file contract 
 
 | Scenario | Buildings | Trees | Surfaces | What changed (obvious on the map) |
 |---|---|---|---|---|
-| `01-baseline` | 123 (real heights) | 362 (real species) | 75 (park, pond, plazas) | the real block, untouched |
-| `02-towers` | 123, **8 towers ×3 height** (up to 66 m) | 362 | 75 | eight blocks shoot up into towers |
-| `03-green` | 123 | **500** (dense new planting, varied species) | 75, **all paving → vegetation** | the whole ground turns to park + trees |
-| `04-redevelopment` | **66** (eastern third cleared) | 362 | 145 (cleared footprints → park) | half the buildings gone, replaced by green |
+| `01-baseline` | 123 (real heights) | 362 (real species) | 84 (streets as asphalt, park, pond, plazas) | the real block, untouched |
+| `02-towers` | 123, **8 towers ×3 height** (up to 66 m) | 362 | 84 | eight blocks shoot up into towers |
+| `03-green` | 123 | **500** (dense new planting, varied species) | 84, **all paved squares and plazas → vegetation** (streets stay asphalt) | squares and plazas turn to park, plus many new trees |
+| `04-redevelopment` | **66** (eastern third cleared) | 362 | 154 (cleared footprints → park) | half the buildings gone, replaced by green |
 
 All four share the **same site bbox** so they line up when compared. Counts stay
 inside the platform caps (buildings ≤ 50 000, trees ≤ 500, surfaces ≤ 500), and
@@ -64,7 +64,8 @@ Each file is **one data layer**; a multi-file drop is auto-classified by content
 
 | Layer | Source | Licence |
 |---|---|---|
-| Buildings, ground surfaces | OpenStreetMap via [Overpass API](https://overpass-api.de) | © OpenStreetMap contributors, [ODbL](https://opendatacommons.org/licenses/odbl/) |
+| Buildings | OpenStreetMap via [Overpass API](https://overpass-api.de) |
+| Ground surfaces | Infrared SDK ground fetch (OSM road surfaces, Overture land cover, land use and water), dissolved per material; named plazas, park and pond from OSM | © OpenStreetMap contributors, [ODbL](https://opendatacommons.org/licenses/odbl/); Overture Maps Foundation (ODbL / CDLA-Permissive-2.0 per theme) |
 | Trees (species, height, crown) | [Stadt Wien – Baumkataster](https://www.data.gv.at/) (`ogdwien:BAUMKATOGD`) | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) — *Datenquelle: Stadt Wien – data.wien.gv.at* |
 | Weather (EPW) | [climate.onebuilding.org](https://climate.onebuilding.org) TMYx | see [weather/README.md](weather/README.md) |
 
