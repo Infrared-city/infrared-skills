@@ -47,8 +47,8 @@ more, because wind tiles step 256 m.
   `wall-surface-temperature-advanced-wind`) cost 50; `wind-factors` costs 0. The price can change:
   a preview shows the exact number:
   25 tiles gave about 250 tokens, 27 facade jobs about 270.
-- So tokens are roughly `tiles x 10 x number of analyses` (`x 50` for
-  pedestrian wind comfort).
+- So tokens are roughly `tiles x tokens per job x number of analyses`: 10 per job,
+  50 for pedestrian wind comfort and every `-advanced-wind` variant, 0 for wind factors.
 - Run the preview before every large run. Read `estimated_cost_tokens`.
 - The same request sent again within the job retention window (some days) is not billed again. There is no result cache: after that window, or for a changed request, it is billed in full.
 
