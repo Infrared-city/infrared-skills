@@ -13,11 +13,13 @@ request = TcsModelRequest.from_weatherfile_payload(
         analysis_type=AnalysesName.thermal_comfort_statistics,
         subtype=TcsSubtype.heat_stress,        # thermal_comfort, heat_stress or cold_stress
         physics="advanced",                    # as for UTCI: afterglow after sunset, same price
-        ground_geometry=terrain, terrain_alignment="auto-align",   # your terrain mesh
     ),
     location=Location(latitude=48.208, longitude=16.371),
     time_period=tp, weather_data=rows,         # as in the UTCI page
 )
+# SDK 1.0.0: TcsModelBaseRequest has no terrain fields. Set them on the built request.
+request.ground_geometry = {"terrain": terrain}   # your terrain mesh
+request.terrain_alignment = "auto-align"
 result = client.run_area_and_wait(request, polygon,
                                   buildings=buildings, vegetation=trees, ground_materials=ground)
 share = result.physical_grid()                 # 0 to 100 (% of the window), NaN = no value

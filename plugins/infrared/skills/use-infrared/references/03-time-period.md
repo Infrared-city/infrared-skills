@@ -49,6 +49,11 @@ January first. Do not split it. A full-year window is normal for pedestrian wind
 ## Pitfalls
 
 - Use the same `TimePeriod` for the weather filter and for the request.
+- An hour range across midnight (`start_hour` greater than `end_hour`, for example 22 to 6) is
+  refused by the server for solar radiation, direct sun hours, daylight availability, UTCI and TCS.
+  `TimePeriod` accepts it at construction, so check the hours yourself before you run. Use two
+  requests (for example 22 to 23 and 0 to 6) or one range inside a day. A weather-only selection
+  (for example for pedestrian wind comfort) accepts it.
 - Direct sun hours on the ground: keep the hours inside daylight
   ([analyses/04-direct-sun-hours.md](analyses/04-direct-sun-hours.md)).
 - `TimePeriod` is frozen. Build a new one to change it.

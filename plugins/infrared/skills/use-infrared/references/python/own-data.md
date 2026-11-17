@@ -128,8 +128,8 @@ print(float(np.nanmin(result.physical_grid())))
 ```
 
 For UTCI and TCS, always pass all of these: `ground_materials=`, `vegetation=`, and in the request
-`physics="advanced"`, `ground_geometry=` with `terrain_alignment="auto-align"`
-([07](../analyses/07-thermal-comfort-utci.md)). Without them the standard tier gives about 1 K spread
+`physics="advanced"`. Set `ground_geometry` and `terrain_alignment="auto-align"` on the built request,
+not on the base payload ([07](../analyses/07-thermal-comfort-utci.md)). Without them the standard tier gives about 1 K spread
 and flat one-colour maps.
 
 ## No model yet: public data as a fallback

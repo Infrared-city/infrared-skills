@@ -16,9 +16,9 @@ whole polygon. A building beyond the edge is placed at the edge height.
 A BIM terrain solid is closed. `ground_geometry` wants the top surface only. Keep the up-facing
 triangles (normal z above 0.5) and drop the bottom cap and the skirt.
 
-Set `terrain_alignment` yourself: the field is unset by default. For UTCI and TCS use `"auto-align"` with `physics="advanced"`: a thermal run on flat ground gives flat maps ([07](07-thermal-comfort-utci.md)).
+Set `terrain_alignment` yourself: the field is unset by default. For UTCI and TCS use `"auto-align"` with `physics="advanced"`: a thermal run on flat ground gives flat maps. On SDK 1.0.0 set both fields on the request that `from_weatherfile_payload` returns: the base payload refuses them ([07](07-thermal-comfort-utci.md)).
 
-Which analyses take it: the four solar analyses and UTCI and TCS. Wind refuses terrain: it has no `ground_geometry`.
+Which analyses take it: the four solar analyses and UTCI and TCS. Wind and PWC take no `ground_geometry`, but they do take `terrain_alignment` (see the table).
 
 ## `terrain_alignment`
 
@@ -28,7 +28,7 @@ Which analyses take it: the four solar analyses and UTCI and TCS. Wind refuses t
 | `"auto-align"` | Seats every solid on the local ground, with a 0.5 m skirt | Buildings at z = 0 on a real terrain |
 | `"assume-aligned"` | Checks only. A base outside terrain -1.5 to +1.0 m refuses the job (422, with the offenders) | You want a mismatch to fail loud |
 
-Wind and PWC accept `"to-ground"` and `"as-is"`. No mode moves the sensors: with terrain, the grid
+Wind and PWC accept only `"to-ground"` and `"as-is"`. The default is `"as-is"`. `"to-ground"` lowers each mesh so its lowest point is at z = 0. No mode moves the sensors: with terrain, the grid
 always drapes onto it. The modes change what happens to the solids.
 Do not compare modes by their mean: a small change of the mean can hide large changes on many
 facades. Compare per surface.

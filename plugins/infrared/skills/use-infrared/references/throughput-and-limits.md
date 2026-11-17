@@ -40,13 +40,17 @@ more, because wind tiles step 256 m.
 
 ## How tokens scale
 
-- A grid job costs 10 tokens, except pedestrian wind comfort at 50.
-  A preview shows the exact number:
+- A grid job costs 10 tokens today. Three keys differ in the live price list
+  (`https://api.infrared.city/billing/pricing`, version v2.4.5): `pedestrian-wind-comfort` costs 50;
+  the `-advanced-wind` variants of UTCI, TCS and wall surface temperature
+  (`thermal-comfort-index-advanced-wind`, `thermal-comfort-statistics-advanced-wind`,
+  `wall-surface-temperature-advanced-wind`) cost 50; `wind-factors` costs 0. The price can change:
+  a preview shows the exact number:
   25 tiles gave about 250 tokens, 27 facade jobs about 270.
-- So tokens are roughly `tiles x 10 x number of analyses` (`x 50` for
-  pedestrian wind comfort).
+- So tokens are roughly `tiles x tokens per job x number of analyses`: 10 per job,
+  50 for pedestrian wind comfort and every `-advanced-wind` variant, 0 for wind factors.
 - Run the preview before every large run. Read `estimated_cost_tokens`.
-- A failed submit that is sent again is never billed twice.
+- The same request sent again within the job retention window (some days) is not billed again. There is no result cache: after that window, or for a changed request, it is billed in full.
 
 ## Speed ceiling, from the request limit
 

@@ -4,7 +4,8 @@ The felt outdoor temperature in degrees C at about 1.5 m, from air temperature, 
 and radiation. The mean radiant temperature is computed inside the model from your geometry.
 
 Use the rich path for every real result: `physics="advanced"`, your `ground_materials`, your trees
-(`vegetation`) and your terrain (`ground_geometry` with `terrain_alignment="auto-align"`). The
+(`vegetation`) and your terrain (`ground_geometry` with `terrain_alignment="auto-align"`, set on the
+built request: see the snippet). The
 standard tier with no materials gives about 1 K spread and flat, one-colour maps. `advanced` gives the
 same grid in daylight and adds the ground and wall afterglow after sunset, at the same price.
 
@@ -21,13 +22,14 @@ request = UtciModelRequest.from_weatherfile_payload(
     payload=UtciModelBaseRequest(
         analysis_type=AnalysesName.thermal_comfort_index,
         physics="advanced",                    # ground and wall afterglow after sunset
-        ground_geometry=terrain,               # your terrain mesh (11-terrain-and-context.md)
-        terrain_alignment="auto-align",        # seats the buildings on the terrain
         # optional comfort materials: wall_albedo=0.4, ground_albedo=0.2, canopy_transmissivity=0.03, ...
     ),
     location=Location(latitude=48.208, longitude=16.371),
     time_period=tp, weather_data=rows,
 )
+# SDK 1.0.0: UtciModelBaseRequest has no terrain fields. Set them on the built request.
+request.ground_geometry = {"terrain": terrain}   # your terrain mesh (11-terrain-and-context.md)
+request.terrain_alignment = "auto-align"          # seats the buildings on the terrain
 result = client.run_area_and_wait(request, polygon,
                                   buildings=buildings, vegetation=trees, ground_materials=ground)
 utci = result.physical_grid()           # degrees C, NaN = no value
