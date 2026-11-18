@@ -6,6 +6,9 @@ They are indicators, not promises. Check a real run with a free preview.
 ## The short version
 
 - A normal account can run up to about 100 tiles (jobs) per second.
+- An area run starts at most about 100 requests per second per API key. City and export runs
+  have no such limit. Change it with `max_requests_per_second` (Python), `maxRequestsPerSecond`
+  (TypeScript) or `MaxRequestsPerSecond` (.NET). `0` means no limit.
 - At high rates, your own upload and download (network I/O) is usually the
   bottleneck, not the backend.
 - Enterprise clients can go much higher. See <https://infrared.city> to learn
