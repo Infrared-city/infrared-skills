@@ -39,6 +39,15 @@ The SDK output range is `int 0–4` for PWC. **For default reporting, anything c
 
 **Pitfalls:** values are class indices, not speeds — don't average; use mode or area-share. Frequency-based over the weather time series — re-running with summer-only vs annual weather shifts classes.
 
+### Safety layer
+
+`result.safety` is the yearly wind safety check, next to the comfort classes (it does not change them).
+A cell fails when the share of hours per year above the safety speed (15 m/s; 15 and 20 m/s for Lawson
+2001) is over the limit of the criteria. Read `safety.class_codes` with `safety.classes` (`pass`/`fail`,
+`pass`/`S15`/`S20`, or NEN 8100 `none`/`limited`/`dangerous`), and `safety.ratio` (1 = at the limit) for a
+colour scale. Report safety next to comfort, not inside it: a cell can be class B for comfort and still
+fail safety. Details: [../analyses/02-pedestrian-wind-comfort.md](../analyses/02-pedestrian-wind-comfort.md).
+
 ## See also
 
 - [grid-conventions.md](grid-conventions.md) — shared grid/plot/diff/GeoTIFF conventions

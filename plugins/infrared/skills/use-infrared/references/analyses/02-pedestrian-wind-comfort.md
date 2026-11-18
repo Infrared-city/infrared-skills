@@ -20,6 +20,36 @@ request = PwcModelRequest(
 result = client.run_area_and_wait(request, polygon, buildings=buildings)
 classes = result.physical_grid()        # class codes; NaN = no value
 labels = result.legend                  # class names, indexed by the code
+safety = result.safety                  # yearly wind safety check; None if there is none
+```
+
+## Safety layer
+
+Safety is a separate yearly check. It is not a class of the comfort ladder. The comfort grid and
+`result.legend` do not change. `result.safety` (`result.safety` in TypeScript) holds, for each cell,
+the share of hours per year above a safety speed (the hourly mean) and a class:
+
+| Criteria | Safety speed | Fails when | `classes` |
+|---|---|---|---|
+| `lawson_lddc` | 15 m/s | more than 0.022 % of hours | pass, fail |
+| `lawson_2001` | 15 m/s (S15), 20 m/s (S20) | more than 0.023 % of hours | pass, S15, S20 (worst wins) |
+| `davenport` | 15.1 m/s | 0.01 % of hours or more | pass, fail |
+| `nen_8100_comfort`, `nen_8100_safety` | 15 m/s | 0.05 % (limited), 0.30 % (dangerous) | none, limited, dangerous |
+| `vdi_3787` | 15 m/s | 0.01 % of hours or more | pass, danger-not-excluded |
+| `lawson_1970` | none | no layer: `safety` is `None` | |
+
+```python
+if safety is not None:
+    ratio = safety.ratio                 # exceedance / limit; 1 = at the limit; NaN = no value
+    codes = safety.class_codes           # index into safety.classes; 0 = pass; 255 = no value
+    failing = (codes > 0) & (codes < 255)
+    pct = safety.exceedance              # [speeds, rows, cols], % of hours per year
+    names = safety.labels                # object array of class names, None = no value
+```
+
+```ts
+const safety = result.safety;            // undefined when there is none
+if (safety) console.log(safety.classes, safety.thresholdsMs, safety.classCodes, safety.ratio);
 ```
 
 ## Parameters
@@ -34,7 +64,9 @@ labels = result.legend                  # class names, indexed by the code
 
 - Class codes are not numbers to average. Report the area share for each class, or the mode.
 - Mask NaN before you count a share: `valid = grid[~np.isnan(grid)]`.
-- `nen_8100_safety` answers a safety question (storms), not a comfort question.
+- `nen_8100_safety` answers a safety question (storms) in its own comfort grid. For every criteria, read
+  the yearly safety check in `result.safety`. A Lawson comfort grid never shows class S.
+- `result.safety` is `None` for a server that does not send it, and for `lawson_1970`. It comes only with the job result archive of an area run, not with a direct (synchronous) response. `to_dict()` includes it.
 - Summer-only and yearly weather give different classes. Keep the weather fixed when you compare designs.
 - Use a discrete colour map and a class legend ([../recipes/rendering-results-well.md](../recipes/rendering-results-well.md)).
 
