@@ -203,6 +203,26 @@ def test_each_result_label_has_one_view_filter() -> None:
     assert revit_filters.plan([new], existing) == ({}, ["Infrared result - " + old])
 
 
+def test_a_selected_result_shape_does_not_replace_the_last_selection(monkeypatch: Any) -> None:
+    # Live run 2026-11-19: select (a mass and a floor), then a click on the result.
+    shape = SimpleNamespace(ApplicationId=revit_results.APP_ID)
+    mass, floor = SimpleNamespace(ApplicationId=None), SimpleNamespace(ApplicationId=None)
+    saved: dict = {"picks": ([mass, floor], [])}
+    monkeypatch.setattr(revit_selection, "_saved", lambda doc: saved["picks"])
+    monkeypatch.setattr(revit_selection, "_remember", lambda doc, h, links: saved.update(picks=(h, links)))
+    monkeypatch.setattr(revit_selection, "_current", lambda doc: ([shape], []))
+    host, linked, notes = revit_selection.read(None)
+    assert host == [mass, floor] and saved["picks"] == ([mass, floor], [])
+    assert notes[0].startswith("The selection in Revit holds only 1 Infrared result shape(s): the last")
+    # A building with the shape: the building is the new selection, the shape is left out.
+    monkeypatch.setattr(revit_selection, "_current", lambda doc: ([shape, mass], []))
+    assert revit_selection.read(None) == ([mass], [], []) and saved["picks"] == ([mass], [])
+    # Nothing saved: the shape goes on, and the run says that it is not a building.
+    saved["picks"] = ([], [])
+    monkeypatch.setattr(revit_selection, "_current", lambda doc: ([shape], []))
+    assert revit_selection.read(None) == ([shape], [], [])
+
+
 def test_the_last_selection_is_kept_for_its_own_model(tmp_path: Any) -> None:
     path = str(tmp_path / "sub" / "selection.json")
     assert revit_selection.recall(path, "a.rvt") is None

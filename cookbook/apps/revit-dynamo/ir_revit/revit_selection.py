@@ -305,18 +305,31 @@ def read(doc: Any, need: bool = True) -> Tuple[List[Any], List[Tuple[Any, Any]],
 
     ``need = False`` (the whole model is analysed): an empty selection is fine
     and the saved one is not used.
+
+    Infrared result shapes in the Revit selection do not count. A selection of
+    result shapes only does not replace the saved one: a click on the result
+    after ``select`` lost the picked elements (live run 2026-11-19).
     """
+    from . import revit_geometry
+
     host, linked = _current(doc)
+    shapes = [e for e in host if revit_geometry.is_own_result(e)]
+    host = [e for e in host if not revit_geometry.is_own_result(e)]
     if host or linked:
         _remember(doc, host, linked)
         return host, linked, []
     if not need:
         return [], [], []
-    host, linked = _saved(doc)
-    if host or linked:
-        return host, linked, [
-            "Nothing is selected in Revit: the last selection (%d element(s)) is used again. "
-            "Select other elements in Revit, or use the command select, to change that."
-            % (len(host) + len(linked))
+    saved_host, saved_linked = _saved(doc)
+    if saved_host or saved_linked:
+        why = (
+            "The selection in Revit holds only %d Infrared result shape(s)" % len(shapes)
+            if shapes
+            else "Nothing is selected in Revit"
+        )
+        return saved_host, saved_linked, [
+            "%s: the last selection (%d element(s)) is used again. Select other elements "
+            "in Revit, or use the command select, to change that."
+            % (why, len(saved_host) + len(saved_linked))
         ]
-    return [], [], []
+    return shapes, [], []  # the run says that a result shape is not a building

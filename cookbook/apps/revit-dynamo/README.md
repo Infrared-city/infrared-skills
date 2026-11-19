@@ -199,7 +199,9 @@ warnings and errors come next, in one block, before the other lines. The same te
 goes to `.infrared\revit-dynamo-runs.log` in your user folder.
 
 If nothing is selected in Revit, the script uses the last selection in the same
-model again (of the last run or of `select`). The Watch text says so.
+model again (of the last run or of `select`). The Watch text says so. A selected
+Infrared result shape does not count: if only result shapes are selected, the last
+selection is used too.
 
 If you edit a file in `ir_dynamo` or `ir_revit`, press Run again. The script
 reloads the files. You do not need to restart Revit.
@@ -353,7 +355,7 @@ The full text of each run is also in `.infrared\revit-dynamo-runs.log` in your u
 | `ir_revit/` | Revit API code: selection (`revit_selection.py`), links and shade (`revit_scene.py`), location, geometry, display, key dialog, `entry.py`. |
 | `dynamo/` | `IR_Analysis.dyn`. Its Python node has a few lines and calls `ir_revit.entry.run`. |
 | `build_libs.py` | Builds the libs zip for Python 3.9 on Windows x64. |
-| `tests/` | pytest tests for `ir_dynamo`. |
+| `tests/` | pytest tests for `ir_dynamo`. `smoke_dynamo.py`: free previews of the commands in Dynamo's own Python (`"%LOCALAPPDATA%\python-3.9.12-embed-amd64\python.exe" tests\smoke_dynamo.py`). Run it before a libs zip goes out: it finds package clashes that pytest cannot. |
 
 ## Colours
 
