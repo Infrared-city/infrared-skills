@@ -29,6 +29,50 @@ class _FlushableStream:
         return getattr(self._stream, name)
 
 
+def hide_broken_pandas() -> bool:
+    """Make ``import pandas`` raise ImportError when pandas cannot load.
+
+    Dynamo's Python has its own pandas, built for numpy 1. The libs folder brings
+    numpy 2, so that pandas fails with ValueError ("numpy.dtype size changed").
+    pyarrow imports pandas when it finds one and treats only ImportError as
+    "no pandas", so the Overture read of ``context`` failed. The SDK does not use
+    pandas: a pandas that does not load is hidden.
+
+    The finder goes first on ``sys.meta_path``. ``sys.modules["pandas"] = None``
+    is not enough: pyarrow's compiled import takes that None as the module.
+
+    Returns
+    -------
+    bool
+        True when pandas is hidden.
+    """
+    if any(getattr(f, "_infrared_hides", None) == "pandas" for f in sys.meta_path):
+        return True
+    if "pandas" in sys.modules:
+        return False
+    try:
+        import pandas  # noqa: F401
+    except ImportError:
+        return False
+    except Exception:
+        for name in [n for n in sys.modules if n == "pandas" or n.startswith("pandas.")]:
+            del sys.modules[name]
+        sys.meta_path.insert(0, _HidePandas())
+        return True
+    return False
+
+
+class _HidePandas:
+    """A ``sys.meta_path`` finder: ``import pandas`` raises ImportError."""
+
+    _infrared_hides = "pandas"
+
+    def find_spec(self, name: str, path: object = None, target: object = None) -> None:
+        """Raise for pandas; None (not found here) for every other module."""
+        if name == "pandas" or name.startswith("pandas."):
+            raise ImportError("pandas does not load with the numpy of the libs folder")
+
+
 def setup(libs_dir: Optional[str] = None) -> str:
     """Put the libs folder first on ``sys.path`` and import the SDK.
 
@@ -58,6 +102,7 @@ def setup(libs_dir: Optional[str] = None) -> str:
         if libs_dir in sys.path:
             sys.path.remove(libs_dir)
         sys.path.insert(0, libs_dir)
+    hide_broken_pandas()
     try:
         import infrared_sdk
     except ImportError as exc:

@@ -28,6 +28,7 @@ ABOVE_M = 0.5  # flat triangles at the ground (a slab on grade) are not used
 LATTICE_M = 0.5
 MARGIN = 0.05  # warn only when a shift fits clearly better (two live runs: 84 % vs 85 %)
 MAX_LATTICE_TRIANGLES = 20000  # the largest ones; enough for a check
+COVER_CELL_M = 2.0  # the grid of covered_share
 
 
 def _lattice(tri: np.ndarray) -> np.ndarray:
@@ -71,6 +72,25 @@ def building_points(buildings: Dict[str, dict]) -> np.ndarray:
                 break
             out.append(_lattice(tri[k]))
     return np.concatenate(out) if out else np.zeros((0, 2))
+
+
+def covered_share(
+    buildings: Dict[str, dict], size_m: Tuple[float, float], cell_m: float = COVER_CELL_M
+) -> float:
+    """Share (0 to 1) of the run area under the buildings, on a ``cell_m`` grid.
+
+    The area is ``(0, 0)`` to ``size_m`` in the SDK frame. A cell counts when a
+    point of ``building_points`` is in it.
+    """
+    width, height = size_m
+    cols, rows = max(1, int(np.ceil(width / cell_m))), max(1, int(np.ceil(height / cell_m)))
+    points = building_points(buildings)
+    if len(points) == 0:
+        return 0.0
+    inside = (points[:, 0] >= 0) & (points[:, 0] < width) & (points[:, 1] >= 0) & (points[:, 1] < height)
+    col = np.floor(points[inside, 0] / cell_m).astype(np.int64)
+    row = np.floor(points[inside, 1] / cell_m).astype(np.int64)
+    return float(np.unique(row * cols + col).size) / float(rows * cols)
 
 
 def scores(

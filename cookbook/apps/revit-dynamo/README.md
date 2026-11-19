@@ -221,6 +221,14 @@ reloads the files. You do not need to restart Revit.
   (DWG, IFC). The elements you select are always read, whatever their category.
 - Elements that only shade are read up to 400 m from the selection, at Medium detail.
   The Watch text gives their number.
+- An element that only shades and lies flat on the ground (no part more than 1 m above
+  it, for example the ground sheets and roads of an imported city) is left out. As a
+  building it would cover the ground, and the ground under a building gets no value.
+  Without terrain, the ground is the base of the selected elements. The Watch text has
+  a `Left out:` line with their number.
+- A ground run warns, also in the free preview, when 80 % or more of the area is under
+  buildings. Look for a ground that is modelled as a floor, a mass or an import in the
+  selection.
 - The run area is the box around the result elements plus the margin. The ground
   result fills it. With `context`, the default margin is the largest one that costs
   no extra tile: the area is about 500 m wide with the selection in the middle, and
@@ -302,6 +310,7 @@ Read the Watch text first. Its warnings and errors are in one block at the top.
 | Everything has one colour | Add `legend trimmed` (free: `show-last legend trimmed`). |
 | The ground result is at the wrong height | Model the site as a Toposolid. A floor or a mass is not terrain. |
 | Only one building can be selected | The others are in a linked model. Use `select link`, or pick one with Tab, or use `model`. |
+| `The result has no values to show`, or `of the area is under buildings` | A ground sheet, road or floor in the selection covers the area. Select the buildings only, or model the ground as a Toposolid. |
 | The run is slow before it starts | Add `alone`: the rest of the model is then not read for shade. |
 | `This graph is an older version` | Open the new `IR_Analysis.dyn` from the libs folder. |
 

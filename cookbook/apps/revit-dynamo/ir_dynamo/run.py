@@ -24,6 +24,9 @@ TERRAIN_MARGIN_M = 20.0
 # Model elements this far from the run area can still shade it. The SDK reads
 # public buildings up to 384 m from the middle of a 512 m tile.
 SHADE_REACH_M = 400.0
+# A ground run warns (also in the free preview) when this share of the area is
+# under buildings: ground sheets sent as buildings gave a wind run without values.
+COVERED_WARN = 0.8
 
 
 def _cost_text(preview: Any) -> str:
@@ -69,7 +72,14 @@ def _scene(
             ground = meshes.build_terrain(frame, tris, z_offset)
     buildings, z_offset, notes = meshes.build_buildings(frame, buildings_m, z_offset, sampler)
     warnings += notes
+    lowest = min(float(terrain_mod.triangles(f)[:, :, 2].min()) for f in buildings_m.values())
     close = meshes.near(shade_m or {}, bbox, buffer + SHADE_REACH_M)
+    # Without terrain, a ground sheet of an imported city lies at the base of the
+    # selected buildings, which may be above Revit elevation 0.
+    flat_z = z_offset if sampler is not None else max(z_offset, lowest)
+    flat = meshes.ground_cover(close, sampler, flat_z)
+    for name in flat:
+        del close[name]
     if close:
         try:
             shade, _, _ = meshes.build_buildings(frame, close, z_offset, sampler)
@@ -81,12 +91,18 @@ def _scene(
             "Shade only: %d other element(s) of the model within %.0f m (%d in all). "
             "No result is drawn on them." % (len(close), SHADE_REACH_M, len(shade_m))
         )
+    if flat:
+        warnings.append(
+            "Left out: %d other element(s) that lie flat on the ground (no part more than "
+            "%.0f m above it), for example ground sheets and roads. As buildings they would "
+            "cover the ground, and the ground under a building gets no value."
+            % (len(flat), meshes.GROUND_COVER_M)
+        )
     if ground and is_wind:
         warnings.append(
             "The wind models do not take terrain: it is not sent. Each building is lowered "
             "to its own base; the result is drawn on the terrain."
         )
-    lowest = min(float(terrain_mod.triangles(f)[:, :, 2].min()) for f in buildings_m.values())
     if sampler is None and lowest > 5.0:
         warnings.append(
             "Warning: no terrain. The ground is Revit elevation 0 and the buildings start %.0f m "
@@ -220,6 +236,15 @@ def run_analysis(
                 warnings.append(
                     "Public context buildings stand at z = 0 of the SDK (the lowest "
                     "terrain point), not on the terrain."
+                )
+        if surface == "ground":
+            covered = grid_check.covered_share(buildings, frame.size_m)
+            if covered >= COVERED_WARN:
+                warnings.append(
+                    "Warning: %.0f %% of the area is under buildings, and the ground under a "
+                    "building gets no value. Is the ground modelled as a floor, a mass or an "
+                    "import (ground sheets, roads)? Leave those elements out of the selection, "
+                    "or model the ground as a Toposolid." % (100.0 * covered)
                 )
         say("building the request")
         payload = payloads.build_payload(

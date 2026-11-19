@@ -49,6 +49,41 @@ def test_shade_elements_are_sent_but_do_not_size_the_area() -> None:
     assert out["warnings"][0] == "Area: 220 x 220 m (the selection and a margin of 100 m)."
 
 
+def test_shade_elements_flat_on_the_ground_are_left_out() -> None:
+    client = _Client()
+    own = {"b1": box_soup(-10, -10, 0, 20, 20, 15)}
+    shade = {
+        "sheet": box_soup(-200, -200, 0, 400, 400, 0.3),  # a ground sheet of an imported city
+        "kerb": box_soup(30, 0, 0, 40, 1, 1.0),
+        "s1": box_soup(100, 0, 0, 10, 10, 30),
+        "canopy": box_soup(40, 40, 4, 10, 10, 0.3),  # thin, but above the ground: it shades
+    }
+    out = run.run_analysis("ground", "wind", own, LON, LAT, shade_m=shade, client=client)
+    assert sorted(client.buildings) == ["b1", "canopy", "s1"]
+    assert any(w.startswith("Shade only: 2 other element(s)") for w in out["warnings"])
+    assert any(w.startswith("Left out: 2 other element(s) that lie flat") for w in out["warnings"])
+
+
+def test_without_terrain_the_ground_is_the_base_of_the_selection() -> None:
+    # A city DWG imported 8 m above Revit elevation 0, no Toposolid (live run 2026-11-18).
+    client = _Client()
+    own = {"b1": box_soup(-10, -10, 8, 20, 20, 15)}
+    shade = {"sheet": box_soup(-200, -200, 7.8, 400, 400, 0.4), "s1": box_soup(100, 0, 8, 10, 10, 30)}
+    run.run_analysis("ground", "wind", own, LON, LAT, shade_m=shade, client=client)
+    assert sorted(client.buildings) == ["b1", "s1"]
+
+
+def test_a_ground_run_warns_when_most_of_the_area_is_under_buildings() -> None:
+    client = _Client()
+    own = {"b1": box_soup(-10, -10, 8, 20, 20, 15), "sheet": box_soup(-60, -60, 8, 120, 120, 0.2)}
+    out = run.run_analysis("ground", "wind", own, LON, LAT, buffer_m=5.0, client=client)
+    warning = [w for w in out["warnings"] if "of the area is under buildings" in w]
+    # 120 x 120 m of a 130 x 130 m area: 85 %, a little more on 2 m cells.
+    assert len(warning) == 1 and warning[0].startswith("Warning: 8")
+    out = run.run_analysis("ground", "wind", {"b1": own["b1"]}, LON, LAT, client=client)
+    assert not any("of the area is under buildings" in w for w in out["warnings"])
+
+
 def _facade_result() -> Any:
     # Two surfaces of two buildings, two cells each, one triangle per cell.
     tri = np.array([0, 0, 0, 1, 0, 0, 0, 0, 1], dtype=np.float32)
