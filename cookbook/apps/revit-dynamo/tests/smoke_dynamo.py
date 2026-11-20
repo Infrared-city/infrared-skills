@@ -67,16 +67,11 @@ def _commands(args: List[str]) -> List[str]:
     return own or COMMANDS
 
 
-def _scene() -> Tuple[dict, dict]:
-    """One building of the selection; a shade building and a ground sheet around it."""
+def _scene() -> dict:
+    """One building of the selection."""
     from boxes import box_soup
 
-    own = {"b1": box_soup(-10, -10, 0, 20, 20, 15)}
-    shade = {
-        "s1": box_soup(40, 0, 0, 10, 10, 30),
-        "sheet": box_soup(-100, -100, 0, 200, 200, 0.3),  # flat: left out
-    }
-    return own, shade
+    return {"b1": box_soup(-10, -10, 0, 20, 20, 15)}
 
 
 def main(args: List[str]) -> int:
@@ -106,7 +101,7 @@ def main(args: List[str]) -> int:
     from infrared_sdk import InfraredClient
 
     client = InfraredClient(api_key=env.read_api_key())
-    own, shade = _scene()
+    own = _scene()
     failed = 0
     try:
         for place, lon, lat in PLACES:
@@ -125,7 +120,7 @@ def main(args: List[str]) -> int:
                         out = run_analysis(
                             surface, cmd.analysis, own, lon, lat,
                             preview_only=True, months=cmd.months, hours=cmd.hours,
-                            fetch_context=cmd.fetch_context, shade_m=shade,
+                            fetch_context=cmd.fetch_context,
                             wind_speed=float(cmd.wind_speed),
                             wind_direction=int(round(float(cmd.wind_direction))),
                             surfaces=cmd.surfaces, client=client,

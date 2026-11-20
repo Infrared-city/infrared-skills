@@ -242,12 +242,12 @@ def _analysis(cmd: Any, elements: Any) -> List[str]:
     site = _site(doc, cmd)
     host, linked, picked_notes = _picks(doc, elements, need=cmd.scope != "model")
     _progress("reading geometry from Revit")
-    buildings, shade, terrain_m, notes = revit_scene.collect(
+    buildings, terrain_m, notes = revit_scene.collect(
         doc, host, linked, site.true_north_rad, cmd.scope, _progress
     )
     _progress(
-        "geometry read: %d result element(s) with %d triangles, %d shade element(s), %d terrain element(s)"
-        % (len(buildings), sum(len(v) for v in buildings.values()) // 9, len(shade), len(terrain_m))
+        "geometry read: %d building element(s) with %d triangles, %d terrain element(s)"
+        % (len(buildings), sum(len(v) for v in buildings.values()) // 9, len(terrain_m))
     )
     if not buildings:
         only_result = any("Infrared result shape(s) in the selection" in n for n in notes)
@@ -279,7 +279,6 @@ def _analysis(cmd: Any, elements: Any) -> List[str]:
                 buffer_m=float(cmd.margin) if cmd.margin else None,
                 fetch_context=cmd.fetch_context,
                 terrain_m=terrain_m,
-                shade_m=shade,
                 wind_speed=float(cmd.wind_speed),
                 wind_direction=int(round(float(cmd.wind_direction))),
                 surfaces=cmd.surfaces,

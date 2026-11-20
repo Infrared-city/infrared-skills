@@ -14,19 +14,32 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
-from . import env, grid_check, meshes, payloads, results, settings, variants
+from . import env, grid_check, meshes, own_layers, payloads, results, settings, variants
 from . import terrain as terrain_mod
 from . import frame as frame_mod
 
 DEFAULT_BUFFER_M = {"ground": 30.0, "facades": 5.0}
 # Terrain triangles this far outside the run area are kept (shade, slope at the edge).
 TERRAIN_MARGIN_M = 20.0
-# Model elements this far from the run area can still shade it. The SDK reads
-# public buildings up to 384 m from the middle of a 512 m tile.
-SHADE_REACH_M = 400.0
 # A ground run warns (also in the free preview) when this share of the area is
 # under buildings: ground sheets sent as buildings gave a wind run without values.
 COVERED_WARN = 0.8
+
+
+def _context_soups(
+    frame: frame_mod.SiteFrame, buildings: Dict[str, Any], z_offset: float
+) -> Dict[str, List[float]]:
+    """The public buildings (``ctx-*``) as flat triangles in Revit-frame metres."""
+    out: Dict[str, List[float]] = {}
+    for name, mesh in buildings.items():
+        if not str(name).startswith("ctx-"):
+            continue
+        xyz = np.asarray(mesh["coordinates"], dtype=np.float64).reshape(-1, 3)
+        index = np.asarray(mesh["indices"], dtype=np.int64).reshape(-1, 3)
+        moved = frame_mod.points_to_revit(frame, xyz[index].reshape(-1)).reshape(-1, 3)
+        moved[:, 2] += z_offset
+        out[str(name)] = moved.reshape(-1).tolist()
+    return out
 
 
 def _cost_text(preview: Any) -> str:
@@ -47,12 +60,8 @@ def _scene(
     bbox: Sequence[float],
     buffer: float,
     is_wind: bool,
-    shade_m: Optional[Dict[str, Sequence[float]]] = None,
 ) -> Tuple[Dict[str, dict], Dict[str, dict], Optional[terrain_mod.Sampler], float, List[str]]:
     """Buildings and terrain in the SDK frame, around one ground reference.
-
-    ``shade_m``: elements that only shade. Those near the run area are added to
-    the buildings; a line gives their number.
 
     The ground reference (z = 0 of the SDK) is the lowest terrain point of the
     run area. Without terrain it is Revit z = 0: no offset.
@@ -73,31 +82,6 @@ def _scene(
     buildings, z_offset, notes = meshes.build_buildings(frame, buildings_m, z_offset, sampler)
     warnings += notes
     lowest = min(float(terrain_mod.triangles(f)[:, :, 2].min()) for f in buildings_m.values())
-    close = meshes.near(shade_m or {}, bbox, buffer + SHADE_REACH_M)
-    # Without terrain, a ground sheet of an imported city lies at the base of the
-    # selected buildings, which may be above Revit elevation 0.
-    flat_z = z_offset if sampler is not None else max(z_offset, lowest)
-    flat = meshes.ground_cover(close, sampler, flat_z)
-    for name in flat:
-        del close[name]
-    if close:
-        try:
-            shade, _, _ = meshes.build_buildings(frame, close, z_offset, sampler)
-        except ValueError:  # none of them has a usable triangle above the ground
-            shade = {}
-        buildings.update((k, v) for k, v in shade.items() if k not in buildings)
-    if shade_m:
-        warnings.append(
-            "Shade only: %d other element(s) of the model within %.0f m (%d in all). "
-            "No result is drawn on them." % (len(close), SHADE_REACH_M, len(shade_m))
-        )
-    if flat:
-        warnings.append(
-            "Left out: %d other element(s) that lie flat on the ground (no part more than "
-            "%.0f m above it), for example ground sheets and roads. As buildings they would "
-            "cover the ground, and the ground under a building gets no value."
-            % (len(flat), meshes.GROUND_COVER_M)
-        )
     if ground and is_wind:
         warnings.append(
             "The wind models do not take terrain: it is not sent. Each building is lowered "
@@ -128,9 +112,11 @@ def run_analysis(
     wind_direction: int = 270,
     fetch_context: bool = False,
     terrain_m: Optional[Dict[str, Sequence[float]]] = None,
-    shade_m: Optional[Dict[str, Sequence[float]]] = None,
+    trees_m: Optional[Sequence[own_layers.Tree]] = None,
+    ground_m: Optional[Dict[str, Sequence[own_layers.Ring]]] = None,
     on_status: Optional[Callable[[str], None]] = None,
     client: Optional[Any] = None,
+    return_context: bool = False,
 ) -> Dict[str, Any]:
     """Preview the cost of one analysis, or run it and return the result.
 
@@ -166,18 +152,25 @@ def run_analysis(
     fetch_context : bool
         Add the public buildings around the selection (needs the geodata libs).
         The result covers them too, inside the run area.
-    shade_m : dict, optional
-        Other elements of the model, same shape as ``buildings_m``. They shade
-        the result; no result is drawn on them, and they do not size the area.
     terrain_m : dict, optional
         ``{terrain_id: flat [x, y, z, ...]}``, same units and frame as
         ``buildings_m``. With terrain, z = 0 of the SDK is the lowest terrain
         point of the run area and the ground result follows the terrain. Without
         it the ground is Revit z = 0. Wind and PWC do not take terrain (a warning says so).
+    trees_m : list, optional
+        Own trees: ``[(x, y, height_m, crown_diameter_m), ...]`` in the Revit frame;
+        a size of None or 0 is the default (6 m, 4 m). See ``own_layers``.
+    ground_m : dict, optional
+        Own ground materials: ``{material: [[(x, y), ...], ...]}`` in the Revit frame,
+        material one of ``own_layers.MATERIALS``. Only utci and tcs read them.
     on_status : callable, optional
         Called with a short text at each stage. It is called on the calling thread.
     client : InfraredClient, optional
         Leave it out to build one from the API key.
+    return_context : bool
+        With ``fetch_context``: put the public buildings in ``out["context_m"]``
+        (``{id: flat triangles}``, Revit-frame metres), for a host that draws
+        them. Revit does not; Rhino does.
 
     Returns
     -------
@@ -211,15 +204,17 @@ def run_analysis(
             buffer = frame_mod.fill_buffer(site_lon, site_lat, bbox, buffer, row.sdk_type)
         frame = frame_mod.make_frame(site_lon, site_lat, bbox, buffer)
         buildings, ground, sampler, z_offset, warnings = _scene(
-            frame, buildings_m, terrain_m, bbox, buffer, row.no_terrain, shade_m
+            frame, buildings_m, terrain_m, bbox, buffer, row.no_terrain
         )
-        shade_ids = set(buildings) - {str(k) for k in buildings_m}
         warnings.insert(
             0,
             "Area: %.0f x %.0f m (the selection and a margin of %.0f m%s)."
             % (frame.size_m[0], frame.size_m[1], buffer,
                "; set it with the word margin" if buffer_m is None else ""),
         )
+        warnings += own_layers.notes(row.sdk_type, trees_m or [], ground_m or {})
+        vegetation = own_layers.trees_geojson(frame, trees_m) if trees_m else None
+        materials = own_layers.ground_geojson(frame, ground_m) if ground_m else None
         if row.needs_period:
             warnings += settings.window_note(row, months, hours)
         if fetch_context:
@@ -267,6 +262,8 @@ def run_analysis(
             analysis_type=row.sdk_type,
             payload=payload,
             buildings=buildings,
+            vegetation=vegetation,
+            ground_materials=materials,
         )
         cost = _cost_text(preview)
         out: Dict[str, Any] = {
@@ -279,6 +276,10 @@ def run_analysis(
             "warnings": warnings,
             "ran": False,
             "result": None,
+            # The public buildings of ``context``, for a host that draws them (Rhino).
+            "context_m": (
+                _context_soups(frame, buildings, z_offset) if fetch_context and return_context else {}
+            ),
         }
         if preview_only:
             out["status"] = "Preview only: %s. Add the word run to the command to run it." % cost
@@ -289,7 +290,12 @@ def run_analysis(
 
         say("running: %s" % cost)
         run = client.run_area_and_wait(
-            payload, frame.polygon, buildings=buildings, on_progress=progress
+            payload,
+            frame.polygon,
+            buildings=buildings,
+            vegetation=vegetation,
+            ground_materials=materials,
+            on_progress=progress,
         )
         say("reading the result")
         if surface == "ground":
@@ -300,13 +306,13 @@ def run_analysis(
                 warnings.append("Grid alignment check failed: %s" % error)
         else:
             out["result"] = results.facade_triangles(
-                frame, run, z_offset, skip=shade_ids, box_m=frame.size_m
+                frame, run, z_offset, box_m=frame.size_m
             )
             gone = out["result"].pop("left_out")
-            if gone["shade"] or gone["outside"]:
+            if gone["outside"]:
                 warnings.append(
-                    "Facade cells not drawn: %d triangle(s) on shade-only elements, %d on "
-                    "public buildings outside the area." % (gone["shade"], gone["outside"])
+                    "Facade cells not drawn: %d triangle(s) on public buildings outside the area."
+                    % gone["outside"]
                 )
         out["ran"] = True
         out["status"] = "Done in %.0f s: %s (%s)." % (

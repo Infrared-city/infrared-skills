@@ -19,10 +19,6 @@ from . import terrain as terrain_mod
 
 Soup = Dict[str, Sequence[float]]
 
-# A shade element with no point higher than this above the ground lies on it.
-GROUND_COVER_M = 1.0
-
-
 def _array(flat: Sequence[float], name: str) -> np.ndarray:
     array = np.asarray(flat, dtype=np.float64).reshape(-1)
     if array.size == 0 or array.size % 9 != 0:
@@ -51,47 +47,6 @@ def soup_bbox(soups: Soup) -> Tuple[float, float, float, float]:
         float(max(b[2] for b in boxes)),
         float(max(b[3] for b in boxes)),
     )
-
-
-def near(soups: Soup, bbox_m: Sequence[float], reach_m: float) -> Soup:
-    """The soups whose box meets ``bbox_m`` grown by ``reach_m`` (buildings that can shade)."""
-    x0, y0, x1, y1 = bbox_m[0] - reach_m, bbox_m[1] - reach_m, bbox_m[2] + reach_m, bbox_m[3] + reach_m
-    out: Soup = {}
-    for name, flat in soups.items():
-        xyz = np.asarray(flat, dtype=np.float64).reshape(-1, 3)
-        if len(xyz) and xyz[:, 0].min() < x1 and xyz[:, 0].max() > x0 and xyz[:, 1].min() < y1 and xyz[:, 1].max() > y0:
-            out[name] = flat
-    return out
-
-
-def ground_cover(
-    soups: Soup,
-    sampler: Optional[terrain_mod.Sampler],
-    flat_z: float,
-    height_m: float = GROUND_COVER_M,
-) -> List[str]:
-    """The ids of the elements that lie flat on the ground.
-
-    No point of such an element is more than ``height_m`` above the ground under
-    it: the terrain, else ``flat_z``. Ground sheets, roads and lawns of an imported
-    city are like this. Sent as buildings, they cover the ground grid, and the
-    cells under a building get no value (a wind run without values, live run
-    2026-11-18).
-    """
-    arrays = [np.asarray(flat, dtype=np.float64).reshape(-1, 3) for flat in soups.values()]
-    if not arrays:
-        return []
-    # One terrain lookup for all the elements (see build_buildings).
-    every = np.concatenate(arrays)
-    height = every[:, 2] - terrain_mod.ground_z(sampler, every, flat_z)
-    out: List[str] = []
-    start = 0
-    for name, xyz in zip(soups, arrays):
-        end = start + len(xyz)
-        if end > start and float(height[start:end].max()) <= height_m:
-            out.append(str(name))
-        start = end
-    return out
 
 
 def build_buildings(

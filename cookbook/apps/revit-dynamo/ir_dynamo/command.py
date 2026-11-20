@@ -15,7 +15,7 @@ Words (any order, any case; see ``help_lines``)::
     months 6-8   hours 9-17   surfaces roofs   legend exact     values
     wind 5 270 (or wind 5 W, speed 5, direction 270)            wind analysis only
     gradient   context   lat 48.2 lon 16.37   run               the rest
-    model | alone   margin 100                                  what gets a result, the area
+    model   margin 100                                          what gets a result, the area
 """
 
 from __future__ import annotations
@@ -90,7 +90,7 @@ class Command:
     lon: str = ""
     export_all: bool = False
     paid: bool = False
-    scope: str = ""  # "": the selection, the rest of the model shades; "model"; "alone"; select: "link"
+    scope: str = ""  # "": the selection; "model": every building element; select: "link"
     margin: str = ""  # metres around the selection; "": the default of the run
 
     @property
@@ -146,7 +146,7 @@ def vocabulary() -> List[str]:
         | set(TARGET_WORDS)
         | set(VALUE_WORDS)
         | set(colors.RANGE_MODES)
-        | {"wind", "gradient", "context", "run", "preview", "all", "model", "alone"}
+        | {"wind", "gradient", "context", "run", "preview", "all", "model"}
     )
 
 
@@ -207,7 +207,7 @@ def parse(line: Any) -> Command:
             put("legend", word, word)
         elif word in ("gradient", "context", "all"):
             put(word, True, word)
-        elif word in ("model", "alone"):
+        elif word == "model":
             put("scope", word, word)
         elif word in ("run", "preview"):
             put("cost", word, word)

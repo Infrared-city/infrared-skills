@@ -104,7 +104,7 @@ def test_scope_and_margin() -> None:
     assert (cmd.scope, cmd.margin, cmd.paid) == ("model", "100", True)
     assert cmd.text == "daylight facades months 6-8 hours 8-18 model margin 100 run"
     assert c.parse(cmd.text) == cmd
-    assert c.parse("svf alone").scope == "alone" and c.parse("svf").scope == ""
+    assert c.parse("svf").scope == ""
     assert c.parse("export-obj model").scope == "model"
 
 
@@ -122,10 +122,9 @@ def test_keep_is_read_and_not_used_and_clear_is_an_action() -> None:
 @pytest.mark.parametrize(
     "line, message",
     [
-        ("svf model alone", "given twice"),
+        ("svf alone", "Unknown word 'alone'"),
         ("svf margin", "needs a value"),
         ("svf margin 5000", "0 to 2000"),
-        ("export-obj alone", "takes model, not alone"),
         ("show-last model", "show-last takes legend, gradient; remove"),
     ],
 )

@@ -104,6 +104,12 @@ def make_frame(
     )
 
 
+def to_lonlat(frame: SiteFrame, x: float, y: float) -> Tuple[float, float]:
+    """A point of the Revit frame (metres) as ``(lon, lat)``."""
+    lon, lat = unproject(frame.site_lon, frame.site_lat, float(x), float(y))
+    return float(lon), float(lat)
+
+
 def tile_count(polygon: Dict, analysis_type: str) -> int:
     """The number of tiles (billed jobs) the SDK cuts ``polygon`` into."""
     service = TileService(

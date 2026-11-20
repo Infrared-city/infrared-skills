@@ -69,7 +69,7 @@ The graph has one input, the `command` node. One line runs everything. A word th
 | `months 6-8` or `months jun-aug`, `hours 9-17` | `6-8`, `8-18`; PWC `1-12`, `0-23` |
 | `wind 5 270`, `wind 5 W` (or `speed 5 direction 270`) | 5 m/s from 270° (west). Wind analysis only: an error with any other |
 | `surfaces facades\|roofs\|all` | `all`; facades only |
-| `model`, `alone` | The selection gets the result; the rest of the model and its links only shade. `model`: every building element of the model and its loaded links gets a result, no selection needed. `alone`: nothing else shades (faster) |
+| `model` | The selection goes as SDK `buildings` and gets the result; nothing else of the model is sent (the surroundings come from `context`). `model`: every building element of the model and its loaded links, no selection needed |
 | `context` | off. Adds the public buildings; the result covers them too, inside the run area |
 | `margin 100` | Metres around the selection: 30 (ground), 5 (facades); with `context` the largest margin that costs no extra tile (the area is about 500 m wide) |
 | `legend platform\|trimmed\|exact` (or the bare word), `gradient` | `platform`, off |
@@ -83,7 +83,7 @@ Selection: there is no selection node. The script reads the selection of Revit, 
 
 ## 5. What a run does
 
-1. Reads the location, the selected elements (Solid and Mesh geometry, in feet), the elements that only shade (the rest of the model and its loaded links) and the terrain. Solar, UTCI, PWC and TCS take the weather of the nearest public station within 50 km; the Watch text names it with its distance (`Weather: station ..., 1.2 km from the site.`) and asks to check Manage > Location above 20 km. Read this line before you explain a result.
+1. Reads the location, the selected elements (Solid and Mesh geometry, in feet) and the terrain. Solar, UTCI, PWC and TCS take the weather of the nearest public station within 50 km; the Watch text names it with its distance (`Weather: station ..., 1.2 km from the site.`) and asks to check Manage > Location above 20 km. Read this line before you explain a result.
 2. Converts to the SDK frame: metres, x east, y north, origin at the south-west corner of the polygon bounding box, turned by true north. The polygon is the box of the result elements plus the margin; the `Area:` line gives its size.
 3. `preview_area` (free) or `run_area_and_wait` (paid). Revit does not respond during the run: 30 seconds to 5 minutes.
 4. Places the ground grid by the SDK rule (row 0 is the south edge, `bounds` gives the place, the cell centre is at `(col + 0.5, row + 0.5)` cells from the south-west corner). A "Grid alignment check" line in the Watch text compares this rule with a one-cell shift.
@@ -94,7 +94,7 @@ Selection: there is no selection node. The script reads the selection of Revit, 
 
 - **Shape.** One DirectShape per run and target (Generic Models, name "Infrared result (ground)" or "(facades)"). Look at it in a Shaded or Realistic 3D view. Every result stays in the model; only `show-last` replaces a shape, that of the same run. Properties > Comments of a shape gives its target, command and time (`revit_results.shape_label`).
 - **View filters.** Each result has a filter `Infrared result - <target> - <command> (<time>)` on its Comments (`revit_filters`). A run adds the filters to the active view and hides the earlier results of its target there, because they lie in the same place. The user shows or hides a result in Visibility/Graphics (VG) > Filters; another view shows every result until the filters are added there.
-- **Clear.** The command `clear` deletes every result shape, legend view and result filter of the model. The saved results stay for `show-last`. A facade result has no cells on the shade-only elements: the surface id of the SDK is `<building id>/<number>`, and the script drops the cells of those buildings.
+- **Clear.** The command `clear` deletes every result shape, legend view and result filter of the model. The saved results stay for `show-last`.
 - **Edges.** On a flat ground the cells of one colour are joined into one face, so only the borders between colours show as lines. To hide those too, clear Show Edges in the view's Graphic Display Options. Do not give each colour a subcategory with its line colour: with 263 of them, Dynamo did not start another run (Revit itself still responded).
 - **Materials.** One material per colour, for example `Infrared svf 08AEC4` or `Infrared pwc lawson-lddc 0000FF`. A smooth scale has up to 256 colours, so up to 256 materials.
 - **Legend.** A drafting view per result, named "Infrared legend - <target> - <command> (<time>)" (Project Browser > Views > Drafting Views). Each run has its own view; `show-last` redraws the view of its result, so it can stay on a sheet. Under the swatches it has the run: the command, the location and true north, the weather station, the date and time. The Revit API cannot create a Legend view.
@@ -136,7 +136,7 @@ The code has three layers. Keep logic out of the `.dyn` file.
 | Layer | Holds | Tested |
 |---|---|---|
 | `dynamo/IR_Analysis.dyn` | The `command` node, a Watch node and one Python node of a few lines (the stub). The stub puts the libs folder on `sys.path`, removes the loaded `ir_*` modules, calls `ir_revit.entry.run` and writes a traceback to the log | No |
-| `ir_revit/` | Revit API code: selection, links and shade elements, location, geometry, display, legend view, key dialog, `entry.py` | Only in Revit |
+| `ir_revit/` | Revit API code: selection, links, location, geometry, display, legend view, key dialog, `entry.py` | Only in Revit |
 | `ir_dynamo/` | SDK calls, payloads, frame, targets, colours, legend layout, summary. No Revit import | `pytest` in a normal Python |
 
 Rules:

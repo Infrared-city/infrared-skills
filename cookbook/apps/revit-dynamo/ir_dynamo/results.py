@@ -17,7 +17,7 @@ Cells without a value are left out.
 
 from __future__ import annotations
 
-from typing import Any, Collection, Dict, Optional, Sequence, Tuple
+from typing import Any, Dict, Optional, Sequence, Tuple
 
 import numpy as np
 from infrared_sdk.legend import legend_range
@@ -83,22 +83,16 @@ def ground_points(
     return out
 
 
-def building_of(surface_id: str) -> str:
-    """The building id of a surface id: ``"<building id>/<number>"`` (live run 2026-11-12)."""
-    return str(surface_id).rsplit("/", 1)[0]
-
-
 def facade_triangles(
     frame: frame_mod.SiteFrame,
     result: Any,
     z_offset: float = 0.0,
-    skip: Collection[str] = (),
     box_m: Optional[Sequence[float]] = None,
 ) -> Dict[str, Any]:
     """The walls and roofs of a ``SurfaceAnalysisResult``: the triangles of each valid cell.
 
     Needs a run with ``emit_cell_tris=True`` (``payloads.build_payload`` sets it).
-    ``skip``: building ids that only shade; their cells are left out. ``box_m``:
+    ``box_m``:
     ``(width, height)`` of the run area in the SDK frame; a triangle with its
     centre outside is left out (a public building past the edge of the area).
     The result has ``"left_out"``: the number of triangles of each kind.
@@ -114,12 +108,7 @@ def facade_triangles(
     )
     per_cell = np.diff(np.asarray(tris.cell_offsets, dtype=np.int64))
     keep = np.isfinite(values) & (np.asarray(tris.drawn) > 0) & (per_cell > 0)
-    left_out = {"shade": 0, "outside": 0}
-    if skip:
-        shade = np.array([building_of(i) in skip for i in columns.ids], dtype=bool)
-        of_shade = np.repeat(shade, np.diff(np.asarray(columns.cell_offsets, dtype=np.int64)))
-        left_out["shade"] = int(per_cell[keep & of_shade].sum())
-        keep &= ~of_shade
+    left_out = {"outside": 0}
     # One array of vertices for all groups, each group moved by its tile anchor.
     groups = [
         frame_mod.tile_to_site(pos, tris.anchors[g])

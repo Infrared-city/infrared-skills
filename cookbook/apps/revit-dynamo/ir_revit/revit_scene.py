@@ -1,15 +1,14 @@
-"""What a run reads from the model: result elements, shade elements, terrain.
+"""What a run reads from the model: the buildings (SDK ``buildings``) and terrain.
 
-Result elements (a result is drawn on them, and they size the run area):
+Buildings (a result is drawn on them, and they size the run area):
 
 * the selection: elements of the open model, elements picked inside a linked
   model (Tab), and a linked model picked as a whole;
 * with ``scope = "model"``: every building element of the open model and of
   its loaded links. No selection is needed.
 
-Shade elements: every other building element of the open model and of its
-loaded links. They shade the result; no result is drawn on them.
-``scope = "alone"`` reads none of them (faster on a large model).
+Nothing else of the model is sent. The surroundings come from ``context``
+(the public buildings), as on the platform.
 
 A building element is an element of a building category
 (``ir_dynamo.obj_export.BUILDING_BUILTINS``) or an import (DWG, IFC). Terrain:
@@ -31,9 +30,6 @@ from ir_dynamo import obj_export, summary
 from . import revit_geometry as rg
 from . import revit_location
 
-# Shade elements farther than this from the result elements are not read. It
-# covers the largest default margin (about 250 m) and ``run.SHADE_REACH_M``.
-SHADE_READ_REACH_FT = 700.0 / revit_location.FEET_TO_M
 Soup = Dict[str, List[float]]
 
 
@@ -76,7 +72,7 @@ def links(doc: Any) -> Tuple[List[Link], List[str]]:
     if unloaded:
         notes.append(
             "%d linked model(s) are not loaded and are not read. Load them in Manage > "
-            "Manage Links to have them shade the result." % unloaded
+            "Manage Links to read them." % unloaded
         )
     return found, notes
 
@@ -106,27 +102,6 @@ def building_elements(document: Any) -> Iterator[Any]:
             yield element
 
 
-def _xy_box(feet: Sequence[float]) -> Tuple[float, float, float, float]:
-    p = np.asarray(feet, dtype=np.float64).reshape(-1, 3)
-    return float(p[:, 0].min()), float(p[:, 1].min()), float(p[:, 0].max()), float(p[:, 1].max())
-
-
-def _is_near(element: Any, link: Optional[Link], box: Tuple[float, float, float, float]) -> bool:
-    """True when the bounding box of the element meets ``box`` (feet, open model)."""
-    try:
-        bounds = element.get_BoundingBox(None)
-    except Exception:
-        return True
-    if bounds is None:
-        return False  # no geometry
-    corners = [bounds.Min.X, bounds.Min.Y, bounds.Min.Z, bounds.Max.X, bounds.Max.Y, bounds.Max.Z]
-    if link is not None:
-        corners = link.to_host(corners)
-    x0, x1 = sorted((corners[0], corners[3]))
-    y0, y1 = sorted((corners[1], corners[4]))
-    return x0 < box[2] and x1 > box[0] and y0 < box[3] and y1 > box[1]
-
-
 def _key(element: Any, link: Optional[Link]) -> str:
     key = rg.element_key(element)
     return key if link is None else "link%s-%s" % (link.key, key)
@@ -139,7 +114,7 @@ def collect(
     true_north_rad: float,
     scope: str = "",
     progress: Optional[Callable[[str], None]] = None,
-) -> Tuple[Soup, Soup, Soup, List[str]]:
+) -> Tuple[Soup, Soup, List[str]]:
     """Read the model for one run.
 
     Parameters
@@ -152,19 +127,19 @@ def collect(
     true_north_rad : float
         ``revit_location.SiteLocation.true_north_rad``.
     scope : str
-        ``""``, ``"model"`` or ``"alone"`` (see the module text).
+        ``""`` or ``"model"`` (see the module text).
     progress : callable, optional
         Called with a short text at each stage.
 
     Returns
     -------
-    buildings_m, shade_m, terrain_m : dict
+    buildings_m, terrain_m : dict
         ``{id: flat [x, y, z, ...]}``, 9 numbers per triangle, metres, Revit
         frame. The id of a linked element is ``"link<link id>-<element id>"``.
     notes : list of str
     """
     say = progress or (lambda text: None)
-    fine, medium = rg._options(), rg._options(fine=False)
+    fine = rg._options()
     found, notes = links(doc)
     by_key = {link.key: link for link in found}
     result_ft: Dict[str, Any] = {}
@@ -225,26 +200,6 @@ def collect(
             "Linked model %s is selected as a whole: its %d building element(s) get a result."
             % (link.key, len(result_ft) - before)
         )
-    shade_ft: Dict[str, Any] = {}
-    if scope == "" and result_ft:
-        boxes = [_xy_box(feet) for feet in result_ft.values()]
-        reach = SHADE_READ_REACH_FT
-        box = (
-            min(b[0] for b in boxes) - reach,
-            min(b[1] for b in boxes) - reach,
-            max(b[2] for b in boxes) + reach,
-            max(b[3] for b in boxes) + reach,
-        )
-        say("reading the other building elements of the model and %d link(s) (shade)" % len(found))
-        for document, link in sources:
-            for element in building_elements(document):
-                key = _key(element, link)
-                if key in result_ft or not _is_near(element, link, box):
-                    continue
-                feet = rg._element_feet(element, medium)
-                if feet:
-                    shade_ft[key] = feet if link is None else link.to_host(feet)
-        say("shade: %d element(s) read" % len(shade_ft))
     terrain_ft, terrain_notes = _terrain(doc, terrain_picked, found, fine)
     notes += terrain_notes
     if empty:
@@ -258,7 +213,7 @@ def collect(
             for key, feet in soups.items()
         }
 
-    return metres(result_ft), metres(shade_ft), metres(terrain_ft), notes
+    return metres(result_ft), metres(terrain_ft), notes
 
 
 def link_buildings(

@@ -181,7 +181,7 @@ Type `help` to see every word. The words can be in any order.
 | `months 6-8`, `hours 9-17` | The time window | `6-8` and `8-18`; PWC the whole year |
 | `wind 5 270` or `wind 5 W` | Wind analysis: speed (m/s) and the direction it comes from | 5 m/s from 270 |
 | `surfaces roofs` | Facades only: `facades`, `roofs` or `all` | `all` |
-| `model`, `alone` | What gets a result (see the next section) | the selection |
+| `model` | What is sent (see the next section) | the selection |
 | `context` | Add the public buildings around the site | off |
 | `margin 100` | Metres of ground around the selection | 30 (ground), 5 (facades) |
 | `legend exact`, `gradient` | The colours (see Colours) | `legend platform` |
@@ -206,28 +206,22 @@ selection is used too.
 If you edit a file in `ir_dynamo` or `ir_revit`, press Run again. The script
 reloads the files. You do not need to restart Revit.
 
-## What gets a result, and what only shades
+## What is sent
 
-| Command | A result is drawn on | These only shade |
-|---|---|---|
-| (no word) | The elements you selected | The other building elements of the model and of its loaded links |
-| `model` | Every building element of the model and of its loaded links. No selection is needed. | Nothing more |
-| `alone` | The elements you selected | Nothing. Faster on a large model. |
-| + `context` | The above, and the public buildings | Nothing more |
+The same as the platform and the SDK: your elements go as `buildings`, and the
+surroundings come from `context` (the public buildings). Nothing else of the model is sent.
 
-- A linked Revit model: its elements shade the result. To get a result on them, pick
-  an element inside the link with Tab, or select the whole link, or use `model`.
-  A link that is not loaded is not read; the Watch text says so.
+| Command | Sent as buildings, a result is drawn on them |
+|---|---|
+| (no word) | The elements you selected |
+| `model` | Every building element of the model and of its loaded links. No selection is needed. |
+| + `context` | The above, and the public buildings around the site |
+
+- A linked Revit model: pick an element inside the link with Tab, or select the whole
+  link, or use `model`. A link that is not loaded is not read; the Watch text says so.
 - A building element is an element of a building category (walls, curtain panels and
   mullions, columns, beams, floors, roofs, windows, masses, parts) or an import
   (DWG, IFC). The elements you select are always read, whatever their category.
-- Elements that only shade are read up to 400 m from the selection, at Medium detail.
-  The Watch text gives their number.
-- An element that only shades and lies flat on the ground (no part more than 1 m above
-  it, for example the ground sheets and roads of an imported city) is left out. As a
-  building it would cover the ground, and the ground under a building gets no value.
-  Without terrain, the ground is the base of the selected elements. The Watch text has
-  a `Left out:` line with their number.
 - A ground run warns, also in the free preview, when 80 % or more of the area is under
   buildings. Look for a ground that is modelled as a floor, a mass or an import in the
   selection.
@@ -313,7 +307,6 @@ Read the Watch text first. Its warnings and errors are in one block at the top.
 | The ground result is at the wrong height | Model the site as a Toposolid. A floor or a mass is not terrain. |
 | Only one building can be selected | The others are in a linked model. Use `select link`, or pick one with Tab, or use `model`. |
 | `The result has no values to show`, or `of the area is under buildings` | A ground sheet, road or floor in the selection covers the area. Select the buildings only, or model the ground as a Toposolid. |
-| The run is slow before it starts | Add `alone`: the rest of the model is then not read for shade. |
 | `This graph is an older version` | Open the new `IR_Analysis.dyn` from the libs folder. |
 
 The full text of each run is also in `.infrared\revit-dynamo-runs.log` in your user folder.
@@ -326,9 +319,7 @@ The full text of each run is also in `.infrared\revit-dynamo-runs.log` in your u
 - A tile of the SDK starts at the south-west corner of the run area. A small area
   without `context` has its buildings in that corner, so elements more than about
   150 m south or west of the area do not shade it. With `context` the area fills the tile.
-- Reading the elements that only shade takes time on a large model. `alone` skips it.
-  A model of 4765 elements with 6 links took about 65 seconds to read and 30 seconds
-  to prepare, before the server call.
+- With `model`, reading every building element takes time on a large model.
 - A facade result with `context` covers the public buildings in the area. On a dense
   site this is a large shape: 890 000 cells took 3 minutes 20 seconds to draw. Run
   `context` on the ground, or without `context` on the facades, when that is too slow.
@@ -352,7 +343,7 @@ The full text of each run is also in `.infrared\revit-dynamo-runs.log` in your u
 | Path | What it holds |
 |---|---|
 | `ir_dynamo/` | SDK calls, the target rules (`targets.py`) and the `command` line (`command.py`, `command_help.py`). No Revit code. Tested with pytest. |
-| `ir_revit/` | Revit API code: selection (`revit_selection.py`), links and shade (`revit_scene.py`), location, geometry, display, key dialog, `entry.py`. |
+| `ir_revit/` | Revit API code: selection (`revit_selection.py`), links (`revit_scene.py`), location, geometry, display, key dialog, `entry.py`. |
 | `dynamo/` | `IR_Analysis.dyn`. Its Python node has a few lines and calls `ir_revit.entry.run`. |
 | `build_libs.py` | Builds the libs zip for Python 3.9 on Windows x64. |
 | `tests/` | pytest tests for `ir_dynamo`. `smoke_dynamo.py`: free previews of the commands in Dynamo's own Python (`"%LOCALAPPDATA%\python-3.9.12-embed-amd64\python.exe" tests\smoke_dynamo.py`). Run it before a libs zip goes out: it finds package clashes that pytest cannot. |

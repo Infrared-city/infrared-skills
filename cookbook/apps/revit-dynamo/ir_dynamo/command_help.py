@@ -30,9 +30,8 @@ def help_lines() -> List[str]:
         "  tcs + a subtype: %s (default %s)." % (", ".join(tcs), tcs[0]),
         "Target: ground, facades or both (default: ground where the analysis runs, else facades; "
         "both is two runs and two costs).",
-        "What gets a result: the selection (default; the rest of the model and its links only "
-        "shade). model: every building of the model and its links, no selection needed. "
-        "alone: the selection, and nothing else shades (faster). Pick an element inside a link with Tab.",
+        "What is sent as buildings: the selection (default). model: every building of the model "
+        "and its links, no selection needed. Pick an element inside a link with Tab.",
         "context: add the public buildings around the site; the result covers them too.",
         "margin 100: metres of ground around the selection (default 30 for the ground, 5 for facades; "
         "with context about 250, as much as the same cost gives).",

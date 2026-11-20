@@ -5,7 +5,7 @@ floor, a mass, an import). With an empty ``terrain`` input, the Toposolids and
 TopographySurfaces in the main selection are terrain; with none there either,
 every terrain element of the document is used. Everything else is a building.
 This module reads the open model only. ``revit_scene`` reads the linked models
-and the elements that only shade; an analysis run uses it. The OBJ export uses
+as well; an analysis run uses it. The OBJ export uses
 ``collect_scene`` here.
 
 One building per element. Its id is the ElementId as text. The triangles come
@@ -144,7 +144,7 @@ def _document_terrain(doc: Any) -> List[Any]:
 
 
 def _options(fine: bool = True) -> Any:
-    """Geometry options. ``fine = False``: Medium detail, for elements that only shade."""
+    """Geometry options. ``fine = False``: Medium detail."""
     from Autodesk.Revit.DB import Options, ViewDetailLevel  # type: ignore
 
     options = Options()

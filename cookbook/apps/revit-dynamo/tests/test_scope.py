@@ -1,4 +1,4 @@
-"""What gets a result and what only shades; the run area; the lines about them."""
+"""What is sent as buildings; the run area; the lines about them."""
 
 from __future__ import annotations
 
@@ -26,51 +26,20 @@ def test_the_context_margin_fills_the_tile_for_the_same_cost() -> None:
     assert frame.tile_count(wide.polygon, kind) > 1
 
 
-def test_near_keeps_the_elements_that_can_shade() -> None:
-    soups = {"close": box_soup(60, 0, 0, 10, 10, 10), "far": box_soup(900, 0, 0, 10, 10, 10)}
-    assert list(meshes.near(soups, BOX, 400.0)) == ["close"]
-
-
 class _Client:
     def preview_area(self, polygon: Any, **kw: Any) -> Any:
         self.buildings = kw["buildings"]
         return SimpleNamespace(tile_count=1, would_bill_jobs=1, estimated_cost_tokens=10, sensor_count=None)
 
 
-def test_shade_elements_are_sent_but_do_not_size_the_area() -> None:
+def test_the_buildings_are_sent_and_size_the_area() -> None:
     client = _Client()
     own = {"b1": box_soup(-10, -10, 0, 20, 20, 15)}
-    shade = {"s1": box_soup(100, 0, 0, 10, 10, 30), "s2": box_soup(2000, 0, 0, 10, 10, 30)}
-    out = run.run_analysis("ground", "svf", own, LON, LAT, shade_m=shade, client=client)
-    assert sorted(client.buildings) == ["b1", "s1"]  # s2 is too far to shade
+    out = run.run_analysis("ground", "svf", own, LON, LAT, client=client)
+    assert sorted(client.buildings) == ["b1"]
     assert out["warnings"][0] == "Area: 80 x 80 m (the selection and a margin of 30 m; set it with the word margin)."
-    assert any(w.startswith("Shade only: 1 other element(s)") for w in out["warnings"])
     out = run.run_analysis("ground", "svf", own, LON, LAT, buffer_m=100.0, client=client)
     assert out["warnings"][0] == "Area: 220 x 220 m (the selection and a margin of 100 m)."
-
-
-def test_shade_elements_flat_on_the_ground_are_left_out() -> None:
-    client = _Client()
-    own = {"b1": box_soup(-10, -10, 0, 20, 20, 15)}
-    shade = {
-        "sheet": box_soup(-200, -200, 0, 400, 400, 0.3),  # a ground sheet of an imported city
-        "kerb": box_soup(30, 0, 0, 40, 1, 1.0),
-        "s1": box_soup(100, 0, 0, 10, 10, 30),
-        "canopy": box_soup(40, 40, 4, 10, 10, 0.3),  # thin, but above the ground: it shades
-    }
-    out = run.run_analysis("ground", "wind", own, LON, LAT, shade_m=shade, client=client)
-    assert sorted(client.buildings) == ["b1", "canopy", "s1"]
-    assert any(w.startswith("Shade only: 2 other element(s)") for w in out["warnings"])
-    assert any(w.startswith("Left out: 2 other element(s) that lie flat") for w in out["warnings"])
-
-
-def test_without_terrain_the_ground_is_the_base_of_the_selection() -> None:
-    # A city DWG imported 8 m above Revit elevation 0, no Toposolid (live run 2026-11-18).
-    client = _Client()
-    own = {"b1": box_soup(-10, -10, 8, 20, 20, 15)}
-    shade = {"sheet": box_soup(-200, -200, 7.8, 400, 400, 0.4), "s1": box_soup(100, 0, 8, 10, 10, 30)}
-    run.run_analysis("ground", "wind", own, LON, LAT, shade_m=shade, client=client)
-    assert sorted(client.buildings) == ["b1", "s1"]
 
 
 def test_a_ground_run_warns_when_most_of_the_area_is_under_buildings() -> None:
@@ -82,6 +51,22 @@ def test_a_ground_run_warns_when_most_of_the_area_is_under_buildings() -> None:
     assert len(warning) == 1 and warning[0].startswith("Warning: 8")
     out = run.run_analysis("ground", "wind", {"b1": own["b1"]}, LON, LAT, client=client)
     assert not any("of the area is under buildings" in w for w in out["warnings"])
+
+
+def test_the_public_buildings_come_back_only_when_asked() -> None:
+    class _WithContext(_Client):
+        def __init__(self) -> None:
+            tri = {"coordinates": [0, 0, 0, 10, 0, 0, 0, 10, 0, 0, 0, 12], "indices": [0, 1, 2, 0, 1, 3]}
+            self.buildings = SimpleNamespace(get_area=lambda polygon, **kw: SimpleNamespace(buildings={"p1": tri}))
+
+    own = {"b1": box_soup(-10, -10, 0, 20, 20, 15)}
+    out = run.run_analysis("ground", "svf", own, LON, LAT, fetch_context=True, client=_WithContext())
+    assert out["context_m"] == {}  # Revit: not asked
+    out = run.run_analysis(
+        "ground", "svf", own, LON, LAT, fetch_context=True, client=_WithContext(), return_context=True
+    )
+    soup = out["context_m"]["ctx-p1"]
+    assert len(soup) == 18 and max(soup[2::3]) == 12.0  # two triangles, Revit-frame metres
 
 
 def _facade_result() -> Any:
@@ -104,13 +89,12 @@ def _facade_result() -> Any:
     return SimpleNamespace(columns=cols)
 
 
-def test_facade_cells_of_shade_elements_and_outside_the_area_are_left_out() -> None:
+def test_facade_cells_outside_the_area_are_left_out() -> None:
     f = frame.make_frame(LON, LAT, BOX, 5.0)
-    out = results.facade_triangles(f, _facade_result(), skip={"link7-22"}, box_m=f.size_m)
-    assert out["values"] == [10.0]  # 20 is outside the area; 30 and 40 are on a shade element
-    assert out["left_out"] == {"shade": 2, "outside": 1}
-    assert (out["legend_min"], out["legend_max"]) == (10.0, 10.0)
-    assert results.building_of("link7-22/13") == "link7-22"
+    out = results.facade_triangles(f, _facade_result(), box_m=f.size_m)
+    assert out["values"] == [10.0, 30.0, 40.0]  # 20 is outside the area
+    assert out["left_out"] == {"outside": 1}
+    assert (out["legend_min"], out["legend_max"]) == (10.0, 40.0)
 
 
 def test_the_grid_check_counts_only_buildings_inside_the_area() -> None:
