@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import numpy as np
 import pytest
 
 from ir_dynamo import frame as frame_mod
@@ -45,3 +46,15 @@ def test_ground_materials_warn_outside_the_thermal_analyses() -> None:
         "Trees: 1 (0 with a size from the geometry; the others 6 m high, 4 m crown).",
         "Ground materials: water 1. Where two overlap, one of them is used.",
     ]
+
+
+def test_public_layers_take_the_own_features_and_come_back_for_the_view() -> None:
+    f = _frame()
+    own = own_layers.ground_geojson(f, {"water": [[(0.0, 0.0), (10.0, 0.0), (10.0, 10.0)]]})
+    public = {"water": {"type": "FeatureCollection", "features": [{"geometry": {}}]}, "soil": None}
+    merged = own_layers.merge_layers(public, own)
+    assert list(merged) == ["water"] and len(merged["water"]["features"]) == 2
+    view = own_layers.display_ground(f, own)
+    assert np.allclose(view["water"][0][0][:3], [[0, 0], [10, 0], [10, 10]], atol=1e-6)
+    trees = own_layers.display_trees(f, own_layers.trees_geojson(f, [(5.0, -3.0, None, 9.0)]))
+    assert np.allclose(trees, [[5.0, -3.0, 6.0, 9.0]], atol=1e-6)

@@ -15,6 +15,8 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional, Sequence, Tuple
 
+import numpy as np
+
 from . import frame as frame_mod
 
 MATERIALS = ("asphalt", "concrete", "soil", "vegetation", "water")
@@ -91,3 +93,71 @@ def notes(sdk_type: str, trees_m: Sequence[Tree], ground_m: Dict[str, Sequence[R
                 "tcs read them." % counts
             )
     return lines
+
+
+def merge_layers(public: Optional[Dict[str, dict]], own: Optional[Dict[str, dict]]) -> Optional[Dict[str, dict]]:
+    """The public ground layers with the own features added to their material."""
+    out: Dict[str, dict] = {}
+    for layers in (public or {}, own or {}):
+        for name, collection in layers.items():
+            features = list((collection or {}).get("features") or [])
+            if features:
+                out.setdefault(name, {"type": "FeatureCollection", "features": []})["features"] += features
+    return out or None
+
+
+def _size(properties: dict, key: str, default: float) -> float:
+    try:
+        value = float(properties.get(key) or 0.0)
+    except (TypeError, ValueError):
+        value = 0.0
+    return value if value > 0 else default
+
+
+def _outer_points(geometry: dict) -> List[List[float]]:
+    kind, coords = geometry.get("type"), geometry.get("coordinates") or []
+    if kind == "Point":
+        return [list(coords[:2])]
+    if kind == "Polygon" and coords:
+        return [list(p[:2]) for p in coords[0]]
+    if kind == "MultiPolygon" and coords and coords[0]:
+        return [list(p[:2]) for p in coords[0][0]]
+    return []
+
+
+def display_trees(frame: frame_mod.SiteFrame, vegetation: Optional[Dict[str, dict]]) -> List[List[float]]:
+    """``[[x, y, height, crown], ...]`` in the Revit frame, for a host that draws the trees.
+
+    A polygon tree stands at the mean of its outer ring, as the SDK seats it (near enough to draw).
+    """
+    rows, where = [], []
+    for feature in (vegetation or {}).values():
+        points = _outer_points(feature.get("geometry") or {})
+        if not points:
+            continue
+        props = feature.get("properties") or {}
+        where.append(np.mean(np.asarray(points, dtype=np.float64), axis=0))
+        rows.append((_size(props, "height", TREE_HEIGHT_M), _size(props, "crownDiameter", TREE_CROWN_M)))
+    if not rows:
+        return []
+    xy = frame_mod.from_lonlat(frame, np.asarray(where))
+    return [[float(x), float(y), h, c] for (x, y), (h, c) in zip(xy, rows)]
+
+
+def display_ground(frame: frame_mod.SiteFrame, layers: Optional[Dict[str, dict]]) -> Dict[str, List[list]]:
+    """``{material: [polygon, ...]}``, a polygon is ``[outer ring, hole, ...]`` of ``[x, y]`` in the Revit frame."""
+    out: Dict[str, List[list]] = {}
+    for name, collection in (layers or {}).items():
+        polygons = []
+        for feature in (collection or {}).get("features") or []:
+            geometry = feature.get("geometry") or {}
+            kind, coords = geometry.get("type"), geometry.get("coordinates") or []
+            parts = [coords] if kind == "Polygon" else coords if kind == "MultiPolygon" else []
+            for rings in parts:
+                polygon = [frame_mod.from_lonlat(frame, np.asarray(r, dtype=np.float64)[:, :2]).tolist()
+                           for r in rings if len(r) >= 3]
+                if polygon:
+                    polygons.append(polygon)
+        if polygons:
+            out[name] = polygons
+    return out

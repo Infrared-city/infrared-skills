@@ -110,6 +110,20 @@ def to_lonlat(frame: SiteFrame, x: float, y: float) -> Tuple[float, float]:
     return float(lon), float(lat)
 
 
+def from_lonlat(frame: SiteFrame, lonlat: np.ndarray) -> np.ndarray:
+    """``(n, 2)`` lon/lat -> ``(n, 2)`` Revit-frame metres.
+
+    ``unproject`` is linear in x and y around one origin, so three of its points
+    give the exact inverse; one kernel call per vertex would be slow on the
+    thousands of vertices of the public ground materials.
+    """
+    o = np.asarray(unproject(frame.site_lon, frame.site_lat, 0.0, 0.0), dtype=np.float64)
+    ex = np.asarray(unproject(frame.site_lon, frame.site_lat, 1.0, 0.0), dtype=np.float64) - o
+    ey = np.asarray(unproject(frame.site_lon, frame.site_lat, 0.0, 1.0), dtype=np.float64) - o
+    inverse = np.linalg.inv(np.column_stack([ex, ey]))
+    return (np.asarray(lonlat, dtype=np.float64).reshape(-1, 2) - o) @ inverse.T
+
+
 def tile_count(polygon: Dict, analysis_type: str) -> int:
     """The number of tiles (billed jobs) the SDK cuts ``polygon`` into."""
     service = TileService(

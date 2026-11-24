@@ -21,6 +21,9 @@ from . import frame as frame_mod
 DEFAULT_BUFFER_M = {"ground": 30.0, "facades": 5.0}
 # Terrain triangles this far outside the run area are kept (shade, slope at the edge).
 TERRAIN_MARGIN_M = 20.0
+# The public ground materials take about a minute to read (an Overture read, 61-89 s
+# for a 80 m area in Vienna on 2026-11-20); the SDK default of 60 s stopped it.
+GROUND_READ_TIMEOUT_S = 240
 # A ground run warns (also in the free preview) when this share of the area is
 # under buildings: ground sheets sent as buildings gave a wind run without values.
 COVERED_WARN = 0.8
@@ -150,8 +153,8 @@ def run_analysis(
     wind_speed, wind_direction : float, int
         Wind only: m/s and bearing in whole degrees (270 = from the west).
     fetch_context : bool
-        Add the public buildings around the selection (needs the geodata libs).
-        The result covers them too, inside the run area.
+        Add the public buildings, trees and ground materials around the selection
+        (needs the geodata libs). The result covers the buildings too, inside the run area.
     terrain_m : dict, optional
         ``{terrain_id: flat [x, y, z, ...]}``, same units and frame as
         ``buildings_m``. With terrain, z = 0 of the SDK is the lowest terrain
@@ -168,7 +171,9 @@ def run_analysis(
     client : InfraredClient, optional
         Leave it out to build one from the API key.
     return_context : bool
-        With ``fetch_context``: put the public buildings in ``out["context_m"]``
+        Put the trees and ground materials sent in ``out["trees_m"]`` and
+        ``out["ground_m"]`` (``own_layers.display_*``, at height ``out["layers_z"]``), and,
+        with ``fetch_context``, the public buildings in ``out["context_m"]``
         (``{id: flat triangles}``, Revit-frame metres), for a host that draws
         them. Revit does not; Rhino does.
 
@@ -232,6 +237,29 @@ def run_analysis(
                     "Public context buildings stand at z = 0 of the SDK (the lowest "
                     "terrain point), not on the terrain."
                 )
+            say("reading public trees")
+            public_trees = client.vegetation.get_area(frame.polygon, analysis_type=row.sdk_type)
+            vegetation = {**dict(public_trees.features), **(vegetation or {})} or None
+            warnings.append("%d public tree(s) added as context." % len(public_trees.features))
+            failed = len(public_trees.failed_tiles)
+            if row.sdk_type in own_layers.THERMAL:
+                say("reading public ground materials (about a minute)")
+                public_ground = client.ground_materials.get_area(
+                    frame.polygon, analysis_type=row.sdk_type, timeout=GROUND_READ_TIMEOUT_S
+                )
+                materials = own_layers.merge_layers(dict(public_ground.layers), materials)
+                failed += len(public_ground.failed_tiles)
+                warnings.append(
+                    "%d public ground-material area(s) added as context (%s)."
+                    % (public_ground.total_features, ", ".join(sorted(public_ground.layers)) or "none")
+                )
+            else:
+                warnings.append("Public ground materials are not read: only utci and tcs use them.")
+            if failed:
+                warnings.append(
+                    "Warning: some public trees or ground materials could not be read (%d failed tile(s))."
+                    % failed
+                )
         if surface == "ground":
             covered = grid_check.covered_share(buildings, frame.size_m)
             if covered >= COVERED_WARN:
@@ -280,6 +308,10 @@ def run_analysis(
             "context_m": (
                 _context_soups(frame, buildings, z_offset) if fetch_context and return_context else {}
             ),
+            # The trees and ground materials sent (own and public), for a host that draws them.
+            "trees_m": own_layers.display_trees(frame, vegetation) if return_context else [],
+            "ground_m": own_layers.display_ground(frame, materials) if return_context else {},
+            "layers_z": z_offset,
         }
         if preview_only:
             out["status"] = "Preview only: %s. Add the word run to the command to run it." % cost

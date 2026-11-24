@@ -26,6 +26,7 @@ Read [geospatial-crs](references/geospatial-crs.md) before a job, [grid-conventi
 
 | Goal | SDK | Go to |
 |---|---|---|
+| Rhino 9 objects, from the ScriptEditor, the Rhino AI panel or Claude Code with `MCPConnect` (no Grasshopper) | Python in Rhino 9 (CPython 3.13) | [rhino](references/recipes/rhino.md), `cookbook/apps/rhino-grasshopper` |
 | Grasshopper or Rhino component | Python in Rhino 8 | [grasshopper](references/recipes/grasshopper.md), [geometry and drawing](references/recipes/grasshopper-geometry-and-drawing.md), [pitfalls](references/recipes/grasshopper-pitfalls.md) |
 | Revit 2026 script (Dynamo, no plugin) | Python in Dynamo (CPython 3.9) | [revit-dynamo](references/recipes/revit-dynamo.md), [pitfalls](references/recipes/revit-dynamo-pitfalls.md), `cookbook/apps/revit-dynamo` |
 | Analysis, study or notebook for yourself | Python | [python/quickstart](references/python/quickstart.md), `cookbook/notebooks/00_quickstart.ipynb` |

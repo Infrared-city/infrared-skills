@@ -58,6 +58,10 @@ def test_the_public_buildings_come_back_only_when_asked() -> None:
         def __init__(self) -> None:
             tri = {"coordinates": [0, 0, 0, 10, 0, 0, 0, 10, 0, 0, 0, 12], "indices": [0, 1, 2, 0, 1, 3]}
             self.buildings = SimpleNamespace(get_area=lambda polygon, **kw: SimpleNamespace(buildings={"p1": tri}))
+            tree = {"geometry": {"type": "Point", "coordinates": [LON, LAT]}, "properties": {"height": 9}}
+            self.vegetation = SimpleNamespace(
+                get_area=lambda polygon, **kw: SimpleNamespace(features={"t1": tree}, failed_tiles=[])
+            )
 
     own = {"b1": box_soup(-10, -10, 0, 20, 20, 15)}
     out = run.run_analysis("ground", "svf", own, LON, LAT, fetch_context=True, client=_WithContext())
@@ -67,6 +71,9 @@ def test_the_public_buildings_come_back_only_when_asked() -> None:
     )
     soup = out["context_m"]["ctx-p1"]
     assert len(soup) == 18 and max(soup[2::3]) == 12.0  # two triangles, Revit-frame metres
+    # The public trees go with the run and come back for the view; svf reads no ground materials.
+    assert np.allclose(out["trees_m"], [[0.0, 0.0, 9.0, 4.0]], atol=1e-6) and out["ground_m"] == {}
+    assert "Public ground materials are not read: only utci and tcs use them." in out["warnings"]
 
 
 def _facade_result() -> Any:
