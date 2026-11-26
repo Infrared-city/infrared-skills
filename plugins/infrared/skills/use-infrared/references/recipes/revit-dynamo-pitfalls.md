@@ -46,10 +46,10 @@ Most expensive failures return a plausible result. Look at the picture and the v
 
 ## Results and colours
 
-20. **Everything is one colour.** The colour range is much wider than the values. Wind speed and UTCI have a fixed platform range (0 to 20 m/s, -40 to 46 °C), and `platform` is the default. Use the word `trimmed`. Compare the value lines (min, max, percentiles) with the "Legend range used" line.
+20. **Everything is one colour.** The colour range is much wider than the values. Wind speed and UTCI have a fixed platform range (0 to 20 m/s, -40 to 46 °C); with `legend platform` the data fits in a few colours. The default is `trimmed` (since 2026-11-26). Compare the value lines (min, max, percentiles) with the "Legend range used" line.
 21. **The SDK renderer chooses its own range.** A colour scale without `steps` is drawn over the 2nd to 98th percentile of the cells, and SDK 1.0.0 ignores `infraredRange`. To pin a range, the script adds pad cells with the low and high value to the rendered grid and does not read them back.
 22. **Do not shift the ground grid.** Row 0 is the south edge, `bounds` gives the place, the cell centre is at `(col + 0.5, row + 0.5)` cells. The "Grid alignment check" line shows the share of cells under buildings with no value. Change the placement only if a shift wins clearly, and report it to Infrared.
-23. **UTCI shows one colour on the platform scale.** This is correct: a summer afternoon fits in one or two platform bins. Use `trimmed gradient` to see the variation.
+23. **UTCI shows one colour on the platform scale.** With `legend platform` this is expected: a summer afternoon fits in one or two platform bins (tester run: 20.9 to 27.7 °C, 87 % in one bin), which is why `trimmed` became the default. When 80 % or more of the values are in one colour of a fixed platform range, the Watch text has a `Warning: ... in one colour of the platform scale` line. Use `show-last legend trimmed` (free) or `trimmed gradient` to see the variation.
 
 ## Drawing in Revit
 

@@ -44,13 +44,51 @@ def test_the_buildings_are_sent_and_size_the_area() -> None:
 
 def test_a_ground_run_warns_when_most_of_the_area_is_under_buildings() -> None:
     client = _Client()
-    own = {"b1": box_soup(-10, -10, 8, 20, 20, 15), "sheet": box_soup(-60, -60, 8, 120, 120, 0.2)}
+    own = {"b1": box_soup(-10, -10, 8, 20, 20, 15), "podium": box_soup(-60, -60, 8, 120, 120, 2.0)}  # not flat
     out = run.run_analysis("ground", "wind", own, LON, LAT, buffer_m=5.0, client=client)
     warning = [w for w in out["warnings"] if "of the area is under buildings" in w]
     # 120 x 120 m of a 130 x 130 m area: 85 %, a little more on 2 m cells.
     assert len(warning) == 1 and warning[0].startswith("Warning: 8")
     out = run.run_analysis("ground", "wind", {"b1": own["b1"]}, LON, LAT, client=client)
     assert not any("of the area is under buildings" in w for w in out["warnings"])
+
+
+FLAT_CITY = {
+    "b1": box_soup(-10, -10, 0, 20, 20, 15),
+    "road": box_soup(-40, -40, 0, 80, 6, 0.3),  # an imported road: flat
+    "lawn": box_soup(20, 20, -0.5, 10, 10, 1.2),  # 0.7 m above the ground: flat
+    "wall": box_soup(-30, 20, 0, 10, 0.3, 1.5),  # 1.5 m: not flat
+}
+
+
+def test_a_ground_run_leaves_out_the_selected_parts_that_lie_flat_on_the_ground() -> None:
+    client = _Client()
+    out = run.run_analysis("ground", "svf", FLAT_CITY, LON, LAT, client=client)
+    lines = out["warnings"]
+    first = [i for i, w in enumerate(lines) if w.startswith("Left out of the ground run")]
+    assert len(first) == 1 and "24 triangle(s)" in lines[first[0]]
+    assert lines[first[0] + 1] == "  2 whole element(s) (ids road, lawn)."
+    assert sorted(client.buildings) == ["b1", "wall"]
+    out = run.run_analysis("facades", "svf", FLAT_CITY, LON, LAT, client=client)
+    assert not any("Left out of the ground run" in w for w in out["warnings"])
+    assert sorted(client.buildings) == ["b1", "lawn", "road", "wall"]  # facades: all sent
+
+
+def test_a_layer_element_keeps_its_high_parts() -> None:
+    # One element of an imported layer: a pavement and a platform on a viaduct.
+    client = _Client()
+    layer = box_soup(-40, -40, 0, 30, 4, 0.2) + box_soup(10, 10, 8, 20, 4, 0.5)
+    own = {"b1": FLAT_CITY["b1"], "layer": layer}
+    out = run.run_analysis("ground", "svf", own, LON, LAT, client=client)
+    assert sorted(client.buildings) == ["b1", "layer"]
+    assert "  1 element(s) in part; the rest of each is sent (ids layer)." in out["warnings"]
+
+
+def test_a_selection_of_flat_elements_only_is_sent_with_a_warning() -> None:
+    client = _Client()
+    out = run.run_analysis("ground", "svf", {"road": FLAT_CITY["road"]}, LON, LAT, client=client)
+    assert sorted(client.buildings) == ["road"]
+    assert any(w.startswith("Warning: every selected element lies flat") for w in out["warnings"])
 
 
 def test_the_public_buildings_come_back_only_when_asked() -> None:

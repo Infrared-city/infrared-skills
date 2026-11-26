@@ -184,7 +184,7 @@ Type `help` to see every word. The words can be in any order.
 | `model` | What is sent (see the next section) | the selection |
 | `context` | Add the public buildings around the site | off |
 | `margin 100` | Metres of ground around the selection | 30 (ground), 5 (facades) |
-| `legend exact`, `gradient` | The colours (see Colours) | `legend platform` |
+| `legend exact`, `gradient` | The colours (see Colours) | `legend trimmed` |
 | `lat 48.2085 lon 16.3721` | Another location | the Revit project location |
 | `run` | Run and pay tokens | free preview |
 
@@ -222,9 +222,13 @@ surroundings come from `context` (the public buildings). Nothing else of the mod
 - A building element is an element of a building category (walls, curtain panels and
   mullions, columns, beams, floors, roofs, windows, masses, parts) or an import
   (DWG, IFC). The elements you select are always read, whatever their category.
-- A ground run warns, also in the free preview, when 80 % or more of the area is under
-  buildings. Look for a ground that is modelled as a floor, a mass or an import in the
-  selection.
+- A ground run leaves out the parts of the selection that lie flat on the ground (each
+  solid of an element with no point more than 1 m above it), such as the roads, lawns
+  and ground sheets of an imported city: as buildings they would cover the ground, and
+  the ground under a building gets no value. A layer of an import that also holds a
+  viaduct keeps the viaduct. The Watch text names the elements with their ids, and the
+  ground result is drawn on top of the parts left out. A facade run sends everything. A ground run also warns, also in the free
+  preview, when 50 % or more of the area is still under buildings.
 - The run area is the box around the result elements plus the margin. The ground
   result fills it. With `context`, the default margin is the largest one that costs
   no extra tile: the area is about 500 m wide with the selection in the middle, and
@@ -303,7 +307,8 @@ Read the Watch text first. Its warnings and errors are in one block at the top.
 | A warning about the Boston area | Set Manage > Location, or add `lat` and `lon` to the command. |
 | Press Run, and nothing changes | Look for a Revit dialog or a pick that waits (press Esc in Revit). If the same command does not run a second time, change it (add a space at the end). |
 | No colours in the view | Use a Shaded or Realistic 3D view, not Hidden Line or Wireframe. |
-| Everything has one colour | Add `legend trimmed` (free: `show-last legend trimmed`). |
+| Everything has one colour (a Warning line says `in one colour of the platform scale`) | `legend platform` was used: UTCI and wind speed have a fixed platform range (-40 to 46 °C, 0 to 20 m/s). Type `show-last legend trimmed` (free). |
+| The ground has values only around the model, not between the buildings | An older version sent the roads and ground sheets of an imported city as buildings. Update the libs folder. Solids more than 1 m high (embankments, bridges) still cover the ground: leave them out of the selection. |
 | The ground result is at the wrong height | Model the site as a Toposolid. A floor or a mass is not terrain. |
 | Only one building can be selected | The others are in a linked model. Use `select link`, or pick one with Tab, or use `model`. |
 | `The result has no values to show`, or `of the area is under buildings` | A ground sheet, road or floor in the selection covers the area. Select the buildings only, or model the ground as a Toposolid. |
@@ -352,8 +357,8 @@ The full text of each run is also in `.infrared\revit-dynamo-runs.log` in your u
 
 The result uses the colours of the Infrared platform. The SDK renderer (`render_grid_image_local`, with the colour registry) draws the result; each cell takes the colour of its own pixel. The ground matrix is rendered as it came from the SDK (row 0 is the south edge). Each distinct colour is one Revit material, for example `Infrared svf 08AEC4`. The Watch text gives the values (count, min, max, percentiles), the legend in bins with the count of each bin, and the number of meshes and colours that Revit built. The `legend` word sets the colour range:
 
-- `platform` (default): the range that the platform uses, so Revit and the platform show the same colours. UTCI and wind speed have a fixed range there (wind speed: 0 to 20 m/s, so a 5 m/s wind shows in blue only); the other analyses use the 2nd to 98th percentile, as the platform renderer does.
-- `trimmed`: the 2nd to 98th percentile of the values. A few extreme cells do not wash out the colours, so the variation is visible (for example the wind wake behind a building).
+- `trimmed` (default): the 2nd to 98th percentile of the values. A few extreme cells do not wash out the colours, so the variation is visible (for example the wind wake behind a building). For UTCI and wind speed the Watch text also gives the fixed range of the platform.
+- `platform`: the range that the platform uses, so Revit and the platform show the same colours. UTCI and wind speed have a fixed range there (UTCI -40 to 46 °C, so a summer run is one or two colours; wind speed 0 to 20 m/s, so a 5 m/s wind shows in blue only); the other analyses use the 2nd to 98th percentile, the same as `trimmed`.
 - `exact`: the minimum and maximum of the result.
 
 Each run also draws the legend in a drafting view (Project Browser > Views > Drafting Views). Its name has the target, the command and the time, for example "Infrared legend - ground - wind 5 25 run (2026-11-13 09.10)". It shows one colour swatch and value range per bin, the highest value on top, the colour range in use, and the run: the command, the location and true north, the weather station, the date and time. For PWC it shows one swatch per comfort class (for example "A Frequent Sitting"), the first class on top, and no range. Each run has its own legend view. `show-last` redraws the view of its result, so a legend on a sheet stays. (The Revit API cannot create a Legend view; a drafting view can go on a sheet in the same way.)

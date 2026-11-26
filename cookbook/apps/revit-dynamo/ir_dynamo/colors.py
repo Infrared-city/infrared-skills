@@ -19,11 +19,11 @@ line says so.
 
 Range (``RANGE_MODES``, the modes of ``infrared_sdk.legend``):
 
-* ``"trimmed"``: the 2nd to 98th percentile of the values
+* ``"trimmed"`` (default in Revit): the 2nd to 98th percentile of the values
   (``legend_range(..., "trimmed")``), so a few extreme cells do not wash out the
   colours and the variation is visible;
 * ``"exact"``: the result's own min and max;
-* ``"platform"`` (default in Revit): what the platform draws. The registry's fixed range
+* ``"platform"``: what the platform draws. The registry's fixed range
   (``registry_fixed_range``: UTCI, wind speed) when there is one, else the
   trimmed range. Example: wind speed is always 0..20 m/s there, so a 5 m/s
   inflow shows in the three lowest (blue) colours only.
@@ -52,6 +52,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 
 from . import variants
+from .legend_notes import one_colour_note
 from .png import decode_png  # noqa: F401  (part of this module's API)
 
 try:  # the SDK is there in a real run; the pure functions work without it
@@ -69,7 +70,7 @@ RAMP_SIZE = 512  # under the 960 px cap of the renderer: one pixel per value
 MAX_BINS = 32  # a registry scale with more colours is treated as a gradient
 FALLBACK_BINS = 10
 RANGE_MODES = ("trimmed", "exact", "platform")
-DEFAULT_RANGE_MODE = "platform"
+DEFAULT_RANGE_MODE = "trimmed"  # UTCI on -40 .. 46 was one colour (tester, 2026-11-24)
 # Offline fallback, low -> high (viridis stops).
 GRADIENT = [(68, 1, 84), (59, 82, 139), (33, 145, 140), (94, 201, 98), (253, 231, 37)]
 
@@ -315,7 +316,7 @@ def resolve_range(
     if mode != "platform" and fixed is not None:
         warnings.append(
             "Legend range (%s): %.4g .. %.4g. The platform always uses %.4g .. %.4g; "
-            "set legend to platform to see that." % (mode, low, high, fixed[0], fixed[1])
+            "add legend platform to see that." % (mode, low, high, fixed[0], fixed[1])
         )
     return low, high, visual_configurations, warnings
 
@@ -375,7 +376,10 @@ def make_legend(
             warnings.append(
                 (note + " The legend shows it in %d bins.") % (analysis_type, FALLBACK_BINS)
             )
-        return Legend(analysis_type, bins, ramp, ramp_bin, "registry"), warnings
+        legend = Legend(analysis_type, bins, ramp, ramp_bin, "registry")
+        if mode == "platform":
+            warnings += one_colour_note(legend, values, registry_fixed_range(analysis_type))
+        return legend, warnings
     except Exception as error:  # offline, a registry change: never fail the run
         try:
             low, high = _measured_range(mode, values, low, high)

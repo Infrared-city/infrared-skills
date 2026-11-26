@@ -14,7 +14,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
-from . import env, grid_check, meshes, own_layers, payloads, results, settings, variants
+from . import env, grid_check, ground_cover, meshes, own_layers, payloads, results, settings, variants
 from . import terrain as terrain_mod
 from . import frame as frame_mod
 
@@ -23,7 +23,7 @@ DEFAULT_BUFFER_M = {"ground": 30.0, "facades": 5.0}
 TERRAIN_MARGIN_M = 20.0
 # A ground run warns (also in the free preview) when this share of the area is
 # under buildings: ground sheets sent as buildings gave a wind run without values.
-COVERED_WARN = 0.8
+COVERED_WARN = 0.5
 
 
 def _context_soups(
@@ -60,12 +60,15 @@ def _scene(
     bbox: Sequence[float],
     buffer: float,
     is_wind: bool,
-) -> Tuple[Dict[str, dict], Dict[str, dict], Optional[terrain_mod.Sampler], float, List[str]]:
+    ground_run: bool = False,
+) -> Tuple[Dict[str, dict], Dict[str, dict], Optional[terrain_mod.Sampler], float, List[str], Any]:
     """Buildings and terrain in the SDK frame, around one ground reference.
 
     The ground reference (z = 0 of the SDK) is the lowest terrain point of the
-    run area. Without terrain it is Revit z = 0: no offset.
-    Returns ``(buildings, ground_geometry, sampler, z_offset, warnings)``.
+    run area. Without terrain it is Revit z = 0: no offset. A ground run leaves
+    out the parts that lie flat on the ground (``ground_cover.leave_out``).
+    Returns ``(buildings, ground_geometry, sampler, z_offset, warnings, draw)``;
+    ``draw`` is ``(z, sampler)`` for the ground result.
     """
     warnings: List[str] = []
     ground: Dict[str, dict] = {}
@@ -79,7 +82,12 @@ def _scene(
             sampler = terrain_mod.Sampler(every)
             z_offset = float(every[:, :, 2].min())
             ground = meshes.build_terrain(frame, tris, z_offset)
-    buildings, z_offset, notes = meshes.build_buildings(frame, buildings_m, z_offset, sampler)
+    soups, draw = buildings_m, (z_offset, sampler)
+    if ground_run:
+        soups, draw_z, draw_sampler, notes = ground_cover.leave_out(buildings_m, sampler, z_offset)
+        draw = (draw_z, draw_sampler)
+        warnings += notes
+    buildings, z_offset, notes = meshes.build_buildings(frame, soups, z_offset, sampler)
     warnings += notes
     lowest = min(float(terrain_mod.triangles(f)[:, :, 2].min()) for f in buildings_m.values())
     if ground and is_wind:
@@ -92,7 +100,7 @@ def _scene(
             "Warning: no terrain. The ground is Revit elevation 0 and the buildings start %.0f m "
             "above it. Model the site as a Toposolid to place them on it." % lowest
         )
-    return buildings, ground, sampler, z_offset, warnings
+    return buildings, ground, sampler, z_offset, warnings, draw
 
 
 def run_analysis(
@@ -203,8 +211,8 @@ def run_analysis(
         if fetch_context and buffer_m is None:
             buffer = frame_mod.fill_buffer(site_lon, site_lat, bbox, buffer, row.sdk_type)
         frame = frame_mod.make_frame(site_lon, site_lat, bbox, buffer)
-        buildings, ground, sampler, z_offset, warnings = _scene(
-            frame, buildings_m, terrain_m, bbox, buffer, row.no_terrain
+        buildings, ground, sampler, z_offset, warnings, draw = _scene(
+            frame, buildings_m, terrain_m, bbox, buffer, row.no_terrain, surface == "ground"
         )
         warnings.insert(
             0,
@@ -299,7 +307,7 @@ def run_analysis(
         )
         say("reading the result")
         if surface == "ground":
-            out["result"] = results.ground_points(frame, run, z_offset, sampler)
+            out["result"] = results.ground_points(frame, run, draw[0], draw[1])
             try:  # where does the matrix sit? (a check only; it never stops the run)
                 warnings += grid_check.alignment_lines(frame, run, buildings)
             except Exception as error:
